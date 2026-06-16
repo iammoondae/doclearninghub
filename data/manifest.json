@@ -1,0 +1,410 @@
+{
+  "announcements": [
+    {
+      "id": "ann_1",
+      "title": "Welcome to the Department of Chemistry!",
+      "content": "Doc Learning Hub is now online. Access your study guides, syllabus content, and complete your module quizzes natively inside the app.",
+      "date": "June 16, 2026"
+    }
+  ],
+  "courses": [
+    {
+      "id": "chm151",
+      "name": "Inorganic Chemistry 1",
+      "icon": "\ud83e\uddea",
+      "color": "#0ea5e9",
+      "sections": [
+        "49c"
+      ],
+      "faculty": "Ramon M. Eduque, Jr. | ramon.eduque@msugensan.edu.ph",
+      "syllabus": {
+        "title": "Inorganic Chemistry 1 Syllabus",
+        "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/syllabus/CHM151%2049C.pdf",
+        "pdfSize": "1.2 MB"
+      },
+      "past": [],
+      "future": [],
+      "modules": [
+        {
+          "id": "chm151_m1",
+          "title": "Module 1: Atomic Structure",
+          "desc": "c. Wave-particle duality of light and the photoelectric effect d. Wave-particle duality of matter and the Schr\u00f6dinger...",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m1.pdf",
+          "pdfSize": "1.5 MB",
+          "quiz": {
+            "title": "Atomic Structure Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which quantum number determines the shape of an atomic orbital?",
+                "choices": [
+                  "Principal quantum number (n)",
+                  "Angular momentum quantum number (l)",
+                  "Magnetic quantum number (ml)",
+                  "Spin quantum number (ms)"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "An electron moves to a higher energy level by emitting a photon.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What is the name of the principle stating that no two electrons in an atom can have the same set of four quantum numbers?",
+                "answer": "Pauli Exclusion Principle"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Atomic Structure Performance Sheet",
+            "desc": "determining electron configurations and identifying periodic trends.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        },
+        {
+          "id": "chm151_m2",
+          "title": "Module 2: Molecular Structure",
+          "desc": "c. Octet rule and Lewis structure d. Exception to Lewis structure rules (less than/more than octet, odd number of ele...",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m2.pdf",
+          "pdfSize": "1.5 MB",
+          "quiz": {
+            "title": "Molecular Structure Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which molecular geometry is associated with an sp3d hybridized central atom containing no lone pairs?",
+                "choices": [
+                  "Tetrahedral",
+                  "Trigonal Bipyramidal",
+                  "Octahedral",
+                  "Linear"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "According to Molecular Orbital Theory, a bonding molecular orbital is lower in energy than the parent atomic orbitals.",
+                "answer": true
+              },
+              {
+                "type": "id",
+                "question": "What valence shell electron pair repulsion theory acronym stands for the model used to predict 3D molecular shapes?",
+                "answer": "VSEPR"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Molecular Structure Performance Sheet",
+            "desc": "drawing Lewis structures and assigning formal charges.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        },
+        {
+          "id": "chm151_m3",
+          "title": "Module 3: States of Matter",
+          "desc": "c. Solids and liquids and intermolecular forces d. Phase change and phase diagram e. Properties of liquid state",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m3.pdf",
+          "pdfSize": "1.5 MB",
+          "quiz": {
+            "title": "States of Matter Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which of the following describes the phase change from gas directly to solid?",
+                "choices": [
+                  "Sublimation",
+                  "Deposition",
+                  "Condensation",
+                  "Vaporization"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "An increase in temperature generally leads to an increase in the viscosity of a liquid.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What equation relates the vapor pressure of a substance to its temperature during a phase transition?",
+                "answer": "Clausius-Clapeyron"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "States of Matter Performance Sheet",
+            "desc": "Reading assignment on the industrial applications of phase diagrams.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        },
+        {
+          "id": "chm151_m4",
+          "title": "Module 4: Oxidation and Reduction",
+          "desc": "c. Standard electrode potential and thermodynamics of redox reactions d. Disproportionation reactions e. Potential di...",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m4.pdf",
+          "pdfSize": "1.5 MB",
+          "quiz": {
+            "title": "Oxidation and Reduction Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "In the Latimer diagram, what does a species undergoing disproportionation indicate?",
+                "choices": [
+                  "The potential on the right is more positive than on the left",
+                  "The potential on the left is more positive than on the right",
+                  "Both potentials are zero",
+                  "Disproportionation is independent of potentials"
+                ],
+                "answer": 0
+              },
+              {
+                "type": "tf",
+                "question": "A spontaneous redox reaction under standard conditions has a positive standard cell potential (E\u00b0cell > 0).",
+                "answer": true
+              },
+              {
+                "type": "id",
+                "question": "What equation is used to calculate the cell potential under non-standard state conditions?",
+                "answer": "Nernst Equation"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Oxidation and Reduction Performance Sheet",
+            "desc": "constructing Latimer and Frost diagrams.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        },
+        {
+          "id": "chm151_m5",
+          "title": "Module 5: Nuclear Chemistry",
+          "desc": "c. Nuclear transmutation d. Applications of radioisotopes e. Radioactivity hazards",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m5.pdf",
+          "pdfSize": "1.5 MB",
+          "quiz": {
+            "title": "Nuclear Chemistry Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "What is the primary factor that determines whether a particular atomic nucleus is stable or radioactive?",
+                "choices": [
+                  "Neutron-to-proton ratio",
+                  "The total number of electrons",
+                  "The temperature of the system",
+                  "The pressure surrounding the atom"
+                ],
+                "answer": 0
+              },
+              {
+                "type": "tf",
+                "question": "All radioactive decays follow first-order reaction kinetics.",
+                "answer": true
+              },
+              {
+                "type": "id",
+                "question": "What type of radioactive decay involves the emission of a helium nucleus (two protons and two neutrons)?",
+                "answer": "Alpha decay"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Nuclear Chemistry Performance Sheet",
+            "desc": "Case study reading on medical applications of radioisotopes.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        }
+      ],
+      "syllabusDetails": {
+        "courseNumber": "CHM151",
+        "courseTitle": "Inorganic Chemistry 1",
+        "creditUnits": "3 units",
+        "timeAllotment": "54 hours (3 hours Lecture/week)",
+        "prerequisites": "CHM100, CHM100.2",
+        "description": "This course is devoted to the study of the principles and trends in the chemistry of the elements. Topics also include electrochemistry, reduction-oxidation reactions, nuclear chemistry and descriptive chemistry of metals and nonmetals.",
+        "outcomes": [
+          "CO1: Analyze the fundamental principles of atomic structure, quantum mechanics, chemical bonding, and states of matter to predict molecular geometries and physical properties of substances.",
+          "CO2: Apply stoichiometric principles and thermodynamic concepts to solve quantitative problems involving reduction-oxidation systems, electrochemical cells, and nuclear transformations.",
+          "CO3: Evaluate periodic trends and the descriptive chemistry of elements to explain chemical behavior, reactivity, and their implications in industrial and environmental contexts."
+        ],
+        "instructionalPlan": [
+          {
+            "weeks": "1-5",
+            "hours": 15,
+            "outcome": "CO1",
+            "topic": "1. Atomic Structure\na. Evolution of atomic theory, discovery of electron and nucleus\nb. Failure of classical mechanics, and the need for quantum mechanics\nc. Wave-particle duality of light and the photoelectric effect\nd. Wave-particle duality of matter and the Schr\u00f6dinger equation\ne. Hydrogen atom energy levels\nf. Hydrogen atom wavefunctions (orbitals) and quantum numbers\ng. s-, p-, and d-orbitals\nh. Multielectron atoms and electron configuration\ni. Periodic trends\n\nFIRST EXAMINATION: Date",
+            "onsite": "Interactive lecture on quantum numbers and orbital shapes.",
+            "online": "Virtual simulation of the photoelectric effect and atomic orbitals.",
+            "offline": "Problem set on determining electron configurations and identifying periodic trends.",
+            "assessment": "Traditional: Quiz on quantum numbers and electronic configurations.\n\nAuthentic: Group analysis of periodic trend anomalies."
+          },
+          {
+            "weeks": "6-9",
+            "hours": 12,
+            "outcome": "CO1",
+            "topic": "2. Molecular Structure\na. Introduction to chemical bonds, type of bonds\nb. Covalent bond\nc. Octet rule and Lewis structure\nd. Exception to Lewis structure rules (less than/more than octet, odd number of electrons)\ne. Polar covalent bond\nf. Ionic bond\ng. VSEPR theory\nh. Molecular orbital theory\ni. MOT of simple diatomic molecule\nj. MOT of triatomic molecules\nk. Valence bond theory and hybridization\nl. Metallic bond\n\nSECOND EXAMINATION: Date",
+            "onsite": "Molecular model building activity to visualize VSEPR geometries.",
+            "online": "Video demonstration of hybridization and MO diagrams.",
+            "offline": "Worksheet on drawing Lewis structures and assigning formal charges.",
+            "assessment": "Traditional: Problem solving on VSEPR theory and hybridization.\n\nAuthentic: Construction of molecular models for selected compounds."
+          },
+          {
+            "weeks": "10-13",
+            "hours": 12,
+            "outcome": "CO1",
+            "topic": "3. States of Matter\na. Gas laws\nb. Kinetic molecular theory\nc. Solids and liquids and intermolecular forces\nd. Phase change and phase diagram\ne. Properties of liquid state\nf. Structure, properties and bonding of solids\n\nTHIRD EXAMINATION: Date",
+            "onsite": "Problem-solving session on gas laws and phase diagrams.",
+            "online": "Interactive module on intermolecular forces and phase changes.",
+            "offline": "Reading assignment on the industrial applications of phase diagrams.",
+            "assessment": "Traditional: Calculation test on gas laws and kinetic energy.\n\nAuthentic: Case study analysis of a phase diagram for a specific substance."
+          },
+          {
+            "weeks": "14-16",
+            "hours": 9,
+            "outcome": "CO2",
+            "topic": "4. Oxidation and Reduction\na. Introduction to oxidation and reduction reactions, oxidation states\nb. Balancing oxidation-reduction reactions\nc. Standard electrode potential and thermodynamics of redox reactions\nd. Disproportionation reactions\ne. Potential diagram (Latimer, Frost, Pourbaix diagram)\nf. Application of redox reactions to the extraction of elements",
+            "onsite": "Problem-solving workshop on balancing redox equations and calculating cell potentials.",
+            "online": "Video demonstration of electrochemical cells and potential diagrams.",
+            "offline": "Worksheet on constructing Latimer and Frost diagrams.",
+            "assessment": "Traditional: Quiz on balancing redox reactions and Nernst equation calculations.\n\nAuthentic: Investigation of corrosion prevention methods."
+          },
+          {
+            "weeks": "17-18",
+            "hours": 6,
+            "outcome": "CO2",
+            "topic": "5. Nuclear Chemistry\na. Radioactive decay and nuclear stability\nb. Kinetics of radioactive decay\nc. Nuclear transmutation\nd. Applications of radioisotopes\ne. Radioactivity hazards\n\nCOURSE INTEGRATION: Date\nFINAL EXAMINATION: Date",
+            "onsite": "Interactive lecture on nuclear stability belts and decay modes.",
+            "online": "Virtual simulation of radioactive decay kinetics.",
+            "offline": "Case study reading on medical applications of radioisotopes.",
+            "assessment": "Traditional: Problem set on half-life calculations and nuclear equations.\n\nAuthentic: Presentation on the environmental impact of nuclear waste."
+          }
+        ],
+        "requirements": {
+          "rules": "Attendance: Regular attendance in lecture sessions is required.\nExaminations: Completion of three (3) Departmental/Major Examinations and one (1) Final Examination.\nQuizzes: Passing short quizzes administered throughout the semester.\nProblem Sets: Submission of assigned problem sets and worksheets to demonstrate understanding of quantitative concepts.",
+          "gradingWeights": [
+            {
+              "component": "Problem Sets",
+              "weight": 10
+            },
+            {
+              "component": "Quizzes",
+              "weight": 20
+            },
+            {
+              "component": "Exams",
+              "weight": 70
+            }
+          ],
+          "gradingSystem": [
+            {
+              "rating": "96 \u2013 100",
+              "grade": "1.00",
+              "competence": "Excellent"
+            },
+            {
+              "rating": "91 \u2013 95",
+              "grade": "1.25",
+              "competence": "Excellent"
+            },
+            {
+              "rating": "86 \u2013 90",
+              "grade": "1.50",
+              "competence": "Very Good"
+            },
+            {
+              "rating": "81 \u2013 85",
+              "grade": "1.75",
+              "competence": "Very Good"
+            },
+            {
+              "rating": "76 \u2013 80",
+              "grade": "2.00",
+              "competence": "Good"
+            },
+            {
+              "rating": "71 \u2013 75",
+              "grade": "2.25",
+              "competence": "Good"
+            },
+            {
+              "rating": "66 \u2013 70",
+              "grade": "2.50",
+              "competence": "Satisfactory"
+            },
+            {
+              "rating": "61 \u2013 65",
+              "grade": "2.75",
+              "competence": "Satisfactory"
+            },
+            {
+              "rating": "50 \u2013 60",
+              "grade": "3.00",
+              "competence": "Passing"
+            },
+            {
+              "rating": "Below 50.00",
+              "grade": "5.00",
+              "competence": "Failure"
+            },
+            {
+              "rating": "INC",
+              "grade": "INC",
+              "competence": "Incomplete"
+            },
+            {
+              "rating": "DRP",
+              "grade": "DRP",
+              "competence": "Dropped"
+            },
+            {
+              "rating": "W",
+              "grade": "W",
+              "competence": "Withdrawn"
+            },
+            {
+              "rating": "INP",
+              "grade": "INP",
+              "competence": "In Progress"
+            }
+          ]
+        },
+        "references": [
+          "Atkins, P., & Jones, L. (2007). Chemical principles: The quest for insight (4th ed.). W.H. Freeman and Company.",
+          "Brown, T. L., LeMay, H. E., Bursten, B. E., Murphy, C. J., Woodward, P. M., & Stoltzfus, M. W. (2015). Chemistry: The central science (13th ed.). Pearson Education, Inc.",
+          "Petrucci, R. H., Harwood, W. S., & Herring, F. G. (2007). General chemistry: Principles and modern applications (9th ed.). Prentice-Hall International, Inc.",
+          "Silberberg, M. S., & Amateis, P. G. (2015). Chemistry: The molecular nature of matter and change (7th ed.). McGraw Hill Education."
+        ],
+        "additionalGuidelines": [
+          "Mastery of Periodic Trends: Inorganic chemistry relies heavily on the patterns within the Periodic Table. Focus on understanding the underlying physical reasons (e.g., shielding effect, effective nuclear charge) for these trends rather than just memorizing them, as this will allow you to predict chemical behavior in unknown scenarios.",
+          "Spatial Visualization: Many topics, particularly Molecular Structure (VSEPR, Molecular Orbital Theory) and Solid State Chemistry (Unit Cells), require strong 3D visualization skills. Using molecular modeling kits or visualization software is highly recommended to grasp these spatial relationships effectively.",
+          "Mathematical Proficiency: Quantitative analysis is crucial in this course, especially for Electrochemistry (Nernst equation), Nuclear Chemistry (kinetics of decay), and Gas Laws. Practice solving complex problems systematically, paying close attention to units and significant figures.",
+          "Connecting Theory to Reality: Strive to connect abstract concepts like Quantum Mechanics and Bonding Theories to observable physical properties of matter (e.g., melting points, conductivity, magnetic properties). This conceptual linking is vital for deep understanding.",
+          "Systematic Approach to Redox: Balancing oxidation-reduction reactions, especially in acidic or basic media, requires a step-by-step systematic approach. Regular practice of the ion-electron method is essential to avoid common pitfalls during exams."
+        ],
+        "faculty": {
+          "name": "Ramon M. Eduque, Jr.",
+          "email": "ramon.eduque@msugensan.edu.ph",
+          "mobile": "Kindly contact me through email.",
+          "office": "Department of Chemistry, RSRC, CNSM Complex",
+          "consultation": [
+            "TFr, 1:00 pm to 4:00 pm, Faculty Office",
+            "W, 10:00 am to 3:00 pm, Faculty Office"
+          ]
+        },
+        "institutionalFoundations": {
+          "vision": "A leading transformative University driving excellence, research, innovation, and sustainable peace and development",
+          "mission": "To produce competent human resources committed to the development of the Philippines and to help uplift the living conditions of Muslims, Indigenous Peoples, and other underserved communities.",
+          "values": "I R I S E (Integrity, Respect, Inclusivity, Service, Excellence)",
+          "eoms": "Mindanao State University \u2013 General Santos City (MSU-GSC), as a leading institution of higher learning in Southern Mindanao, commits to providing inclusive, learner-centered, and quality education that fosters academic excellence, innovation, and social transformation. In pursuit of this commitment and guided by the principles of ISO 21001:2018, the University establishes this EOMS Policy to ensure that its academic and support systems consistently meet the needs and expectations of learners, stakeholders, and society.\n\nMSU-General Santos shall foster excellence through G-E-N-S-A-N:\n\n\u2022 **G \u2013 Governance and Leadership**: Demonstrate strong leadership and shared governance to align all institutional efforts with the vision, mission, and Fostering Excellence Agenda of MSUGenSan.\n\u2022 **E \u2013 Excellence in Culture**: Promote academic and ethical excellence in instruction, research, extension, and institutional management.\n\u2022 **N \u2013 Needs and Expectations of Learners and Stakeholders**: Identify, understand, and meet the evolving needs and expectations of learners and other beneficiaries through inclusive and accessible learning environments.\n\u2022 **S \u2013 Standards and Compliance**: Ensure full compliance with all applicable legal, regulatory, and stakeholder requirements, and uphold quality standards in all operations.\n\u2022 **A \u2013 Adequate Resources and Competency Development**: Provide sufficient resources, infrastructure, technologies, and competent personnel to effectively deliver quality education and services.\n\u2022 **N \u2013 Navigating Risks and Opportunities**: Adopt risk-based thinking and continuous improvement approaches to manage change and enhance educational relevance and resilience.",
+          "qualityPolicy": "Mindanao State University - General Santos is committed to advancing its transformative vision as a center of academic excellence, research, innovation, peace, and sustainable development. Upholding the highest standards of governance and service, the University fosters a culture of continuous improvement and scholarly distinction, aligning its initiatives with the evolving national, regional, and global landscape of higher education. This steadfast commitment to quality underscores its mission to serve stakeholders effectively and contribute to meaningful intellectual and societal progress."
+        }
+      }
+    }
+  ]
+}

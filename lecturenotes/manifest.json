@@ -1,0 +1,300 @@
+{
+  "announcements": [
+    {
+      "id": "ann_1",
+      "title": "Welcome to the Department of Chemistry!",
+      "content": "Doc Learning Hub is now online. Access your study guides, lecture notes, and complete your module quizzes natively inside the app.",
+      "date": "June 16, 2026"
+    },
+    {
+      "id": "ann_2",
+      "title": "General Chemistry Lab Safety",
+      "content": "All students enrolled in General Chemistry must complete Module 1: Laboratory Safety & Practices before entering the chemistry labs.",
+      "date": "June 18, 2026"
+    }
+  ],
+  "courses": [
+    {
+      "id": "genchem",
+      "name": "General Chemistry",
+      "icon": "🧪",
+      "color": "#0d9488",
+      "modules": [
+        {
+          "id": "genchem_m1",
+          "title": "Module 1: Atomic Structure & Periodicity",
+          "desc": "Introduction to atomic history, quantum mechanical model, and periodic properties.",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/Google_AI_Pro_Chemistry_Faculty_Use_Cases.pdf",
+          "pdfSize": "2.4 MB",
+          "quiz": {
+            "title": "Atomic Structure Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which quantum number determines the shape of an atomic orbital?",
+                "choices": [
+                  "Principal quantum number (n)",
+                  "Angular momentum quantum number (l)",
+                  "Magnetic quantum number (ml)",
+                  "Spin quantum number (ms)"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "An electron moves to a higher energy level by emitting a photon.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What is the name of the principle stating that no two electrons in an atom can have the same set of four quantum numbers?",
+                "answer": "Pauli Exclusion Principle"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Orbital Configuration Sheet",
+            "desc": "Draw the orbital diagram for Phosphorus (Z=15) and answer the written problems in the form.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfcDmmPd5VyUu4UQWT05AQUWudxwBVutYEmmjis0Rb5_eFlKA/viewform?usp=pp_url"
+          }
+        }
+      ]
+    },
+    {
+      "id": "orgchem",
+      "name": "Organic Chemistry",
+      "icon": "🧬",
+      "color": "#8b5cf6",
+      "modules": [
+        {
+          "id": "orgchem_m1",
+          "title": "Module 1: Alkanes & Stereochemistry",
+          "desc": "Understanding molecular conformations, Newman projections, and chirality.",
+          "pdfUrl": "https://raw.githubusercontent.com/placeholder-doc/learning-hub-content/main/pdfs/orgchem_m1.pdf",
+          "pdfSize": "3.1 MB",
+          "quiz": {
+            "title": "Stereochemistry Fundamentals",
+            "timeLimitSeconds": 900,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which conformer of n-butane is the most stable?",
+                "choices": [
+                  "Anti",
+                  "Gauche",
+                  "Eclipsed",
+                  "Fully Eclipsed"
+                ],
+                "answer": 0
+              },
+              {
+                "type": "tf",
+                "question": "Enantiomers have identical physical properties in a symmetric environment.",
+                "answer": true
+              },
+              {
+                "type": "id",
+                "question": "What is the term for stereoisomers that are not mirror images of each other?",
+                "answer": "Diastereomers"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Chirality & R/S Configuration Exercises",
+            "desc": "Identify R/S configuration for the molecule centers shown in the worksheet and submit your drawings.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ/viewform?entry.1808401=OrgChem_M1_Assignment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "analchem",
+      "name": "Analytical Chemistry",
+      "icon": "📊",
+      "color": "#3b82f6",
+      "modules": [
+        {
+          "id": "analchem_m1",
+          "title": "Module 1: Titrimetric Methods of Analysis",
+          "desc": "Core principles of acid-base, precipitation, and complexometric titrations.",
+          "pdfUrl": "https://raw.githubusercontent.com/placeholder-doc/learning-hub-content/main/pdfs/analchem_m1.pdf",
+          "pdfSize": "1.8 MB",
+          "quiz": {
+            "title": "Titrations Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "What indicator is commonly used for standard strong acid-strong base titrations?",
+                "choices": [
+                  "Methyl Orange",
+                  "Phenolphthalein",
+                  "Starch",
+                  "Eriochrome Black T"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "The equivalence point of a weak acid titration with a strong base is always exactly at pH 7.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What is the term for a solution of known concentration used in volumetric analysis?",
+                "answer": "Standard Solution"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Titration Curve Calculation Lab",
+            "desc": "Submit your calculated pH values during the titration of 50.0 mL of 0.100 M acetic acid with 0.100 M NaOH.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ/viewform?entry.1808401=AnalChem_M1_Assignment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "physchem",
+      "name": "Physical Chemistry",
+      "icon": "⚛️",
+      "color": "#f43f5e",
+      "modules": [
+        {
+          "id": "physchem_m1",
+          "title": "Module 1: First Law of Thermodynamics",
+          "desc": "Heat, work, internal energy, expansion processes, and state functions.",
+          "pdfUrl": "https://raw.githubusercontent.com/placeholder-doc/learning-hub-content/main/pdfs/physchem_m1.pdf",
+          "pdfSize": "2.8 MB",
+          "quiz": {
+            "title": "First Law Exercises",
+            "timeLimitSeconds": 900,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "For a cyclic process, what is the net change in internal energy (dU)?",
+                "choices": [
+                  "Positive",
+                  "Negative",
+                  "Zero",
+                  "Cannot be determined"
+                ],
+                "answer": 2
+              },
+              {
+                "type": "tf",
+                "question": "Enthalpy (H) is a path function.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What type of thermodynamic process occurs at constant volume?",
+                "answer": "Isochoric"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Enthalpy of Expansion Calculations",
+            "desc": "Solve expansion work problems for reversible and irreversible ideal gas systems.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ/viewform?entry.1808401=PhysChem_M1_Assignment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "chemlab",
+      "name": "Laboratory Safety & Practices",
+      "icon": "🥽",
+      "color": "#eab308",
+      "modules": [
+        {
+          "id": "chemlab_m1",
+          "title": "Module 1: Chemical Safety Guidelines & MSDS",
+          "desc": "Safety protocols, hazard labeling (GHS), and handling chemical spills.",
+          "pdfUrl": "https://raw.githubusercontent.com/placeholder-doc/learning-hub-content/main/pdfs/chemlab_m1.pdf",
+          "pdfSize": "1.2 MB",
+          "quiz": {
+            "title": "Lab Safety Assessment",
+            "timeLimitSeconds": 450,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "What is the correct action if a chemical splashes into your eyes?",
+                "choices": [
+                  "Wipe with a paper towel",
+                  "Rinse immediately in the eye wash station for at least 15 minutes",
+                  "Neutralize with weak acid/base",
+                  "Wait until you see a doctor"
+                ],
+                "answer": 1
+              },
+              {
+                "type": "tf",
+                "question": "It is acceptable to pour organic solvent wastes down the sink if diluted with plenty of running tap water.",
+                "answer": false
+              },
+              {
+                "type": "id",
+                "question": "What is the acronym for the sheet detailing hazard, protective, and emergency details of a chemical?",
+                "answer": "MSDS"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "GHS Pictogram Identification Sheet",
+            "desc": "Identify the hazard classifications for all symbols shown on the sheet and write brief safety handling notes.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ/viewform?entry.1808401=ChemLab_M1_Assignment"
+          }
+        }
+      ]
+    },
+    {
+      "id": "biochem",
+      "name": "Biochemistry",
+      "icon": "🧬",
+      "color": "#ec4899",
+      "modules": [
+        {
+          "id": "biochem_m1",
+          "title": "Module 1: Proteins & Amino Acids",
+          "desc": "Syllabus on structural levels of proteins, amino acid properties, and peptide bonds.",
+          "pdfUrl": "https://raw.githubusercontent.com/placeholder-doc/learning-hub-content/main/pdfs/biochem_m1.pdf",
+          "pdfSize": "2.1 MB",
+          "quiz": {
+            "title": "Amino Acids Quiz",
+            "timeLimitSeconds": 600,
+            "questions": [
+              {
+                "type": "mc",
+                "question": "Which of the following amino acids contains a sulfur atom?",
+                "choices": [
+                  "Methionine",
+                  "Alanine",
+                  "Lysine",
+                  "Proline"
+                ],
+                "answer": 0
+              },
+              {
+                "type": "tf",
+                "question": "All amino acids found in proteins have the L-configuration.",
+                "answer": true
+              },
+              {
+                "type": "id",
+                "question": "What is the bond that links amino acids together in a protein chain?",
+                "answer": "peptide bond"
+              }
+            ]
+          },
+          "assignment": {
+            "title": "Protein Folding Worksheet",
+            "desc": "Identify hydrophobic/hydrophilic interactions and secondary structure motifs.",
+            "formUrl": "https://docs.google.com/forms/d/e/1FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ/viewform?entry.1808401=Biochem_M1_Assignment"
+          }
+        }
+      ]
+    }
+  ]
+}

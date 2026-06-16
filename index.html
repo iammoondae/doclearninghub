@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" id="theme-meta" content="#0f172a">
+  <title>Doc Learning Hub — Department of Chemistry</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="index.css">
+  <!-- Google Identity Services (GIS) library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+  <!-- Sidebar Navigation Panel -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="brand-title" id="brand-title" onclick="handleBrandTitleClick()" style="cursor: pointer;">
+      <div class="brand-text">
+        <span class="brand-name">Department of Chemistry<br>Learning Hub</span>
+      </div>
+    </div>
+    
+    <!-- User Profile Card -->
+    <div class="user-profile-card" id="user-profile-card">
+      <img id="user-profile-pic" src="icon.png" alt="Profile Picture">
+      <div class="user-profile-info">
+        <span id="user-display-name">Guest Student</span>
+        <span id="user-display-email">Not Signed In</span>
+      </div>
+    </div>
+    
+    <!-- Dynamic Courses Section -->
+    <div class="nav-section-title">Courses</div>
+    <div class="courses-buttons-list" id="courses-list">
+      <!-- Generated dynamically from manifest.json -->
+      <div class="loading-placeholder">Loading courses...</div>
+    </div>
+
+    <!-- Active Mode Selector -->
+    <div class="nav-section-title">Student Tools</div>
+    <div class="mode-tabs">
+      <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+      <button class="mode-tab-btn" id="tab-syllabus" onclick="setMode('syllabus')">📋 Syllabus</button>
+      <button class="mode-tab-btn" id="tab-notes" onclick="setMode('notes')">📚 Lecture Notes</button>
+      <button class="mode-tab-btn" id="tab-safety" onclick="setMode('safety')">🥽 Lab Safety Guide</button>
+      <button class="mode-tab-btn" id="tab-assessments" onclick="setMode('assessments')">✍️ Quizzes & Assignments</button>
+      <button class="mode-tab-btn" id="tab-progress" onclick="setMode('progress')">📊 My Progress</button>
+    </div>
+
+    <!-- Academic Foundations (Option B) -->
+    <div class="nav-section-title">Academic Foundations</div>
+    <div class="mode-tabs" style="margin-bottom: 20px;">
+      <button class="mode-tab-btn" id="tab-foundations" onclick="setMode('foundations')">🏛️ Institutional Foundations</button>
+      <button class="mode-tab-btn" id="tab-faculty" onclick="setMode('faculty')">👨‍🏫 Faculty Information</button>
+      <button class="mode-tab-btn" id="tab-requirements" onclick="setMode('requirements')">💯 Course Requirements</button>
+      <button class="mode-tab-btn" id="tab-references" onclick="setMode('references')">📚 References</button>
+      <button class="mode-tab-btn" id="tab-guidelines" onclick="setMode('guidelines')">💡 Course Guidelines</button>
+    </div>
+
+    <div class="sidebar-footer">
+    </div>
+  </nav>
+
+  <!-- Sidebar Backdrop Overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Main Viewport Pane -->
+  <main class="content">
+    
+    <!-- Top toolbar header -->
+    <header class="top-controls">
+      <div class="subject-header">
+        <button class="menu-toggle-btn" id="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Menu">☰</button>
+        <div class="subject-icon" id="header-icon">🧪</div>
+        <div class="subject-title-wrapper">
+          <h1 id="header-title">Department of Chemistry</h1>
+          <p id="header-subtitle">Loading instructor details...</p>
+        </div>
+      </div>
+      
+      <div class="action-toggles">
+        <button class="signout-header-btn" id="header-signout-btn" onclick="signOutStudent()" aria-label="Sign Out">🚪 <span>Sign Out</span></button>
+        <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">🌓</button>
+        <button class="settings-toggle-btn" id="settings-btn" onclick="openSettings()" aria-label="Open Settings">⚙️ Settings</button>
+      </div>
+    </header>
+    
+    <!-- Dynamic Component Views Container -->
+    <div class="viewer-card" id="viewer-card">
+      
+      <!-- Progress Bar (Used by both Study and Quiz) -->
+      <div class="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      
+      <!-- Slide Metainfo (e.g. Slide 1 of 25) -->
+      <div class="view-meta" id="view-meta" style="display: none;">
+        <span id="slide-num-label">Slide 1 of 25</span>
+        <span id="slide-mode-label">Study Mode</span>
+      </div>
+
+      <!-- Injected view content -->
+      <div class="viewport-body" id="viewport-body">
+        <!-- Dynamic content is rendered here -->
+      </div>
+      
+      <!-- Slide controls footer (Study Mode only) -->
+      <div class="viewport-footer" id="viewport-footer" style="display: none;">
+        <button class="slide-btn" id="prev-btn" onclick="prevSlide()">← Previous</button>
+        <span class="slide-indicator" id="slide-indicator">Slide 1 of 25</span>
+        <button class="slide-btn" id="next-btn" onclick="nextSlide()">Next →</button>
+      </div>
+      
+    </div>
+
+    <!-- Floating Background Music Player Bar -->
+    <div class="music-player-bar" id="music-player-bar" style="display: none;">
+      <div class="music-track-info">
+        <span class="music-track-icon">🎵</span>
+        <div class="music-text-scroll">
+          <span class="music-track-title" id="music-track-title">Playlist Empty</span>
+        </div>
+      </div>
+      <div class="music-controls">
+        <button onclick="prevTrack()" class="music-control-btn" aria-label="Previous Track">⏮️</button>
+        <button onclick="togglePlayMusic()" class="music-control-btn play-btn" id="music-play-btn" aria-label="Play/Pause">▶️</button>
+        <button onclick="nextTrack()" class="music-control-btn" aria-label="Next Track">⏭️</button>
+        <button onclick="toggleMusicMode()" class="music-control-btn mode-btn" id="music-mode-btn" title="Toggle Random/Sequential">🔁 Loop</button>
+        <div class="volume-container">
+          <span style="font-size: 11px;">🔊</span>
+          <input type="range" id="music-volume" min="0" max="1" step="0.05" value="0.5" oninput="setMusicVolume(this.value)" class="music-volume-slider">
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Settings Drawer Panel -->
+  <div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
+  <aside class="settings-drawer" id="settings-drawer">
+    <div class="settings-header">
+      <h2>⚙️ App Settings</h2>
+      <button class="settings-close-btn" onclick="closeSettings()">&times;</button>
+    </div>
+    <div class="settings-body">
+      <!-- Learner Profile Section -->
+      <div class="settings-section">
+        <h3>👤 Student Profile</h3>
+        <div class="settings-row">
+          <label for="settings-nickname">Display Name:</label>
+          <input type="text" id="settings-nickname" placeholder="Name" onchange="updateProfileName(this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-studentid">Student ID:</label>
+          <input type="text" id="settings-studentid" placeholder="e.g., 2024-1234" onchange="updateProfileID(this.value)">
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
+          <label>🧪 Subjects & Sections:</label>
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <select id="settings-subject-select" style="flex: 2; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+              <!-- Dynamically populated -->
+            </select>
+            <select id="settings-section-select" style="flex: 1; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+              <!-- Dynamically populated -->
+            </select>
+            <button type="button" class="settings-btn-primary" onclick="addClassSettings()" style="width: auto; margin-top: 0; padding: 10px 14px; white-space: nowrap;">➕ Add</button>
+          </div>
+          <div id="settings-selected-classes" class="selected-classes-container">
+            <!-- Dynamically rendered list of selected class chips -->
+          </div>
+        </div>
+        <div class="settings-row">
+          <label for="settings-year">Year Level:</label>
+          <select id="settings-year" onchange="updateProfileYear(this.value)">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">Profile Photo:</span>
+          <div style="display: flex; gap: 8px;">
+            <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+              📸 Choose Image
+            </label>
+            <button class="settings-btn-primary" onclick="removeProfilePic()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+              Remove
+            </button>
+          </div>
+          <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(this.files)">
+        </div>
+      </div>
+
+      <!-- Theme & Audio Section -->
+      <div class="settings-section">
+        <h3>🎨 Theme & Audio</h3>
+        <div class="settings-row">
+          <span>🌓 Light Mode:</span>
+          <label class="toggle-container">
+            <input type="checkbox" id="settings-theme-toggle" onchange="toggleTheme()">
+            <div class="toggle-slider"></div>
+          </label>
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">🎵 Custom Background Music Playlist:</span>
+          <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 8px 0;">Upload your own audio files (MP3/OGG). Stored locally on your device.</p>
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <label class="upload-btn-label" for="music-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+              📁 Upload Audio Files
+            </label>
+          </div>
+          <input type="file" id="music-upload" accept="audio/*" multiple style="display: none;" onchange="handleMusicUpload(this.files)">
+          
+          <div class="music-playlist-manager">
+            <div class="playlist-header">
+              <span>Tracklist</span>
+              <button onclick="clearAllMusic()" class="btn-clear-playlist">Clear All</button>
+            </div>
+            <ul class="playlist-tracks" id="playlist-tracks-list">
+              <!-- Rendered dynamically -->
+              <li class="empty-playlist-msg">No custom tracks uploaded</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Updates & Maintenance Section -->
+      <div class="settings-section">
+        <h3>🔄 LMS Sync & Maintenance</h3>
+        <button class="settings-btn-primary" id="update-topics-btn" onclick="checkWeeklyUpdates()">
+          📥 Sync Courses & Notes
+        </button>
+        <button class="settings-btn-primary" id="changelog-btn" onclick="showChangelog()" style="margin-top: 8px; background: var(--secondary, #3b82f6);">
+          📋 View App Changelog
+        </button>
+        <button class="settings-btn-danger" onclick="confirmClearAllProgress()" style="margin-top: 12px; width: 100%;">
+          🗑️ Clear Cached Study Data
+        </button>
+      </div>
+
+      <!-- Hidden Admin Section -->
+      <div class="settings-section" id="settings-admin-portal" style="display: none; border-top: 1px dashed var(--border-card); padding-top: 15px; margin-top: 15px;">
+        <h3>⚙️ LMS Admin Config</h3>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px; margin-bottom: 12px;">
+          <label for="admin-sheets-url" style="font-size: 11px;">Google Sheets Script URL:</label>
+          <input type="text" id="admin-sheets-url" placeholder="Apps Script Web App URL" style="width: 100%;" onchange="updateAdminSheetsURL(this.value)">
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+          <label for="admin-manifest-url" style="font-size: 11px;">Remote Manifest URL:</label>
+          <input type="text" id="admin-manifest-url" placeholder="Manifest JSON URL" style="width: 100%;" onchange="updateAdminManifestURL(this.value)">
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Onboarding Overlay Modal (Google Sign-In Mock + Student Info Setup) -->
+  <div class="onboarding-overlay" id="onboarding-overlay" style="display: none;">
+    <div class="onboarding-card">
+      <div class="onboarding-logo">🧪</div>
+      <h2>Department of Chemistry Learning Hub</h2>
+      
+      <!-- Stage 1: Real Google Sign-In -->
+      <div id="onboarding-stage-1" class="onboarding-stage">
+        <p style="margin: 20px 0; font-size: 13px; color: var(--text-muted);">Please connect your academic Google account to access learning materials.</p>
+        <div style="display: flex; justify-content: center; margin-top: 15px;">
+          <div id="g_id_onload"
+               data-client_id="812400200610-5vf0psnnnd65pedg6o711scijv50hfbc.apps.googleusercontent.com"
+               data-context="signin"
+               data-ux_mode="popup"
+               data-callback="handleCredentialResponse"
+               data-auto_prompt="false">
+          </div>
+          <div class="g_id_signin"
+               data-type="standard"
+               data-shape="rectangular"
+               data-theme="outline"
+               data-text="signin_with"
+               data-size="large"
+               data-logo_alignment="left"
+               data-width="280">
+          </div>
+        </div>
+      </div>
+
+      <!-- Stage 2: Enrollment Form -->
+      <div id="onboarding-stage-2" class="onboarding-stage" style="display: none;">
+        <div class="onboarding-form">
+          <div class="form-group">
+            <label for="onboarding-nickname">👤 Student Display Name</label>
+            <input type="text" id="onboarding-nickname" placeholder="e.g. Juan dela Cruz" required>
+          </div>
+          <div class="form-group">
+            <label for="onboarding-studentid">🆔 Student ID Number</label>
+            <input type="text" id="onboarding-studentid" placeholder="e.g. 2024-1234" required>
+          </div>
+          <div class="form-group">
+            <label>🧪 Add Your Subjects & Sections</label>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <select id="onboarding-subject-select" style="flex: 2; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+                <!-- Dynamically populated -->
+              </select>
+              <select id="onboarding-section-select" style="flex: 1; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+                <!-- Dynamically populated -->
+              </select>
+              <button type="button" class="settings-btn-primary" onclick="addClassOnboarding()" style="width: auto; margin-top: 0; padding: 10px 14px; white-space: nowrap;">➕ Add</button>
+            </div>
+            <div id="onboarding-selected-classes" class="selected-classes-container">
+              <!-- Dynamically rendered list of selected class chips -->
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="onboarding-year">📚 Year Level</label>
+            <select id="onboarding-year">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <button class="onboarding-submit-btn" onclick="submitOnboardingProfile()">Complete Profile & Start 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Changelog Modal Overlay -->
+  <div class="pin-modal-overlay" id="changelog-modal" style="display: none;" onclick="if(event.target===this) closeChangelogModal()">
+    <div class="pin-card" style="max-width: 480px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 20px; color: var(--text-main); font-weight: 700; margin: 0; font-family: 'Outfit', sans-serif;">📋 App Change History</h2>
+        <button onclick="closeChangelogModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div id="changelog-timeline" style="display: flex; flex-direction: column; gap: 16px; font-family: 'Outfit', sans-serif; overflow-y: auto; flex: 1;">
+        <!-- Timeline items will be rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- About Modal Overlay -->
+  <div class="pin-modal-overlay" id="about-modal" style="display: none;" onclick="if(event.target===this) closeAboutModal()">
+    <div class="pin-card" style="max-width: 550px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 20px; color: var(--text-main); font-weight: 700; margin: 0; font-family: 'Outfit', sans-serif;">ℹ️ About the App</h2>
+        <button onclick="closeAboutModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div id="about-modal-body" style="font-family: 'Outfit', sans-serif; overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.6; color: var(--text-main); display: flex; flex-direction: column; gap: 16px;">
+        <!-- About sections will be rendered here dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Core Script Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

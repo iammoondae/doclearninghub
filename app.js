@@ -1175,7 +1175,7 @@ function renderFacultyView() {
     qrCodesHTML = `
       <div class="faculty-header-qrs" style="display: flex; gap: 15px; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); padding: 10px; border-radius: 12px;">
         <div style="text-align: center;">
-          <img src="rem_qr.jpg" alt="FB Messenger QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
+          <img src="rem_qr.png" alt="FB Messenger QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
           <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">FB Messenger</span>
         </div>
         <div style="text-align: center;">

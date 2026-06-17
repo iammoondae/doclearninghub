@@ -1,0 +1,44 @@
+name: Auto-Compile Syllabus Manifest
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'courses/**'
+      - 'PPT for Class Orientation.pdf'
+      - 'scratch/compile_syllabus_manifest.py'
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
+      - name: Compile Syllabus Manifest
+        run: |
+          python3 scratch/compile_syllabus_manifest.py
+
+      - name: Commit and Push Changes
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/manifest.json scratch/*.txt
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-compile syllabus manifest [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi

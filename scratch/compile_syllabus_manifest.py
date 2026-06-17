@@ -456,11 +456,28 @@ def main():
         
     print(f"Found syllabus file(s): {[s['pdf'] for s in syllabus_files]}")
     
-    inst_foundations = parse_orientation_slides("scratch/ppt_orientation.txt")
+    # Auto-extract orientation slides if available
+    orientation_pdf = "PPT for Class Orientation.pdf"
+    orientation_txt = "scratch/ppt_orientation.txt"
+    if os.path.exists(orientation_pdf):
+        if not os.path.exists(orientation_txt) or os.path.getmtime(orientation_pdf) > os.path.getmtime(orientation_txt):
+            print(f"Extracting text from {orientation_pdf}...")
+            os.makedirs("scratch", exist_ok=True)
+            subprocess.run(["pdftotext", orientation_pdf, orientation_txt], check=True)
+
+    inst_foundations = parse_orientation_slides(orientation_txt)
     courses = []
     for sf in syllabus_files:
-        print(f"Parsing syllabus text: {sf['txt']}...")
-        course_data = parse_syllabus_file(sf["txt"], sf["subject"], sf["section"])
+        pdf_path = sf["pdf"]
+        txt_path = sf["txt"]
+        # Auto-extract syllabus text if missing or outdated relative to PDF
+        if not os.path.exists(txt_path) or os.path.getmtime(pdf_path) > os.path.getmtime(txt_path):
+            print(f"Extracting text from PDF {pdf_path} to {txt_path}...")
+            os.makedirs("scratch", exist_ok=True)
+            subprocess.run(["pdftotext", pdf_path, txt_path], check=True)
+
+        print(f"Parsing syllabus text: {txt_path}...")
+        course_data = parse_syllabus_file(txt_path, sf["subject"], sf["section"])
         if course_data:
             course_data["syllabusDetails"]["institutionalFoundations"] = inst_foundations
             courses.append(course_data)

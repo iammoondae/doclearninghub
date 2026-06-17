@@ -1,0 +1,1588 @@
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 1 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+COLLEGE OF NATURAL SCIENCES AND MATHEMATICS
+Second Semester, Academic Year 2025-2026
+University Vision
+
+:
+
+A transformative University driving excellence, research, innovation, and sustainable peace and development
+
+University Mission
+
+:
+
+To produce competent human resources committed to the development of the Southern Philippines and to help
+uplift the living conditions of Muslims, Indigenous Peoples and other underserved communities
+
+University Core Values
+
+:
+
+Integrity, Respect, Inclusivity, Service, Excellence
+
+College Goals
+
+:
+
+1.​ To provide an excellent educational and training platform for undergraduate and professional students in
+Chemistry, Physics, Biology, Mathematics, Information Technology, and Sustainable Development Studies
+equipping them with the knowledge, skills, and values necessary for careers in research and teaching, the
+private industry, and the government sector, as well as for the pursuit of advanced studies.
+2.​ To produce highly skilled, competent, and competitive graduates by enhancing their capacities in critical
+thinking and analysis, problem solving, technical writing, oral communication, interpersonal relations, and
+strategic foresight and futures thinking.
+3.​ To enable and capacitate students to adapt to and perform productively in diverse and challenging work
+environments by instilling in them the values of hard work, perseverance, excellence, integrity, independence,
+teamwork, discipline, responsibility, and accountability, as well as a strong sense of prudent, fact-based, and
+objective decision-making anchored on the principles of sustainable development.
+4.​ To train students in conducting basic and applied research, as well as in organizing extension work with
+community beneficiaries to empower the students and build a strong sense of community and kinship, and in
+the process become catalysts of change in their respective communities, and champions of sustainability.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 2 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+Program Educational
+Objectives
+
+:
+
+1.​ Produce graduates who comply with the current qualification requirements of professional chemists for
+local and overseas employment and entrepreneurship.
+2.​ Prepare students for higher studies in chemistry and in other fields.
+
+Course Title
+
+:
+
+Inorganic Chemistry 1
+
+Course Number
+
+:
+
+CHM151
+
+Time Allotment
+
+:
+
+Credit Units
+
+:
+
+54 hours (3 hours Lecture/week)
+​
+3 units
+
+Prerequisites
+
+:
+
+CHM100, CHM100.2
+
+Course Description
+
+:
+
+Values Integration
+
+:
+
+This course is devoted to the study of the principles and trends in the chemistry of the elements. Topics also
+include electrochemistry, reduction-oxidation reactions, nuclear chemistry and descriptive chemistry of metals and
+nonmetals.
+Excellence: Students strive for mastery in understanding periodic trends and chemical principles, ensuring high
+standards in their scientific analysis.
+Integrity: Students uphold honesty and accuracy in reporting scientific data and observations regarding chemical
+properties.
+
+SDG Integration
+
+:
+SDG 7: Affordable and Clean Energy: By studying electrochemistry and reduction-oxidation reactions, students
+gain foundational knowledge essential for the development of energy storage systems and batteries.
+SDG 12: Responsible Consumption and Production: The study of metal chemistry and extraction processes
+fosters an understanding of material lifecycles and the importance of sustainable resource management.
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 3 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+Program Outcomes
+PO1: Synthesize knowledge from the core areas of chemistry to formulate scientifically viable solutions to multifaceted
+chemical problems.
+PO2: Solve chemical problems of varying complexity using core and interdisciplinary scientific approaches to advance
+research, peace, and sustainability.
+PO3: Synthesize emerging knowledge and skills with foundational principles to prepare for graduate studies or entry-level
+professional roles.
+PO4: Evaluate the ethical, environmental, and global implications of chemical practices and innovations to promote
+sustainability and responsible citizenship.
+PO5: Produce professional scientific communications in English and Filipino that meet disciplinary standards.
+
+PEO1
+
+PEO2
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+PO6: Design regionally relevant experimental procedures using modern instrumentation and digital tools to acquire
+accurate chemical data.
+PO7: Develop innovative and feasible chemistry-based solutions or products by considering market/community needs and
+the sustainable use of regional resources.
+PO8: Create sustainable chemical solutions that integrate ethical standards and cultural preservation for the benefit of
+marginalized communities.
+PO9: Lead multidisciplinary teams to implement chemistry-related initiatives that foster innovation and excellence.
+
+✓
+
+✓
+✓
+
+✓
+✓
+✓
+
+Code: Put a check mark (✓) in the appropriate box if this PO addresses which particular PEO.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 4 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+Course Outcomes
+CO1: Analyze the fundamental principles of atomic structure, quantum
+mechanics, chemical bonding, and states of matter to predict molecular
+geometries and physical properties of substances.
+CO2: Apply stoichiometric principles and thermodynamic concepts to solve
+quantitative problems involving reduction-oxidation systems, electrochemical cells,
+and nuclear transformations.
+CO3: Evaluate periodic trends and the descriptive chemistry of elements to
+explain chemical behavior, reactivity, and their implications in industrial and
+environmental contexts.
+
+PO1
+
+PO2
+
+PO3
+
+PO4
+
+PO5
+
+PO6
+
+L
+
+L
+
+L
+
+P
+
+P
+
+P
+
+L
+
+P
+
+D
+
+D
+
+P
+
+P
+
+P
+
+PO7
+
+PO8
+
+PO9
+
+L
+
+Code: L: Upon attainment of this CO, students will have learned the theories, principles and concepts of which PO; P: Upon attainment of this CO, students will have practiced which PO with maximum
+supervision; D: Upon attainment of this CO, students will have demonstrated which PO with minimum or no supervision.
+
+SDG
+Course Outcomes
+
+1
+
+2
+
+3
+
+4
+
+5
+
+6
+
+CO1: Analyze the fundamental principles of atomic structure,
+quantum mechanics, chemical bonding, and states of matter to
+predict molecular geometries and physical properties of
+substances.
+CO2: Apply stoichiometric principles and thermodynamic
+concepts to solve quantitative problems involving
+reduction-oxidation systems, electrochemical cells, and nuclear
+transformations.
+
+7
+
+8
+
+9
+
+10
+
+11
+
+12
+
+13
+
+14
+
+15
+
+16
+
+IC
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+17
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 5 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+CO3: Evaluate periodic trends and the descriptive chemistry of
+elements to explain chemical behavior, reactivity, and their
+implications in industrial and environmental contexts.
+
+IC
+
+IC
+
+SDGs: 1: No Poverty; 2: Zero Hunger; 3: Good Health and Well-being; 4: Quality Education; 5: Gender Equality; 6: Clean Water and Sanitation; 7: Affordable and Clean Energy; 8: Decent Work and
+Economic Growth; 9: Industry, Innovation, and Infrastructure; 10: Reduced Inequalities; 11: Sustainable Cities and Communities; 12: Responsible Consumption and Production; 13: Climate Action; 14: Life
+Below Water; 15: Life on Land; 16: Peace, Justice, and Strong Institutions; 17: Partnerships for the Goals.
+Code: DC: The course directly contributes to the SDG through its activities and or outputs designed to explicitly and intentionally achieve the goal; IC: The course indirectly contributes to the SDG through its
+activities and or outputs that provide minimal or secondary support to the goal.
+
+INSTRUCTIONAL PLAN
+Learning Outcome
+
+CO1
+
+1. Analyze the
+evolution of atomic
+theory and apply
+quantum mechanical
+principles to determine
+electronic
+configurations and
+predict periodic trends.
+
+L
+
+CO2
+
+Flexible Teaching-Learning Strategies
+Onsite
+Online
+Offline
+COURSE ORIENTATION
+
+CO3
+
+Content
+
+L
+
+1.​ Atomic Structure
+a.​ Evolution of atomic
+theory, discovery of
+electron and nucleus
+b.​ Failure of classical
+mechanics, and the
+need for quantum
+mechanics
+c.​ Wave-particle duality of
+light and the
+photoelectric effect
+d.​ Wave-particle duality of
+matter and the
+Schrödinger equation
+e.​ Hydrogen atom energy
+levels
+
+Interactive lecture
+on quantum
+numbers and
+orbital shapes.
+
+Virtual simulation
+of the
+photoelectric effect
+and atomic
+orbitals.
+
+Problem set on
+determining
+electron
+configurations
+and identifying
+periodic trends.
+
+Assessment
+
+Timeframe
+
+Traditional:
+Quiz on quantum
+numbers and
+electronic
+configurations.
+
+Week: 1-5
+Hours: 15
+
+Authentic:
+Group analysis of
+periodic trend
+anomalies.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 6 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+f.​
+
+2. Compare ionic and
+covalent bonding
+models and apply
+VSEPR and Molecular
+Orbital theories to
+predict molecular
+geometry and bonding
+properties.
+
+Hydrogen atom
+wavefunctions (orbitals)
+and quantum numbers
+g.​ s-,p-, and d-orbitals
+h.​ Multielectron atoms and
+electron configuration
+i.​ Periodic trends
+FIRST EXAMINATION: Date
+2. Molecular Structure
+Molecular model
+Video
+a.​ Introduction to chemical building activity to
+demonstration of
+bonds, type of bonds
+visualize VSEPR
+hybridization and
+b.​ Covalent bond
+geometries.
+MO diagrams.
+c.​ Octet rule and Lewis
+structure
+d.​ Exception to Lewis
+structure rules (less
+than/more than octet,
+odd number of
+electrons)
+e.​ Polar covalent bond
+f.​ Ionic bond
+g.​ VSEPR theory
+h.​ Molecular orbital theory
+i.​ MOT of simple diatomic
+molecule
+j.​ MOT of triatomic
+molecules
+k.​ Valence bond theory
+and hybridization
+l.​ Metallic bond
+SECOND EXAMINATION: Date
+
+P
+
+Worksheet on
+drawing Lewis
+structures and
+assigning formal
+charges.
+
+Traditional:
+Problem solving on
+VSEPR theory and
+hybridization.
+
+Week: 6-9
+Hours: 12
+
+Authentic:
+Construction of
+molecular models
+for selected
+compounds.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+3. Differentiate the
+properties of gases,
+liquids, and solids
+based on kinetic
+molecular theory and
+intermolecular forces.
+
+4. Analyze
+oxidation-reduction
+reactions and
+electrochemical cells
+to determine standard
+potentials and
+thermodynamic
+feasibility.
+
+D
+
+Page 7 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+D
+
+P
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+3. States of Matter
+Problem-solving
+Interactive module
+a.​ Gas laws
+session on gas
+on intermolecular
+b.​ Kinetic molecular theory laws and phase
+forces and phase
+c.​ Solids and liquids and
+diagrams.
+changes.
+intermolecular forces
+d.​ Phase change and
+phase diagram
+e.​ Properties of liquid state
+f.​ Structure, properties
+and bonding of solids
+THIRD EXAMINATION: Date
+4. Oxidation and Reduction Problem-solving
+Video
+a.​ Introduction to oxidation workshop on
+demonstration of
+and reduction reactions, balancing redox
+electrochemical
+oxidation states
+equations and
+cells and potential
+b.​ Balancing
+calculating cell
+diagrams.
+oxidation-reduction
+potentials.
+reactions
+c.​ Standard electrode
+potential and
+thermodynamics of
+redox reactions
+d.​ Disproportionation
+reactions
+e.​ Potential diagram
+(Latimer, Frost,
+Pourbaix diagram)
+f.​ Application of redox
+reactions to the
+extraction of elements
+
+Reading
+assignment on
+the industrial
+applications of
+phase diagrams.
+
+Traditional:
+Calculation test on
+gas laws and
+kinetic energy.
+
+Week:
+10-13
+Hours: 12
+
+Authentic:
+Case study analysis
+of a phase diagram
+for a specific
+substance.
+OWorksheet on
+constructing
+Latimer and Frost
+diagrams.
+
+Traditional:
+Quiz on balancing
+redox reactions and
+Nernst equation
+calculations.
+
+Week:
+14-16
+Hours: 9
+
+Authentic:
+Investigation of
+corrosion
+prevention
+methods.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+5. Evaluate nuclear
+stability and kinetics of
+radioactive decay to
+assess applications
+and hazards of
+radioisotopes
+
+L
+
+P
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+5. Nuclear Chemistry
+a.​ Radioactive decay and
+nuclear stability
+b.​ Kinetics of radioactive
+decay
+c.​ Nuclear transmutation
+d.​ Applications of
+radioisotopes
+e.​ Radioactivity hazards
+
+Page 8 of 15
+
+Interactive lecture
+on nuclear stability
+belts and decay
+modes.n
+
+Virtual simulation
+of radioactive
+decay kinetics.
+
+Case study
+reading on
+medical
+applications of
+radioisotopes.
+
+Traditional:
+Problem set on
+half-life calculations
+and nuclear
+equations.
+
+Week:
+17-18
+Hours: 6
+
+Authentic:
+Presentation on the
+environmental
+impact of nuclear
+waste.
+
+COURSE INTEGRATION: Date
+FINAL EXAMINATION: Date
+Code: L = Upon attainment of this LO, students will have learned the theories, principles and concepts of which CO; P = Upon attainment of this LO, students will have practiced which CO with maximum
+supervision; D = Upon attainment of this LO, students will have demonstrated which CO with minimum or no supervision.
+
+COURSE REQUIREMENTS:
+Attendance: Regular attendance in lecture sessions is required.
+Examinations: Completion of three (3) Departmental/Major Examinations and one (1) Final Examination.
+Quizzes: Passing short quizzes administered throughout the semester.
+Problem Sets: Submission of assigned problem sets and worksheets to demonstrate understanding of quantitative concepts.
+GRADING COMPONENTS:
+Component Weight (%)
+Problem Sets 10
+Quizzes ​
+20
+Exams ​
+70
+Total ​
+100
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 9 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+GRADING SYSTEM:
+Rating (%) ​ ​
+96 – 100 ​ ​
+91 – 95 ​
+​
+86 – 90 ​
+​
+81 – 85​
+​
+76 – 80​
+​
+71 – 75​
+​
+66 – 70​
+​
+
+Grade​ ​
+1.00​ ​
+1.25 ​​
+1.50 ​​
+1.75 ​​
+2.00 ​​
+2.25 ​​
+2.50​ ​
+
+Level of Competence​
+Excellent​
+​
+​
+Excellent​
+​
+​
+Very Good​
+​
+​
+Very Good​
+​
+​
+Good​ ​
+​
+​
+Good​ ​
+​
+​
+Satisfactory​ ​
+​
+
+​
+​
+​
+​
+​
+​
+​
+​
+
+Rating (%)​
+61 – 65​
+50 – 60​
+Below 50.00​
+​
+​
+​
+​
+​
+​
+​
+​
+
+​
+​
+​
+​
+​
+​
+​
+​
+
+Grade​ ​
+2.75​ ​
+3.00​ ​
+5.00​ ​
+INC​ ​
+DRP​ ​
+W​
+​
+INP​ ​
+
+Level of Competence
+Satisfactory
+Passing
+Failure
+Incomplete
+Dropped
+Withdrawn
+In Progress
+
+REFERENCES:
+1.​ Atkins, P., & Jones, L. (2007). Chemical principles: The quest for insight (4th ed.). W.H. Freeman and Company.
+2.​ Brown, T. L., LeMay, H. E., Bursten, B. E., Murphy, C. J., Woodward, P. M., & Stoltzfus, M. W. (2015). Chemistry: The central science (13th
+ed.). Pearson Education, Inc.
+3.​ Petrucci, R. H., Harwood, W. S., & Herring, F. G. (2007). General chemistry: Principles and modern applications (9th ed.). Prentice-Hall
+International, Inc.
+4.​ Silberberg, M. S., & Amateis, P. G. (2015). Chemistry: The molecular nature of matter and change (7th ed.). McGraw Hill Education.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 10 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+Additional Guidelines and Recommendations
+Mastery of Periodic Trends: Inorganic chemistry relies heavily on the patterns within the Periodic Table. Focus on understanding the
+underlying physical reasons (e.g., shielding effect, effective nuclear charge) for these trends rather than just memorizing them, as this will allow
+you to predict chemical behavior in unknown scenarios.
+Spatial Visualization: Many topics, particularly Molecular Structure (VSEPR, Molecular Orbital Theory) and Solid State Chemistry (Unit Cells),
+require strong 3D visualization skills. Using molecular modeling kits or visualization software is highly recommended to grasp these spatial
+relationships effectively.
+Mathematical Proficiency: Quantitative analysis is crucial in this course, especially for Electrochemistry (Nernst equation), Nuclear Chemistry
+(kinetics of decay), and Gas Laws. Practice solving complex problems systematically, paying close attention to units and significant figures.
+Connecting Theory to Reality: Strive to connect abstract concepts like Quantum Mechanics and Bonding Theories to observable physical
+properties of matter (e.g., melting points, conductivity, magnetic properties). This conceptual linking is vital for deep understanding.
+Systematic Approach to Redox: Balancing oxidation-reduction reactions, especially in acidic or basic media, requires a step-by-step
+systematic approach. Regular practice of the ion-electron method is essential to avoid common pitfalls during exams.
+
+COURSE POLICIES, REGULATIONS, AND SPECIAL NEEDS:
+A. Schedule of Class
+Our class will be flexible and may be conducted either face-to-face or remotely, with a total of 54 instructional hours. At the beginning of the
+term, a course orientation will be conducted to clarify course objectives, requirements, learning outcomes, assessment tasks, and class
+expectations. Throughout the semester, scheduled course integration, in addition to the regular consultation schedule, will serve as dedicated
+period for discussing your academic standing, course clarifications, performance feedback, and other academic concerns. If a regular class
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 11 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+meeting needs to be canceled, I will provide alternative instructions and supplementary learning activities to ensure continuity and help you stay
+on pace. Remedial classes may also be arranged, when necessary, to support students who need additional guidance. The examination
+schedule will follow the official university calendar, although adjustments may be considered in coordination with your other academic
+commitments. Any changes to the class schedule will be communicated in advance through our agreed-upon communication platform, such as
+Messenger.
+B. Student Attendance
+It is your solemn duty to attend face-to-face or remote classes according to the stipulated class schedule. Relative to such a duty, punctuality is
+a highly appreciated value. Thus, being tardy for a fairly enough time of eighteen (18) minutes or 20% of the one and half hour allotted for each
+meeting will be considered an absent attendance. Any additional attendance requirements will be considered on a case to case basis since the
+department endeavors to be inclusive to all, including those with disabilities and other valid circumstances as we may determine. While the
+department is flexible and will exhaust all means to show consideration and understanding of your individual case, you are responsible for
+compliance of missed works. Thus, when I have requested, you should provide a waiver or excuse letter for possible absence. In the event of
+an excused absence, you should produce proper documentation, such as a health certificate or a parent note, and should make arrangements
+with me to make up any missed work. Attendance is highly regarded in classes since they affect your final grades. If you missed nearly seven
+cumulative meetings, I will inform you that you will be dropped in the class on the seventh.
+C. Religious and Cultural Observance
+Religious and cultural observances are an essential reflection of diversity. I am committed to providing equitable educational opportunities to all.
+At the beginning of the semester, you should review the class requirements to identify possible conflicts with classes and other required
+activities. Those who have religious or cultural observances that coincide with the classes and other required activities should inform me by
+writing within the first two weeks of the first meeting to allow time for us to discuss and make equitable adjustments. I strongly encourage you to
+honor your cultural and religious holidays. However, if I do not hear from you, I will assume that you plan to attend the class.
+D. Diversity in Points of View
+All diverse points of view are hoped to be well served in this class, and such diverse points of view in this class are seen as an advantage,
+resource, and strength. I am committed to providing an atmosphere of learning that is representative of a variety of perspectives. The ideas in
+the class will inevitably suggest some particular points of view which do not have to be yours. I encourage you to disagree with these points of
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 12 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+view as well as those of your classmates. Please feel free to express yourself. A significant part of state university education is learning about
+the complexity of various perspectives. Thus, we must respect one another, but we do not necessarily have to agree. A richer discussion will
+occur when a variety of points of view are presented on the table for discussion.
+E. Discussion Guidelines
+Guidelines for inclusive conversation are critical for creating a safe and inclusive learning environment. To achieve this, it is critical to adhere to
+specific guiding principles that promote diversity. First and foremost, always actively listen to people and encourage each other to offer their
+perspectives. This includes not interrupting or talking over others, as well as not assuming their thoughts or experiences. It is also critical to
+employ inclusive language that does not exclude someone on the basis of their gender, color, religion, or other characteristics. Avoid making
+offensive jokes or using slurs or abusive words. If you're not sure what terminology to use, ask for clarification or research the topic beforehand.
+Another key rule is to avoid criticizing someone's character or views during a discussion. Instead, stay focused on the topic at hand and use
+respectful language even when you disagree with someone. It's critical to acknowledge that everyone comes from a unique set of
+circumstances and experiences that affect their viewpoint. Try to respect these differences and recognize that there is no one “correct” method
+of thinking. Finally, be willing to learn from others and admit when you've made a mistake. We are all always learning and growing, therefore
+making errors is acceptable as long as we are prepared to listen and learn from others. By following these guidelines, we can create an
+inclusive and welcoming environment where everyone feels heard and valued.
+F. Accommodation and Accessibility
+The department endeavors to be inclusive and to give equal opportunities to all with disabilities. If you have some form of disability, please
+inform me at your earliest convenience so that I can accommodate, adapt, personalize, or modify my instruction to facilitate your learning
+needs. Accommodations are provided at no cost if you are eligible. We will try our best to give you reasonable accommodations so that you can
+participate and progress in the class. To request for reasonable accommodation, fill out the necessary details in the letter of accommodation.
+This letter can be requested at the office of the department chairperson. The department will treat your information with utmost confidentiality.
+Please note that while the accommodation policies hope to be inclusive to all, these do not intend to lower academic standards or compromise
+the integrity of the academic program. The academic conduct and technical standards of the department will be upheld at all times.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 13 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+G. Universal or Inclusive Design for Learning
+You are highly encouraged to actively participate in classroom activities, discussions, and assignments to demonstrate your understanding of
+the lesson and contribute to learning. You should notify me as soon as possible if they are unable to attend or participate in class for whatever
+reason, and you should collaborate with me to make up for missing work or assignments. I will try my best to make reasonable
+accommodations and give assistance for equitable access to educational opportunities. Moreover, to promote universal or inclusive learning, I
+will use all available resources to ensure that accommodations, assistance, adaptations, or modifications, such as accessible learning
+materials, are accessible to you, including those with disabilities. I will also provide flexible training that includes numerous forms of instruction
+such as visual aids, hands-on exercises, and interactive conversations. Additionally, I will use positive reinforcement to promote and celebrate
+performance and development, such as recognition for academic achievement or engagement in related activities. Finally, I will develop a
+culture of respect for diversity and inclusion in which all, regardless of color, ethnicity, gender identity, sexual orientation, religion, or other
+personal traits, feel appreciated and supported.
+H. Student Mental Health and Well-being
+Mental and emotional disturbance, including stress, anxiety, mood changes, diminished self-esteem, or problems with eating and or sleeping
+can affect your academic performance. The source of symptoms might be strongly linked to your academic endeavors; if so, please feel free to
+approach me. You may also visit the proper office that provides mental health and counseling services to help you cope with difficult emotions
+and life stressors that may threaten your well-being. The services are free and completely confidential. If you find yourself feeling distressed
+and in need of more immediate support, I encourage you to seek help. You may contact our University Office of Guidance Counselor thru the
+following details: 09088105773 / guidance@msugensan.edu.ph.
+I. Materials Ownership and Confidentiality
+All instructional materials e.g., slide presentations, digital worksheets, etc. given to you are my sole properties, thus the right to ownership
+cannot be transferred to you or any other person. Such materials should be treated with confidentiality and should never be reproduced
+electronically such as forwarding it to others or uploading copies to online databases without oral and written consent of me. You have the
+responsibility to secure the confidentiality of these materials that should only be utilized for your individual scholarly consumption.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 14 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+J. Student Discipline in All Environments
+A face-to-face and online or remote environment is under my authority. I would like you to take the opportunity to demonstrate civil behavior,
+proper etiquette, and appropriate respect to everyone in our physical classroom and chosen social media communication platform. I encourage
+you to express your freedom of expression or your opinions and comments relative to a particular discussion or task, but please do so with
+respect and sensitivity to the ideas and feelings of everyone. Derogatory comments, ranting, and vulgar language are not acceptable. Virtually,
+you are encouraged to use your real full names in your online accounts so that I can easily identify you. Upon information, you are expected to
+download learning materials if needed and once available. When virtually submitting requirements or consulting me, take it as opportunity to
+observe and practice general standards of written communication. In our physical classroom, you should ensure the cleanliness and orderliness
+during and before exiting the class. In terms of submissions, if you commit any form of cheating, you will be given a warning and shall be
+treated according to university policies. Plagiarism or copying words, ideas, or arguments from another person without citation in any of the
+class requirements submitted will not be tolerated. It is your responsibility to monitor your current grade standing in the class and to inform me
+regarding your assessment concerns and questions.
+K. Artificial Intelligence Use
+This class maintains a policy that you may use artificial intelligence (AI) to assist you in the writing process but that all artificially-generated text
+needs to be explicitly labeled. In handing in your assignment, you agree to disclose the extent to which you used ChatGPT or other AI writing
+tools in your assignment. All text by AI must be quoted with the source of the model in parenthesis (ChatGPT). At the end of your paper please
+include the following example statement. Failure to adequately disclose your AI use will result in a zero for the assignment. Example statement:
+“This paper used AI for the following components of writing process: (choose from the following: brainstorming, editing, sentence generation).”
+L. Observance of Green Practices
+The term “green practices” pertains to actions that decrease the environmental impact of wastes. Relative to such waste concern, this class
+promotes a zero-waste class. As its little way to support and contribute to the cause of a green environment, you are encouraged if possible to
+use digital copies of the instructional materials, instructed to email most of the requirements, take traditional assessments via online, and use
+recyclable materials e.g., stainless container for water and food, eco bag for safekeeping of stuff, etc.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+CS-MSU-GSC-CCSID
+Revision No.:
+
+Page 15 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+M. Sanction Clauses
+The sanctions in this class shall apply to anyone who violates our stipulated policies or regulations. Upon consultation with relevant authorities
+and contemplation of all involved factors, I may decide to take an appropriate course of action especially for serious violations related but not
+restricted to student attendance, student discipline, virtual etiquettes, academic integrity, and materials ownership.
+FACULTY INFORMATION:
+Name: Ramon M. Eduque, Jr.
+Email Address: ramon.eduque@msugensan.edu.ph
+Mobile Number: Kindly contact me through email.
+Office: Department of Chemistry, RSRC, CNSM Complex
+CONSULTATION SCHEDULE:
+TFr, 1:00 pm to 4:00 pm, Faculty Office
+W, 10:00 am to 3:00 pm, Faculty Office
+Prepared by:​ ​
+
+​
+
+Evaluated by​ ​
+
+RAMON M. EDUQUE, JR.​
+Course Adviser​
+​
+​
+
+​
+​
+
+THUCYDIDES L. SALUNGA, PHD​
+DCC Representative​ ​
+​
+
+Checked by:​
+
+​
+
+Approved by:
+
+​
+
+​
+
+​
+
+MICHAEL B. CAHAPAY, PHD​​
+CCSID Director​
+​
+​
+
+​
+
+​
+
+Recommended by:​
+
+​
+
+​
+
+​
+
+Endorsed by:​
+
+RONALDO T. BIGSANG, MS​ ​
+Department Chair​
+​
+​
+
+​
+​
+
+JAY D. BUSCANO, PHD
+Dean​ ​
+​
+
+MISHELL D. LAWAS, D. Engr.
+VCAA
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 16 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+OBE SYLLABUS RECEIPT FORM
+By signing this form, you confirm that you have read, understood, agreed, and received a copy of the syllabus for the course
+detailed below:
+Course Code: CHM151​
+Course Title: Inorganic Chemistry 1​
+Course Description: This course is devoted to the study of the principles and trends in the chemistry of the elements.
+Topics also include electrochemistry, reduction-oxidation reactions, nuclear chemistry and descriptive chemistry of
+metals and nonmetals.​
+Unit Credits: 3 units​
+Instructor: Ramon M. Eduque, Jr.​
+Semester and Academic Year: Second Semester, AY 2025-2026
+☑ I have been oriented on the vision, mission, and core values of Mindanao State University – General Santos; goals of the
+College of Natural Sciences and Mathematics; and objectives of Bachelor of Science in Chemistry.
+☑ I have been informed of the intended learning outcomes of the course, instructional resources, assessment tasks, course
+requirements, grading system, together with the course policies and regulations that I am expected to observe and comply with
+throughout the duration of the semester.
+☑ I have been given a complete copy of the official course syllabus, either in electronic or printed format, which will serve as my
+primary reference and guide throughout the duration of the course.
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+Student Name
+
+Page 17 of 15
+
+Signature
+
+Date Received
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 18 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 19 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+Mindanao State University – General Santos
+Fatima, General Santos City, 9500, Philippines
+CS-MSU-GSC-CCSID
+Revision No.:
+
+INORGANIC CHEMISTRY 1 COURSE SYLLABUS
+
+Page 20 of 15
+
+Document No.: 001
+
+Effective Date: December 3, 2025
+
+DO NOT PRINT THIS PAGE!!!!!!
+
+Prepared by:
+
+Reviewed by:
+
+Approved by:
+
+MICHAEL B. CAHAPAY, PhD
+Process Owner
+
+PROF. MONSOUR A. PELMIN, PhD
+
+ATTY. SHIDIK T. ABANTAS, MDM, LLM
+
+QuAMSO Director
+
+University Chancellor
+
+

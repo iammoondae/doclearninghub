@@ -228,40 +228,21 @@ function handleCredentialResponse(response) {
   if (savedProfileStr) {
     try {
       const savedProfile = JSON.parse(savedProfileStr);
-      if (savedProfile && savedProfile.email === email) {
+      if (savedProfile && savedProfile.email === email && savedProfile.subjects && savedProfile.subjects.length > 0) {
         currentUser = savedProfile;
-        // Prompt user if they want to add/remove subjects
-        const modifySubjects = confirm("Welcome back, " + currentUser.name + "! Do you want to add or remove subjects/sections?");
-        if (modifySubjects) {
-          // Show stage 2 onboarding with pre-filled saved data
-          showOnboardingStage(2);
-          
-          const nicknameInput = document.getElementById('onboarding-nickname');
-          if (nicknameInput) nicknameInput.value = currentUser.name || '';
-          
-          const studentIdInput = document.getElementById('onboarding-studentid');
-          if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
-          
-          const yearSelect = document.getElementById('onboarding-year');
-          if (yearSelect) yearSelect.value = currentUser.year || '1';
-          
-          renderOnboardingSelectedClasses();
-          return;
-        } else {
-          // Log in automatically using the saved profile
-          localStorage.setItem('student_user_session', JSON.stringify(currentUser));
-          updateProfileUI();
-          
-          const overlay = document.getElementById('onboarding-overlay');
-          if (overlay) {
-            overlay.classList.remove('show');
-            setTimeout(() => overlay.style.display = 'none', 300);
-          }
-          
-          buildUIFromManifest();
-          setMode('home');
-          return;
+        // Log in automatically using the saved profile (skip onboarding entirely!)
+        localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+        updateProfileUI();
+        
+        const overlay = document.getElementById('onboarding-overlay');
+        if (overlay) {
+          overlay.classList.remove('show');
+          setTimeout(() => overlay.style.display = 'none', 300);
         }
+        
+        buildUIFromManifest();
+        setMode('home');
+        return;
       }
     } catch (err) {
       console.error("Error reading saved profile:", err);
@@ -631,9 +612,6 @@ function renderCurrentModeView() {
   }
 }
 
-// ==========================================================================
-// VIEW 1: DASHBOARD
-// ==========================================================================
 function renderDashboardView() {
   const viewport = document.getElementById('viewport-body');
   const activeCourse = manifestData.courses.find(c => c.id === currentCourseId);
@@ -654,35 +632,138 @@ function renderDashboardView() {
     localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true'
   ).length;
 
-  const quizPct = totalQuizzes > 0 ? Math.round((completedQuizzes / totalQuizzes) * 100) : 0;
-  const assignmentPct = totalAssignments > 0 ? Math.round((completedAssignments / totalAssignments) * 100) : 0;
+  // Compute quiz average score percentage
+  let totalQuizScore = 0;
+  let totalQuizMax = 0;
+  activeCourse.modules.forEach(m => {
+    const scoreVal = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`);
+    const maxVal = localStorage.getItem(`quiz_max_${currentUser.email}_${m.id}`);
+    if (scoreVal !== null && maxVal !== null) {
+      totalQuizScore += parseFloat(scoreVal);
+      totalQuizMax += parseFloat(maxVal);
+    }
+  });
+  const quizAvgScore = totalQuizMax > 0 ? Math.round((totalQuizScore / totalQuizMax) * 100) : 0;
 
-  // Build announcements html
-  let announcementsHTML = '';
-  if (manifestData.announcements && manifestData.announcements.length > 0) {
-    manifestData.announcements.forEach(ann => {
-      announcementsHTML += `
-        <div class="example-box" style="margin-bottom: 12px; border-left-color: var(--accent);">
-          <div class="example-title">📢 ${ann.title}</div>
-          <p style="font-size: 13px; margin: 4px 0 0 0; color: var(--text-main);">${ann.content}</p>
-          <span style="font-size: 10px; color: var(--text-muted); display: block; margin-top: 4px;">Posted: ${ann.date}</span>
+  // Compute assignment average score percentage (if scored, else fallback to completion pct)
+  let totalAssignScore = 0;
+  let totalAssignMax = 0;
+  activeCourse.modules.forEach(m => {
+    const scoreVal = localStorage.getItem(`assignment_score_${currentUser.email}_${m.id}`);
+    const maxVal = localStorage.getItem(`assignment_max_${currentUser.email}_${m.id}`);
+    if (scoreVal !== null && maxVal !== null) {
+      totalAssignScore += parseFloat(scoreVal);
+      totalAssignMax += parseFloat(maxVal);
+    }
+  });
+  const assignAvg = totalAssignMax > 0 ? Math.round((totalAssignScore / totalAssignMax) * 100) : null;
+  const assignPassedVal = assignAvg !== null ? `${assignAvg}%` : (totalAssignments > 0 ? `${Math.round((completedAssignments / totalAssignments) * 100)}%` : '0%');
+
+  // Generate dynamic upcoming tasks list
+  let upcomingHTML = '';
+  let upcomingCount = 0;
+
+  activeCourse.modules.forEach(m => {
+    const hasQuiz = m.quiz && m.quiz.questions && m.quiz.questions.length > 0;
+    const isQuizDone = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`) !== null;
+    
+    if (hasQuiz && !isQuizDone) {
+      upcomingCount++;
+      upcomingHTML += `
+        <div class="module-card" style="border-left: 4px solid var(--accent); background: rgba(14,165,233,0.01);">
+          <div class="module-info">
+            <span class="module-title" style="font-weight:700;">📝 Quiz: ${m.quiz.title || m.title + ' Quiz'}</span>
+            <span class="module-desc">Unit Chapter: ${m.title} • Duration: ${Math.round(m.quiz.timeLimitSeconds / 60)} mins</span>
+          </div>
+          <div class="module-actions">
+            <button class="pdf-action-btn" onclick="launchModuleAssessments('${m.id}')">✍️ Start Quiz</button>
+          </div>
         </div>
       `;
+    }
+
+    const hasAssign = m.assignment && m.assignment.formUrl && 
+                      !m.assignment.formUrl.includes('placeholder') && 
+                      m.assignment.formUrl.trim() !== '';
+    const isAssignDone = localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true';
+
+    if (hasAssign && !isAssignDone) {
+      upcomingCount++;
+      upcomingHTML += `
+        <div class="module-card" style="border-left: 4px solid #f59e0b; background: rgba(245,158,11,0.01);">
+          <div class="module-info">
+            <span class="module-title" style="font-weight:700;">📂 Assignment: ${m.assignment.title || 'Performance Sheet'}</span>
+            <span class="module-desc">Unit Chapter: ${m.title} • ${m.assignment.desc || 'Complete sheet via Google Form'}</span>
+          </div>
+          <div class="module-actions">
+            <button class="pdf-action-btn" style="background:#f59e0b;" onclick="openAssignmentForm('${m.id}', '${m.assignment.formUrl}')">🔗 Open Form</button>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  // Parse scheduled exams from the syllabus details
+  if (activeCourse.syllabusDetails && activeCourse.syllabusDetails.instructionalPlan) {
+    activeCourse.syllabusDetails.instructionalPlan.forEach(p => {
+      const topic = p.topic || '';
+      if (topic.includes('EXAMINATION')) {
+        const lines = topic.split('\n');
+        lines.forEach(line => {
+          if (line.includes('EXAMINATION')) {
+            upcomingCount++;
+            let examName = line.split(':')[0].trim();
+            let examDate = (line.split(':')[1] || '').trim();
+            if (!examDate || examDate.toLowerCase() === 'date') {
+              examDate = 'Scheduled by Faculty';
+            }
+            upcomingHTML += `
+              <div class="module-card" style="border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.01);">
+                <div class="module-info">
+                  <span class="module-title" style="font-weight:700;">🏆 Exam: ${examName}</span>
+                  <span class="module-desc">Target Weeks: ${p.weeks} • Schedule: ${examDate}</span>
+                </div>
+                <div class="module-actions">
+                  <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 6px 12px; border: 1px dashed var(--border-card); border-radius: 8px;">📅 In-Class</span>
+                </div>
+              </div>
+            `;
+          }
+        });
+      }
     });
-  } else {
-    announcementsHTML = `<div class="empty-playlist-msg" style="padding:15px;">No active announcements</div>`;
+  }
+
+  if (upcomingCount === 0) {
+    upcomingHTML = `
+      <div class="empty-playlist-msg" style="text-align: center; padding: 40px 20px; border: 1px dashed var(--border-card); border-radius: 16px; background: rgba(255,255,255,0.01); width: 100%;">
+        <p style="font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 6px;">
+          🎉 There are no upcoming tasks this week
+        </p>
+        <p style="font-size: 12.5px; color: var(--text-muted); margin: 0;">
+          You have completed all scheduled quizzes and performance assignments for this course!
+        </p>
+      </div>
+    `;
   }
 
   viewport.innerHTML = `
     <div class="dashboard-container">
-      <h2>Welcome back, ${currentUser.name}!</h2>
-      <p style="margin-top: -10px; color: var(--text-muted); font-size: 13.5px; line-height: 1.5;">
-        Academic Record: <strong>${currentUser.studentId}</strong> | Enrolled Classes: <strong>${currentUser.subjects.map(s => s.replace('_', ' ').toUpperCase()).join(', ')}</strong> | Year Level: <strong>${currentUser.year}</strong>
-      </p>
+      <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+        <div class="dashboard-header-text">
+          <h2 style="margin: 0;">Welcome back, ${currentUser.name}!</h2>
+          <p style="margin: 6px 0 0 0; color: var(--text-muted); font-size: 13.5px; line-height: 1.5;">
+            Academic Record: <strong>${currentUser.studentId}</strong> | Enrolled Classes: <strong>${currentUser.subjects.map(s => s.replace('_', ' ').toUpperCase()).join(', ')}</strong> | Year Level: <strong>${currentUser.year}</strong>
+          </p>
+        </div>
+        <button class="settings-toggle-btn" onclick="openSettingsAndFocusSubjects()" style="border-color: var(--accent); color: var(--accent); background: rgba(14,165,233,0.05); font-weight:700;">
+          🧪 Add / Remove Subjects
+        </button>
+      </div>
 
       <div class="dashboard-grid">
         <div class="dashboard-stat-card">
-          <div class="dashboard-stat-value">${quizPct}%</div>
+          <div class="dashboard-stat-value">${quizAvgScore}%</div>
           <div class="dashboard-stat-label">Quizzes Passed</div>
         </div>
         <div class="dashboard-stat-card">
@@ -690,47 +771,25 @@ function renderDashboardView() {
           <div class="dashboard-stat-label">Completed Quizzes</div>
         </div>
         <div class="dashboard-stat-card">
+          <div class="dashboard-stat-value">${assignPassedVal}</div>
+          <div class="dashboard-stat-label">Assignments Passed</div>
+        </div>
+        <div class="dashboard-stat-card">
           <div class="dashboard-stat-value">${completedAssignments}/${totalAssignments}</div>
           <div class="dashboard-stat-label">Submitted Assignments</div>
         </div>
       </div>
 
-      <div style="margin-top: 30px;">
+      <div style="margin-top: 35px;">
         <h3 style="font-family: 'Outfit', sans-serif; font-size: 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-          <span>🧪</span> Active Course Syllabus: ${activeCourse.name}
+          <span>📅</span> Upcoming & Scheduled Assessments
         </h3>
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">
-          Use the left sidebar navigation list to switch between chemistry branches. Below are the registered modules for your current study course.
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+          Complete your remaining quiz modules, submit worksheets, and prepare for scheduled examinations.
         </p>
         
-        <div class="module-list">
-          ${activeCourse.modules.map((m, idx) => {
-            const hasQuiz = m.quiz ? '📝 In-App Quiz' : '';
-            const hasAssign = m.assignment ? '📂 Lab Work/Form' : '';
-            const labels = [hasQuiz, hasAssign].filter(Boolean).join(' • ');
-
-            return `
-              <div class="module-card">
-                <div class="module-info">
-                  <span class="module-title">${m.title}</span>
-                  <span class="module-desc">${m.desc}</span>
-                  <span style="font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 5px;">${labels}</span>
-                </div>
-                <div class="module-actions">
-                  <button class="pdf-action-btn" onclick="launchModuleNotes('${m.id}')">📖 Notes</button>
-                  <button class="pdf-action-btn" style="background:#475569;" onclick="launchModuleAssessments('${m.id}')">✍️ Tasks</button>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-
-      <div style="margin-top: 35px;">
-        <h3 style="font-family: 'Outfit', sans-serif; font-size: 18px; margin-bottom: 12px;">📢 Department Bulletins</h3>
-        <div class="announcements-list">
-          ${announcementsHTML}
-        </div>
+        <div class="upcoming-list" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+          ${upcomingHTML}
       </div>
     </div>
   `;
@@ -1109,12 +1168,35 @@ function renderFacultyView() {
     </div>
   `;
 
+  // Resolve QR codes for instructors
+  let qrCodesHTML = '';
+  const facultyName = (faculty.name || '').toLowerCase();
+  if (facultyName.includes('eduque')) {
+    qrCodesHTML = `
+      <div class="faculty-header-qrs" style="display: flex; gap: 15px; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); padding: 10px; border-radius: 12px;">
+        <div style="text-align: center;">
+          <img src="rem_qr.jpg" alt="FB Messenger QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
+          <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">FB Messenger</span>
+        </div>
+        <div style="text-align: center;">
+          <img src="ree_qr.png" alt="Email QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
+          <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">Email QR</span>
+        </div>
+      </div>
+    `;
+  }
+
   viewport.innerHTML = `
     <div class="syllabus-view-container" style="animation: fadeIn 0.3s ease;">
-      <h2>👨‍🏫 Faculty Information</h2>
-      <p style="margin-top:-10px; color:var(--text-muted); font-size: 14px; margin-bottom: 25px;">
-        Instructor contact details, office location, and consultation hours.
-      </p>
+      <div class="faculty-header-container" style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+        <div class="faculty-header-text" style="flex: 1; min-width: 280px;">
+          <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">👨‍🏫 Faculty Information</h2>
+          <p style="margin: 6px 0 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.5;">
+            Instructor contact details, office location, and consultation hours.
+          </p>
+        </div>
+        ${qrCodesHTML}
+      </div>
 
       <div class="section-card" style="margin-bottom:24px; padding:20px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border-card);">
         <h3 style="margin-top:0; margin-bottom:14px; font-family:'Outfit',sans-serif;">Instructor Contact</h3>
@@ -2521,6 +2603,26 @@ function playSFX(isCorrect) {
 // ==========================================================================
 // SETTINGS DRAWER CONTROLLERS
 // ==========================================================================
+function openSettingsAndFocusSubjects() {
+  openSettings();
+  setTimeout(() => {
+    const subjectsLabel = document.getElementById('settings-selected-classes') || 
+                          document.getElementById('settings-subject-select');
+    if (subjectsLabel) {
+      subjectsLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      const container = document.getElementById('settings-selected-classes');
+      if (container) {
+        container.style.boxShadow = '0 0 15px var(--accent)';
+        container.style.transition = 'box-shadow 0.5s ease';
+        setTimeout(() => {
+          container.style.boxShadow = 'none';
+        }, 1500);
+      }
+    }
+  }, 350);
+}
+
 function openSettings() {
   const drawer = document.getElementById('settings-drawer');
   const overlay = document.getElementById('settings-overlay');

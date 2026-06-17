@@ -19,7 +19,7 @@
       "faculty": "Ramon M. Eduque, Jr. | ramon.eduque@msugensan.edu.ph",
       "syllabus": {
         "title": "Inorganic Chemistry 1 Syllabus",
-        "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/syllabus/CHM151%2049C.pdf",
+        "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/syllabus/CHM151%2049C.pdf",
         "pdfSize": "1.2 MB"
       },
       "past": [],
@@ -29,7 +29,7 @@
           "id": "chm151_m1",
           "title": "Module 1: Atomic Structure",
           "desc": "c. Wave-particle duality of light and the photoelectric effect d. Wave-particle duality of matter and the Schr\u00f6dinger...",
-          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m1.pdf",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/lecturenotes/chm151_m1.pdf",
           "pdfSize": "1.5 MB",
           "quiz": {
             "title": "Atomic Structure Quiz",
@@ -37,24 +37,40 @@
             "questions": [
               {
                 "type": "mc",
-                "question": "Which quantum number determines the shape of an atomic orbital?",
+                "question": "What is the approximate molar mass of Carbon Dioxide (CO2)?",
                 "choices": [
-                  "Principal quantum number (n)",
-                  "Angular momentum quantum number (l)",
-                  "Magnetic quantum number (ml)",
-                  "Spin quantum number (ms)"
+                  "18.02 g/mol",
+                  "28.01 g/mol",
+                  "44.01 g/mol",
+                  "58.44 g/mol"
+                ],
+                "answer": 2
+              },
+              {
+                "type": "mc",
+                "question": "Which subatomic particles are found in the nucleus of an atom?",
+                "choices": [
+                  "Electrons and Protons",
+                  "Protons and Neutrons",
+                  "Neutrons and Electrons",
+                  "Protons only"
                 ],
                 "answer": 1
               },
               {
                 "type": "tf",
-                "question": "An electron moves to a higher energy level by emitting a photon.",
+                "question": "Covalent bonds are formed by the transfer of electrons from a metal to a nonmetal.",
                 "answer": false
               },
               {
+                "type": "tf",
+                "question": "The process of a solid turning directly into a gas without passing through the liquid phase is called sublimation.",
+                "answer": true
+              },
+              {
                 "type": "id",
-                "question": "What is the name of the principle stating that no two electrons in an atom can have the same set of four quantum numbers?",
-                "answer": "Pauli Exclusion Principle"
+                "question": "What is the coefficient of Oxygen (O2) when the following combustion equation of Methane is balanced?\nCH4 + _ O2 -> CO2 + 2H2O",
+                "answer": "2"
               }
             ]
           },
@@ -68,8 +84,8 @@
           "id": "chm151_m2",
           "title": "Module 2: Molecular Structure",
           "desc": "c. Octet rule and Lewis structure d. Exception to Lewis structure rules (less than/more than octet, odd number of ele...",
-          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m2.pdf",
-          "pdfSize": "1.5 MB",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/lecturenotes/CHM151 Ch9A_Molecular Geometry.pdf",
+          "pdfSize": "12.7 MB",
           "quiz": {
             "title": "Molecular Structure Quiz",
             "timeLimitSeconds": 600,
@@ -107,7 +123,7 @@
           "id": "chm151_m3",
           "title": "Module 3: States of Matter",
           "desc": "c. Solids and liquids and intermolecular forces d. Phase change and phase diagram e. Properties of liquid state",
-          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m3.pdf",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/lecturenotes/chm151_m3.pdf",
           "pdfSize": "1.5 MB",
           "quiz": {
             "title": "States of Matter Quiz",
@@ -146,7 +162,7 @@
           "id": "chm151_m4",
           "title": "Module 4: Oxidation and Reduction",
           "desc": "c. Standard electrode potential and thermodynamics of redox reactions d. Disproportionation reactions e. Potential di...",
-          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m4.pdf",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/lecturenotes/chm151_m4.pdf",
           "pdfSize": "1.5 MB",
           "quiz": {
             "title": "Oxidation and Reduction Quiz",
@@ -185,7 +201,7 @@
           "id": "chm151_m5",
           "title": "Module 5: Nuclear Chemistry",
           "desc": "c. Nuclear transmutation d. Applications of radioisotopes e. Radioactivity hazards",
-          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/chm151_m5.pdf",
+          "pdfUrl": "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/chm151/lecturenotes/chm151_m5.pdf",
           "pdfSize": "1.5 MB",
           "quiz": {
             "title": "Nuclear Chemistry Quiz",

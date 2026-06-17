@@ -6,6 +6,57 @@
 // ==========================================================================
 const DB_NAME = 'doc_learning_hub_music_db';
 const DB_VERSION = 1;
+
+const SEMESTER_START_DATE = "2026-08-10";
+
+function isQuizScheduled(module) {
+  return module.id === 'chm151_m1';
+}
+
+function isAssignScheduled(module) {
+  return module.id === 'chm151_m1';
+}
+
+function getWeekDateRange(weeksStr) {
+  if (!weeksStr) return '';
+  let startWeek = 1;
+  let endWeek = 1;
+  if (weeksStr.includes('-')) {
+    const parts = weeksStr.split('-');
+    startWeek = parseInt(parts[0], 10);
+    endWeek = parseInt(parts[1], 10);
+  } else {
+    startWeek = parseInt(weeksStr, 10);
+    endWeek = startWeek;
+  }
+  if (isNaN(startWeek) || isNaN(endWeek)) {
+    return '';
+  }
+  const baseDate = new Date(SEMESTER_START_DATE);
+  const startDate = new Date(baseDate);
+  startDate.setDate(baseDate.getDate() + (startWeek - 1) * 7);
+  const endDate = new Date(baseDate);
+  endDate.setDate(baseDate.getDate() + (endWeek - 1) * 7 + 4);
+  
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const startMonth = months[startDate.getMonth()];
+  const startDay = startDate.getDate();
+  const startYear = startDate.getFullYear();
+  const endMonth = months[endDate.getMonth()];
+  const endDay = endDate.getDate();
+  const endYear = endDate.getFullYear();
+  
+  if (startYear === endYear) {
+    if (startMonth === endMonth) {
+      return `${startMonth} ${startDay} - ${endDay}, ${startYear}`;
+    } else {
+      return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${startYear}`;
+    }
+  } else {
+    return `${startMonth} ${startDay}, ${startYear} - ${endMonth} ${endDay}, ${endYear}`;
+  }
+}
+
 let db = null;
 
 let manifestData = null;
@@ -622,20 +673,21 @@ function renderDashboardView() {
   }
 
   // Compute stats for current course
-  const totalQuizzes = activeCourse.modules.filter(m => m.quiz).length;
+  const totalQuizzes = activeCourse.modules.filter(m => m.quiz && isQuizScheduled(m)).length;
   const completedQuizzes = activeCourse.modules.filter(m => 
-    localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`) !== null
+    isQuizScheduled(m) && localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`) !== null
   ).length;
 
-  const totalAssignments = activeCourse.modules.filter(m => m.assignment).length;
+  const totalAssignments = activeCourse.modules.filter(m => m.assignment && isAssignScheduled(m)).length;
   const completedAssignments = activeCourse.modules.filter(m => 
-    localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true'
+    isAssignScheduled(m) && localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true'
   ).length;
 
   // Compute quiz average score percentage
   let totalQuizScore = 0;
   let totalQuizMax = 0;
   activeCourse.modules.forEach(m => {
+    if (!isQuizScheduled(m)) return;
     const scoreVal = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`);
     const maxVal = localStorage.getItem(`quiz_max_${currentUser.email}_${m.id}`);
     if (scoreVal !== null && maxVal !== null) {
@@ -649,6 +701,7 @@ function renderDashboardView() {
   let totalAssignScore = 0;
   let totalAssignMax = 0;
   activeCourse.modules.forEach(m => {
+    if (!isAssignScheduled(m)) return;
     const scoreVal = localStorage.getItem(`assignment_score_${currentUser.email}_${m.id}`);
     const maxVal = localStorage.getItem(`assignment_max_${currentUser.email}_${m.id}`);
     if (scoreVal !== null && maxVal !== null) {
@@ -664,7 +717,7 @@ function renderDashboardView() {
   let upcomingCount = 0;
 
   activeCourse.modules.forEach(m => {
-    const hasQuiz = m.quiz && m.quiz.questions && m.quiz.questions.length > 0;
+    const hasQuiz = m.quiz && m.quiz.questions && m.quiz.questions.length > 0 && isQuizScheduled(m);
     const isQuizDone = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`) !== null;
     
     if (hasQuiz && !isQuizDone) {
@@ -684,7 +737,7 @@ function renderDashboardView() {
 
     const hasAssign = m.assignment && m.assignment.formUrl && 
                       !m.assignment.formUrl.includes('placeholder') && 
-                      m.assignment.formUrl.trim() !== '';
+                      m.assignment.formUrl.trim() !== '' && isAssignScheduled(m);
     const isAssignDone = localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true';
 
     if (hasAssign && !isAssignDone) {
@@ -849,9 +902,11 @@ function renderSyllabusView() {
   ` : '';
 
   const planRows = (details.instructionalPlan || []).map(row => {
+    const dateRange = getWeekDateRange(row.weeks);
+    const dateRangeHTML = dateRange ? `<br><span style="font-size:10.5px; color:var(--accent); font-weight:600; display:block; margin-top:4px; line-height:1.2;">${dateRange}</span>` : '';
     return `
       <tr>
-        <td style="font-weight:700;">W: ${row.weeks}<br><span style="font-size:11px; color:var(--text-muted);">${row.hours} hrs</span></td>
+        <td style="font-weight:700;">W: ${row.weeks}<br><span style="font-size:11px; color:var(--text-muted);">${row.hours} hrs</span>${dateRangeHTML}</td>
         <td style="white-space: pre-line;">${row.topic}</td>
         <td>
           <div style="margin-bottom:6px;"><b>Onsite:</b> ${row.onsite}</div>
@@ -1294,7 +1349,12 @@ async function checkFileExists(url) {
 
 function viewSyllabusInApp(pdfUrl, title) {
   playSFX(true);
-  window.open(pdfUrl, '_blank');
+  let targetUrl = pdfUrl;
+  if (pdfUrl && pdfUrl.includes('raw.githubusercontent.com')) {
+    let newUrl = pdfUrl.replace('raw.githubusercontent.com', 'github.com');
+    targetUrl = newUrl.replace(/(github\.com\/[^/]+\/[^/]+)\/([^/]+)\/(.*)/, '$1/blob/$2/$3');
+  }
+  window.open(targetUrl, '_blank');
 }
 
 // ==========================================================================
@@ -1535,7 +1595,7 @@ function renderLectureNotesView() {
     </style>
   `;
 
-  fetch('https://api.github.com/repos/iammoondae/doclearninghub/contents/lecturenotes')
+  fetch(`https://api.github.com/repos/iammoondae/doclearninghub/contents/courses/${currentCourseId}/lecturenotes`)
     .then(res => {
       if (!res.ok) throw new Error("GitHub API failed");
       return res.json();
@@ -1604,7 +1664,7 @@ function renderLectureNotesWithFiles(files) {
       }
 
       const sizeFormatted = file.size ? (file.size / (1024 * 1024)).toFixed(2) + " MB" : "N/A";
-      const downloadUrl = file.download_url || `https://raw.githubusercontent.com/iammoondae/doclearninghub/main/lecturenotes/${encodeURIComponent(file.name)}`;
+      const downloadUrl = file.download_url || `https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/${currentCourseId}/lecturenotes/${encodeURIComponent(file.name)}`;
 
       html += `
         <div class="module-card">
@@ -1678,7 +1738,12 @@ function renderLectureNotesFallback() {
 
 function viewPDFInApp(pdfUrl, title) {
   playSFX(true);
-  window.open(pdfUrl, '_blank');
+  let targetUrl = pdfUrl;
+  if (pdfUrl && pdfUrl.includes('raw.githubusercontent.com')) {
+    let newUrl = pdfUrl.replace('raw.githubusercontent.com', 'github.com');
+    targetUrl = newUrl.replace(/(github\.com\/[^/]+\/[^/]+)\/([^/]+)\/(.*)/, '$1/blob/$2/$3');
+  }
+  window.open(targetUrl, '_blank');
 }
 
 function exportPDFExternally(pdfUrl) {
@@ -1712,8 +1777,14 @@ function renderAssessmentsView() {
   `;
 
   activeCourse.modules.forEach(m => {
+    const quizSched = isQuizScheduled(m);
+    const assignSched = isAssignScheduled(m);
+    if (!quizSched && !assignSched) {
+      return; // Skip this module entirely
+    }
+
     let quizSectionHTML = '';
-    const hasQuiz = m.quiz && m.quiz.questions && m.quiz.questions.length > 0;
+    const hasQuiz = quizSched && m.quiz && m.quiz.questions && m.quiz.questions.length > 0;
     
     if (hasQuiz) {
       const savedScore = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`);
@@ -1732,16 +1803,10 @@ function renderAssessmentsView() {
           </button>
         `;
       }
-    } else {
-      quizSectionHTML = `
-        <span style="font-size: 12px; color: var(--incorrect); font-weight: 500; display: block; margin-top: 10px;">
-          ⚠️ Please wait while the assigned faculty uploads the files or contact the faculty through email.
-        </span>
-      `;
     }
 
     let assignmentSectionHTML = '';
-    const hasPreparedForm = m.assignment && m.assignment.formUrl && 
+    const hasPreparedForm = assignSched && m.assignment && m.assignment.formUrl && 
       !m.assignment.formUrl.includes('placeholder') && 
       !m.assignment.formUrl.includes('FAIpQLSdBPboeAx5IznV5KF_1hp66RX7sSYYNv0xg7NpfowWafK-0GQ') &&
       m.assignment.formUrl.trim() !== '';
@@ -1760,15 +1825,6 @@ function renderAssessmentsView() {
               <span style="font-size:12px;">Mark Completed</span>
             </label>
           </div>
-        </div>
-      `;
-    } else if (m.assignment) {
-      assignmentSectionHTML = `
-        <div style="margin-top: 15px; border-top: 1px dashed var(--border-card); padding-top: 12px;">
-          <span style="font-weight: 700; font-size: 13.5px; color: var(--text-main); display: block;">📂 Performance Assignment: ${m.assignment.title || 'Assignment'}</span>
-          <span style="font-size: 12px; color: var(--incorrect); font-weight: 500; display: block; margin-top: 8px;">
-            ⚠️ Please wait while the assigned faculty uploads the files or contact the faculty through email.
-          </span>
         </div>
       `;
     }

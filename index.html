@@ -29,20 +29,24 @@
 
   <!-- Mammoth.js for DOCX parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- SheetJS for Excel uploading and parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
   <!-- Sidebar Navigation Panel -->
   <nav class="sidebar" id="sidebar-nav">
-    <div class="brand-title" id="brand-title" onclick="handleBrandTitleClick()" style="cursor: pointer;">
+    <div class="brand-title" id="brand-title" onclick="handleBrandTitleClick()" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+      <img src="chemistry_logo.png" alt="Logo" style="height: 52px; width: auto; object-fit: contain; flex-shrink: 0;">
       <div class="brand-text">
-        <span class="brand-name">Department of Chemistry<br>Learning Hub</span>
+        <span class="brand-name">Department of Chemistry<br>Portal</span>
       </div>
     </div>
     
     <!-- User Profile Card -->
     <div class="user-profile-card" id="user-profile-card">
-      <img id="user-profile-pic" src="icon.png" alt="Profile Picture">
+      <img id="user-profile-pic" src="chemistry_logo.png" alt="Profile Picture">
       <div class="user-profile-info">
         <span id="user-display-name">Guest Student</span>
         <span id="user-display-email">Not Signed In</span>
@@ -51,7 +55,7 @@
     
     <!-- Dynamic Sidebar Navigation Content -->
     <div id="sidebar-dynamic-tabs">
-      <!-- Generated dynamically based on User Role (Student / Teacher / Admin) -->
+      <!-- Generated dynamically based on User Role (Student / Faculty / Admin) -->
     </div>
 
     <div class="sidebar-footer">
@@ -77,6 +81,7 @@
       
       <div class="action-toggles">
         <button class="floating-pt-trigger" id="header-pt-btn" onclick="togglePeriodicTable()" style="display: none; padding: 0 14px; height: 38px; box-sizing: border-box; font-size: 12.5px; margin-right: 4px; border-radius: 12px;" title="Open Periodic Table">🔬 Periodic Table</button>
+        <div id="role-switcher-container" style="display: inline-flex; gap: 6px; margin-right: 8px;"></div>
         <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">🌓</button>
         <button class="settings-toggle-btn" id="settings-btn" onclick="openSettings()" aria-label="Open Settings">⚙️ Settings</button>
         <button class="signout-header-btn" id="header-signout-btn" onclick="signOutStudent()" aria-label="Sign Out">🚪 <span>Sign Out</span></button>
@@ -147,7 +152,7 @@
   <!-- Onboarding Overlay Modal (Google Sign-In Mock + Student Info Setup) -->
   <div class="onboarding-overlay" id="onboarding-overlay" style="display: none;">
     <div class="onboarding-card">
-      <div class="onboarding-logo">🧪</div>
+      <div class="onboarding-logo"><img src="chemistry_logo.png" alt="DoC Chemistry Logo" style="height: 100px; width: auto; object-fit: contain;"></div>
       <h2>Department of Chemistry Learning Hub</h2>
       
       <!-- Stage 1: Real Google Sign-In -->
@@ -263,6 +268,13 @@
         <div class="form-group" style="margin-bottom: 14px; text-align: left;">
           <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Academic Year</label>
           <input type="text" id="request-year" placeholder="e.g. 2026-2027" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Subject Type</label>
+          <select id="request-subject-type" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+            <option value="lecture">Lecture (Default)</option>
+            <option value="lab">Laboratory Subject</option>
+          </select>
         </div>
         <div class="form-group" style="margin-bottom: 20px; text-align: left;">
           <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Upload Course Syllabus (PDF Required)</label>
@@ -397,6 +409,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Slide-out Action Drawer Overlay -->
+  <div class="action-drawer-overlay" id="action-drawer-overlay" onclick="closeActionDrawer()"></div>
+  <aside class="action-drawer" id="action-drawer">
+    <div class="action-drawer-header">
+      <h3 id="action-drawer-title" style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;">Details</h3>
+      <button onclick="closeActionDrawer()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+    </div>
+    <div class="action-drawer-body" id="action-drawer-body">
+      <!-- Injected dynamically -->
+    </div>
+    <div class="action-drawer-footer" id="action-drawer-footer">
+      <!-- Injected dynamically -->
+    </div>
+  </aside>
 
   <!-- Load Core Script Logic -->
   <script src="app.js"></script>

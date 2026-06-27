@@ -36,7 +36,7 @@ firestore.enablePersistence()
 const DB_NAME = 'doc_learning_hub_music_db';
 const DB_VERSION = 1;
 
-const SEMESTER_START_DATE = "2026-08-10";
+let semesterStartDate = "2026-08-10";
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -114,7 +114,7 @@ function getWeekDateRange(weeksStr) {
   if (isNaN(startWeek) || isNaN(endWeek)) {
     return '';
   }
-  const baseDate = new Date(SEMESTER_START_DATE);
+  const baseDate = new Date(semesterStartDate);
   const startDate = new Date(baseDate);
   startDate.setDate(baseDate.getDate() + (startWeek - 1) * 7);
   const endDate = new Date(baseDate);
@@ -239,8 +239,8 @@ const GLOBAL_SAMPLE_CLASS = {
   courseName: "Inorganic Chemistry 1",
   section: "49C",
   year: "2026-2027",
-  teacherName: "Prof. Ramon M. Eduque, Jr.",
-  teacherEmail: atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg="),
+  facultyName: "Prof. Ramon M. Eduque, Jr.",
+  facultyEmail: atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg="),
   status: "approved",
   students: [
     "test.student@msugensan.edu.ph",
@@ -316,6 +316,62 @@ function updateAdminManifestURL(val) {
   REMOTE_MANIFEST_URL = val.trim();
   localStorage.setItem('remote_manifest_url', REMOTE_MANIFEST_URL);
 }
+
+function saveSemesterDateConfig() {
+  const startInput = document.getElementById('admin-semester-start-date');
+  const endInput = document.getElementById('admin-semester-end-date');
+  if (!startInput || !endInput) return;
+  const startVal = startInput.value;
+  const endVal = endInput.value;
+  if (!startVal || !endVal) {
+    alert("Please select both start and end dates.");
+    return;
+  }
+  
+  firestore.collection('config').doc('semester').set({
+    startDate: startVal,
+    endDate: endVal,
+    updatedBy: currentUser.email,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  })
+  .then(() => {
+    semesterStartDate = startVal;
+    semesterEndDate = endVal;
+    alert("Semester date configuration successfully saved!");
+  })
+  .catch(err => {
+    console.error("Error saving semester date config:", err);
+    alert("Failed to save date config: " + err.message);
+  });
+}
+window.saveSemesterDateConfig = saveSemesterDateConfig;
+window.saveSemesterEndDate = saveSemesterDateConfig;
+
+function goToFacultyGroups(classId) {
+  facultySelectedClassId = classId;
+  setMode('faculty-groups');
+}
+window.goToFacultyGroups = goToFacultyGroups;
+
+function dismissGroupingNotice(classId) {
+  firestore.collection('classes').doc(classId).update({
+    dismissedGroupingNotice: true
+  })
+  .then(() => {
+    const noticeEl = document.getElementById('notice-grouping-' + classId);
+    if (noticeEl) {
+      noticeEl.style.opacity = '0';
+      noticeEl.style.transform = 'translateY(-10px)';
+      noticeEl.style.transition = 'all 0.3s ease';
+      setTimeout(() => noticeEl.remove(), 300);
+    }
+  })
+  .catch(err => {
+    console.error("Error dismissing grouping notice:", err);
+    alert("Failed to dismiss notice: " + err.message);
+  });
+}
+window.dismissGroupingNotice = dismissGroupingNotice;
 
 function populateSubjectDropdowns() {
   if (!manifestData || !manifestData.courses) return;
@@ -417,12 +473,15 @@ function determineUserRole(email) {
   if (!email) return 'student';
   const lowerEmail = email.toLowerCase().trim();
   const encoded = btoa(lowerEmail);
-  // Teacher: ramon.eduque@msugensan.edu.ph
-  if (encoded === 'cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=' || lowerEmail === 'teacher@msugensan.edu.ph') {
-    return 'teacher';
+  // Faculty: ramon.eduque@msugensan.edu.ph
+  if (encoded === 'cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=' || lowerEmail === 'faculty@msugensan.edu.ph' || lowerEmail === 'faculty@msugensan.edu.ph') {
+    return 'faculty';
   // Admin: mon.eduque@gmail.com (primary) + legacy admin emails
   } else if (encoded === 'bW9uLmVkdXF1ZUBnbWFpbC5jb20=' || encoded === 'bW9vbmR1a2Uuc2FuZHNAZ21haWwuY29t' || lowerEmail === 'admin@msugensan.edu.ph') {
     return 'admin';
+  // Laboratory stockroom account default debug emails
+  } else if (lowerEmail === 'laboratory@msugensan.edu.ph' || lowerEmail === 'lab@msugensan.edu.ph' || lowerEmail === 'dumpscr1521@gmail.com') {
+    return 'laboratory';
   }
   // Everyone else (including pco@msugensan.edu.ph) defaults to student
   return 'student';
@@ -482,6 +541,9 @@ function loadUserSession() {
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
     currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+    if (!currentUser.roles) {
+      currentUser.roles = [currentUserRole];
+    }
     updateProfileUI();
     
     // If student has incomplete onboarding details, show Stage 2 onboarding
@@ -520,8 +582,8 @@ auth.onAuthStateChanged((user) => {
   if (user) {
     console.log("Firebase user logged in:", user.email);
     
-    // Enforce email domain (allow approved admin Gmail accounts)
-    const approvedGmails = ['mon.eduque@gmail.com', 'moonduke.sands@gmail.com'];
+    // Enforce email domain (allow approved admin/laboratory Gmail accounts)
+    const approvedGmails = ['mon.eduque@gmail.com', 'moonduke.sands@gmail.com', 'dumpscr1521@gmail.com'];
     if (!user.email.endsWith('@msugensan.edu.ph') && !approvedGmails.includes(user.email.toLowerCase())) {
       alert("Access Denied: Only @msugensan.edu.ph accounts are allowed.");
       auth.signOut();
@@ -532,6 +594,7 @@ auth.onAuthStateChanged((user) => {
     loadOrCreateUserProfile(user);
   } else {
     console.log("Firebase user logged out.");
+    stopSessionTracker();
     currentUser = null;
     localStorage.removeItem('student_user_session');
     
@@ -539,7 +602,7 @@ auth.onAuthStateChanged((user) => {
     document.getElementById('user-display-name').innerText = "Guest Student";
     document.getElementById('user-display-email').innerText = "Not Signed In";
     const profilePic = document.getElementById('user-profile-pic');
-    if (profilePic) profilePic.src = 'icon.png';
+    if (profilePic) profilePic.src = 'chemistry_logo.png';
     
     // Show login onboarding
     const onboardingOverlay = document.getElementById('onboarding-overlay');
@@ -570,6 +633,9 @@ function loadOrCreateUserProfile(firebaseUser) {
         // Profile exists in Firestore!
         currentUser = doc.data();
         currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+        if (!currentUser.roles) {
+          currentUser.roles = [currentUserRole];
+        }
         
         // Save locally for quick access
         localStorage.setItem('student_user_session', JSON.stringify(currentUser));
@@ -621,6 +687,9 @@ function loadOrCreateUserProfile(firebaseUser) {
           // If we have a local profile, save it to Firestore to sync
           currentUser = localProfile;
           currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+          if (!currentUser.roles) {
+            currentUser.roles = [currentUserRole];
+          }
           
           // Check if student needs onboarding
           if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
@@ -654,8 +723,8 @@ function loadOrCreateUserProfile(firebaseUser) {
           // Determine role before deciding on onboarding
           currentUserRole = determineUserRole(email);
           
-          if (currentUserRole === 'admin' || currentUserRole === 'teacher') {
-            // Admin/Teacher: auto-create profile and skip onboarding
+          if (currentUserRole === 'admin' || currentUserRole === 'faculty' || currentUserRole === 'laboratory') {
+            // Admin/Faculty: auto-create profile and skip onboarding
             currentUser = {
               name: firebaseUser.displayName || email.split('@')[0],
               email: email,
@@ -663,7 +732,8 @@ function loadOrCreateUserProfile(firebaseUser) {
               subjects: [],
               year: '',
               role: currentUserRole,
-              avatar: firebaseUser.photoURL || 'icon.png'
+              roles: [currentUserRole],
+              avatar: firebaseUser.photoURL || 'chemistry_logo.png'
             };
             
             saveStudentSession();
@@ -685,7 +755,8 @@ function loadOrCreateUserProfile(firebaseUser) {
               studentId: '',
               subjects: [],
               year: '1',
-              avatar: firebaseUser.photoURL || 'icon.png'
+              roles: ['student'],
+              avatar: firebaseUser.photoURL || 'chemistry_logo.png'
             };
           
             showOnboardingStage(2);
@@ -832,6 +903,10 @@ function submitOnboardingProfile() {
   saveStudentSession();
   updateProfileUI();
   playSFX(true);
+  
+  if (typeof matchUnlinkedAccountabilities === 'function') {
+    matchUnlinkedAccountabilities(currentUser.email, currentUser.name);
+  }
 
   // Close onboarding overlay
   const overlay = document.getElementById('onboarding-overlay');
@@ -857,7 +932,7 @@ function updateProfileUI() {
   // Profile pic in header
   const profilePic = document.getElementById('user-profile-pic');
   if (profilePic) {
-    profilePic.src = currentUser.avatar || 'icon.png';
+    profilePic.src = currentUser.avatar || 'chemistry_logo.png';
   }
 
   // Update Settings Form fields if they exist in the DOM (depending on active drawer content)
@@ -872,31 +947,165 @@ function updateProfileUI() {
 
   const settingsPic = document.getElementById('settings-profile-pic');
   if (settingsPic) {
-    settingsPic.src = currentUser.avatar || 'icon.png';
+    settingsPic.src = currentUser.avatar || 'chemistry_logo.png';
   }
 
-  // Teacher specific settings updates
-  const teacherContact = document.getElementById('settings-teacher-contact');
-  if (teacherContact) teacherContact.value = currentUser.contactNumber || '';
+  // Faculty specific settings updates
+  const facultyContact = document.getElementById('settings-faculty-contact');
+  if (facultyContact) facultyContact.value = currentUser.contactNumber || '';
 
-  const teacherOffice = document.getElementById('settings-teacher-office');
-  if (teacherOffice) teacherOffice.value = currentUser.officeAddress || '';
+  const facultyOffice = document.getElementById('settings-faculty-office');
+  if (facultyOffice) facultyOffice.value = currentUser.officeAddress || '';
 
-  const teacherMessenger = document.getElementById('settings-teacher-messenger');
-  if (teacherMessenger) teacherMessenger.value = currentUser.messengerLink || '';
+  const facultyMessenger = document.getElementById('settings-faculty-messenger');
+  if (facultyMessenger) facultyMessenger.value = currentUser.messengerLink || '';
 
-  const teacherMessengerGc = document.getElementById('settings-teacher-messenger-gc');
-  if (teacherMessengerGc) teacherMessengerGc.value = currentUser.messengerGc || '';
+  const facultyMessengerGc = document.getElementById('settings-faculty-messenger-gc');
+  if (facultyMessengerGc) facultyMessengerGc.value = currentUser.messengerGc || '';
 
-  const teacherTelegramGc = document.getElementById('settings-teacher-telegram-gc');
-  if (teacherTelegramGc) teacherTelegramGc.value = currentUser.telegramGc || '';
+  const facultyTelegramGc = document.getElementById('settings-faculty-telegram-gc');
+  if (facultyTelegramGc) facultyTelegramGc.value = currentUser.telegramGc || '';
 
-  const teacherConsultation = document.getElementById('settings-teacher-consultation');
-  if (teacherConsultation) teacherConsultation.value = currentUser.consultationHours || '';
+  const facultyConsultation = document.getElementById('settings-faculty-consultation');
+  if (facultyConsultation) facultyConsultation.value = currentUser.consultationHours || '';
 
   // Render settings chips
   renderSettingsSelectedClasses();
+  
+  // Render alternate role switcher buttons
+  renderRoleSwitcher();
+  
+  // Start tracking user session activity
+  startSessionTracker();
 }
+
+// User Session Activity & Heartbeat Tracking
+let sessionTrackerEmail = null;
+let activeSessionTrackerInterval = null;
+let lastHeartbeatTimestamp = Date.now();
+
+function startSessionTracker() {
+  if (!currentUser || !currentUser.email) return;
+  
+  // If already tracking this email, don't restart interval
+  if (sessionTrackerEmail === currentUser.email) return;
+  sessionTrackerEmail = currentUser.email;
+
+  // Clear existing tracker if any
+  if (activeSessionTrackerInterval) {
+    clearInterval(activeSessionTrackerInterval);
+  }
+
+  // Update last active initially
+  const initialNow = Date.now();
+  currentUser.lastActive = initialNow;
+  firestore.collection('students').doc(currentUser.email).update({
+    lastActive: firebase.firestore.Timestamp.fromMillis(initialNow)
+  }).catch(err => {});
+
+  lastHeartbeatTimestamp = Date.now();
+  activeSessionTrackerInterval = setInterval(() => {
+    if (!currentUser || !currentUser.email) return;
+    const now = Date.now();
+    const elapsedMs = now - lastHeartbeatTimestamp;
+    lastHeartbeatTimestamp = now;
+
+    // Convert elapsed ms to hours
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+    // Update locally
+    currentUser.totalHoursLogged = (currentUser.totalHoursLogged || 0) + elapsedHours;
+    currentUser.lastActive = now;
+
+    localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+    localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+
+    // Update Firestore
+    firestore.collection('students').doc(currentUser.email).update({
+      totalHoursLogged: firebase.firestore.FieldValue.increment(elapsedHours),
+      lastActive: firebase.firestore.Timestamp.fromMillis(now)
+    }).catch(err => {
+      console.error("Heartbeat sync error:", err);
+    });
+  }, 60000); // 1 minute
+}
+
+function stopSessionTracker() {
+  if (activeSessionTrackerInterval) {
+    clearInterval(activeSessionTrackerInterval);
+    activeSessionTrackerInterval = null;
+  }
+  sessionTrackerEmail = null;
+}
+
+window.startSessionTracker = startSessionTracker;
+window.stopSessionTracker = stopSessionTracker;
+
+function renderRoleSwitcher() {
+  const container = document.getElementById('role-switcher-container');
+  if (!container) return;
+
+  if (!currentUser) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Get all assigned roles
+  let roles = currentUser.roles || [];
+  const primaryRole = currentUser.role || determineUserRole(currentUser.email);
+  if (primaryRole && !roles.includes(primaryRole)) {
+    roles = [primaryRole, ...roles];
+  }
+  roles = [...new Set(roles)].filter(Boolean);
+
+  if (roles.length >= 2) {
+    let html = '';
+    roles.forEach(r => {
+      if (r !== currentUserRole) {
+        let label = '';
+        let color = '#3b82f6';
+        if (r === 'faculty') { label = '👨‍🏫 Faculty'; color = '#3b82f6'; }
+        else if (r === 'admin') { label = '🛡️ Admin'; color = '#10b981'; }
+        else if (r === 'laboratory') { label = '🧪 Laboratory'; color = '#ec4899'; }
+        else if (r === 'student') { label = '🎓 Student'; color = '#6b7280'; }
+
+        html += `
+          <button onclick="switchActiveRole('${r}')" 
+                  class="settings-btn-primary" 
+                  style="width: auto; margin: 0; padding: 0 12px; height: 38px; box-sizing: border-box; font-size: 12px; font-weight: 600; background: ${color}; border: none; color: white; cursor: pointer; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease; font-family: 'Outfit', sans-serif;"
+                  title="Switch profile to ${label}">
+            ${label}
+          </button>
+        `;
+      }
+    });
+    container.innerHTML = html;
+  } else {
+    container.innerHTML = '';
+  }
+}
+
+function switchActiveRole(newRole) {
+  if (!currentUser) return;
+  
+  const confirmSwitch = confirm(`Switch active session to ${newRole.toUpperCase()}?`);
+  if (!confirmSwitch) return;
+
+  currentUserRole = newRole;
+  currentUser.role = newRole;
+  localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+  
+  // Reload the navigation sidebar and views
+  updateProfileUI();
+  renderSidebarNavigation();
+  buildUIFromManifest();
+  
+  // Reroute back to home/dashboard
+  setMode('home');
+}
+
+window.renderRoleSwitcher = renderRoleSwitcher;
+window.switchActiveRole = switchActiveRole;
 
 // ==========================================================================
 // COURSE MANIFEST LOADER
@@ -931,8 +1140,25 @@ function loadManifest() {
     });
 }
 
-let currentUserRole = 'student'; // 'student', 'teacher', 'admin'
+let currentUserRole = 'student'; // 'student', 'faculty', 'admin', 'laboratory'
+let semesterEndDate = null; // Loaded from Firestore config/semester
 
+function loadSemesterConfig() {
+  if (typeof firestore === 'undefined' || !firestore) {
+    return Promise.resolve();
+  }
+  return firestore.collection('config').doc('semester').get()
+    .then(doc => {
+      if (doc.exists) {
+        semesterEndDate = doc.data().endDate;
+        semesterStartDate = doc.data().startDate || "2026-08-10";
+        console.log("Loaded semester date configs - Start:", semesterStartDate, "End:", semesterEndDate);
+      }
+    })
+    .catch(err => {
+      console.error("Error loading semester config:", err);
+    });
+}
 
 function renderSidebarNavigation() {
   const container = document.getElementById('sidebar-dynamic-tabs');
@@ -950,15 +1176,28 @@ function renderSidebarNavigation() {
         <button class="mode-tab-btn" id="tab-admin-users" onclick="setMode('admin-users')">👥 User Directory</button>
       </div>
     `;
-  } else if (currentUserRole === 'teacher') {
-    // Teacher navigation
+  } else if (currentUserRole === 'laboratory') {
+    // Laboratory Stockroom LIMS navigation
     html += `
-      <div class="nav-section-title">Instructor Tools</div>
+      <div class="nav-section-title">Stockroom Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Home</button>
+        <button class="mode-tab-btn" id="tab-lab-transactions" onclick="setMode('lab-transactions')">📋 Transactions</button>
+        <button class="mode-tab-btn" id="tab-lab-students" onclick="setMode('lab-students')">👨‍🎓 Students</button>
+        <button class="mode-tab-btn" id="tab-lab-reports" onclick="setMode('lab-reports')">📊 Reports</button>
+        <button class="mode-tab-btn" id="tab-lab-communication" onclick="setMode('lab-communication')">📢 Communication</button>
+        <button class="mode-tab-btn" id="tab-lab-settings" onclick="setMode('lab-settings')">⚙️ Settings</button>
+      </div>
+    `;
+  } else if (currentUserRole === 'faculty') {
+    // Faculty navigation
+    html += `
+      <div class="nav-section-title">Faculty Tools</div>
       <div class="mode-tabs">
         <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
-        <button class="mode-tab-btn" id="tab-teacher-classes" onclick="setMode('teacher-classes')">🏫 My Classes</button>
-        <button class="mode-tab-btn" id="tab-teacher-gradebook" onclick="setMode('teacher-gradebook')">📊 Class Gradebooks</button>
-        <button class="mode-tab-btn" id="tab-teacher-groups" onclick="setMode('teacher-groups')">👥 Lab Groups</button>
+        <button class="mode-tab-btn" id="tab-faculty-classes" onclick="setMode('faculty-classes')">🏫 My Classes</button>
+        <button class="mode-tab-btn" id="tab-faculty-gradebook" onclick="setMode('faculty-gradebook')">📊 Class Gradebooks</button>
+        <button class="mode-tab-btn" id="tab-faculty-groups" onclick="setMode('faculty-groups')">👥 Lab Groups</button>
       </div>
       
       <div class="nav-section-title">Academic Foundations</div>
@@ -983,6 +1222,9 @@ function renderSidebarNavigation() {
         <button class="mode-tab-btn" id="tab-syllabus" onclick="setMode('syllabus')">📋 Syllabus</button>
         <button class="mode-tab-btn" id="tab-notes" onclick="setMode('notes')">📚 Lecture Notes</button>
         <button class="mode-tab-btn" id="tab-safety" onclick="setMode('safety')">🥽 Lab Safety Guide</button>
+        ${(currentCourseId && activeStudentClassData[currentCourseId] && activeStudentClassData[currentCourseId].subjectType === 'lab') ? `
+          <button class="mode-tab-btn" id="tab-requisition" onclick="setMode('requisition')">🧪 Lab Requisition</button>
+        ` : ''}
         <button class="mode-tab-btn" id="tab-assessments" onclick="setMode('assessments')">✍️ Quizzes & Tasks</button>
         <button class="mode-tab-btn" id="tab-progress" onclick="setMode('progress')">📊 My Progress</button>
       </div>
@@ -1045,24 +1287,31 @@ function buildUIFromManifest() {
 
   populateSubjectDropdowns();
 
-  if (currentUserRole === 'student') {
-    loadStudentClassData().then(() => {
+  loadSemesterConfig().then(() => {
+    if (currentUserRole === 'student') {
+      loadStudentClassData().then(() => {
+        renderSidebarNavigation();
+        const activeBtn = document.querySelector('.course-btn.active');
+        if (!activeBtn) {
+          const firstCourseBtn = document.querySelector('.course-btn');
+          if (firstCourseBtn) {
+            const firstId = firstCourseBtn.id.replace('course-btn-', '');
+            setCourse(firstId);
+            return;
+          }
+        }
+        renderCurrentModeView();
+      });
+    } else {
       renderSidebarNavigation();
-      const activeBtn = document.querySelector('.course-btn.active');
-      if (!activeBtn) {
-        const firstCourseBtn = document.querySelector('.course-btn');
-        if (firstCourseBtn) {
-          const firstId = firstCourseBtn.id.replace('course-btn-', '');
-          setCourse(firstId);
-          return;
+      renderCurrentModeView();
+      if (currentUserRole === 'laboratory' || currentUserRole === 'admin') {
+        if (typeof runFirestoreMigration === 'function') {
+          runFirestoreMigration();
         }
       }
-      renderCurrentModeView();
-    });
-  } else {
-    renderSidebarNavigation();
-    renderCurrentModeView();
-  }
+    }
+  });
 }
 
 function setCourse(courseId) {
@@ -1166,14 +1415,14 @@ function renderCurrentModeView() {
     case 'guidelines':
       renderGuidelinesView();
       break;
-    case 'teacher-classes':
-      renderTeacherClassesView();
+    case 'faculty-classes':
+      renderFacultyClassesView();
       break;
-    case 'teacher-gradebook':
-      renderTeacherGradebookView();
+    case 'faculty-gradebook':
+      renderFacultyGradebookView();
       break;
-    case 'teacher-groups':
-      renderTeacherGroupsView();
+    case 'faculty-groups':
+      renderFacultyGroupsView();
       break;
     case 'admin-requests':
       renderAdminRequestsView();
@@ -1181,8 +1430,26 @@ function renderCurrentModeView() {
     case 'admin-users':
       renderAdminUsersView();
       break;
-    case 'teacher-class-details':
-      renderTeacherClassDetailsView();
+    case 'faculty-class-details':
+      renderFacultyClassDetailsView();
+      break;
+    case 'lab-transactions':
+      renderLabTransactionsView();
+      break;
+    case 'lab-students':
+      renderLabStudentsView();
+      break;
+    case 'lab-reports':
+      renderLabReportsView();
+      break;
+    case 'lab-communication':
+      renderLabCommunicationView();
+      break;
+    case 'lab-settings':
+      renderLabSettingsView();
+      break;
+    case 'requisition':
+      renderStudentRequisitionView();
       break;
     default:
       renderDashboardView();
@@ -1213,6 +1480,23 @@ function renderDashboardView() {
         <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
           <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🔔 Pending Approvals</div>
           <div id="admin-stat-pending" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #f59e0b;">...</div>
+        </div>
+      </div>
+
+      <!-- Semester Configuration Card -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 20px; border-radius: 14px; text-align: left; margin-bottom: 24px;">
+        <h3 style="font-size: 16px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 12px 0; color: var(--text-main);">📅 Semester Configuration</h3>
+        <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--text-muted);">Configure the official start and end dates of the current semester. This controls class scheduling and clearance notification alarms.</p>
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">SEMESTER START DATE</label>
+            <input type="date" id="admin-semester-start-date" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; min-width: 180px;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">SEMESTER END DATE</label>
+            <input type="date" id="admin-semester-end-date" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; min-width: 180px;">
+          </div>
+          <button class="settings-btn-primary" onclick="saveSemesterDateConfig()" style="width: auto; margin: 0; padding: 10px 20px; font-size: 13px;">Save Date Config</button>
         </div>
       </div>
 
@@ -1263,30 +1547,171 @@ function renderDashboardView() {
       if (elPending) elPending.innerText = "0";
     });
 
+    // Set input value if config exists
+    setTimeout(() => {
+      const startInput = document.getElementById('admin-semester-start-date');
+      const endInput = document.getElementById('admin-semester-end-date');
+      if (startInput && semesterStartDate) {
+        startInput.value = semesterStartDate;
+      }
+      if (endInput && semesterEndDate) {
+        endInput.value = semesterEndDate;
+      }
+    }, 100);
+
+    return;
+  }
+  if (currentUserRole === 'laboratory') {
+    renderLaboratoryDashboard();
     return;
   }
   
-  if (currentUserRole === 'teacher') {
+  if (currentUserRole === 'faculty') {
     viewport.innerHTML = `
       <div class="home-greeting-card" style="padding: 24px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
         <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: #3b82f6; margin: 0 0 8px 0;">👨‍🏫 Welcome, Faculty Instructor!</h2>
         <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Manage class records, view gradebooks, assign laboratory groups, and track student statistics.</p>
       </div>
+      <div id="faculty-stockroom-announcements-container" style="display:flex; flex-direction:column; gap:12px; margin-bottom: 16px;"></div>
+      <div id="faculty-notices-container" style="display:flex; flex-direction:column; gap:12px; margin-bottom: 24px;"></div>
       <div class="class-grid">
-        <div class="class-card" onclick="setMode('teacher-classes')">
+        <div class="class-card" onclick="setMode('faculty-classes')">
           <div class="class-code">🏫 My Classrooms</div>
           <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">View requested classes and manage student roster enrollments.</p>
         </div>
-        <div class="class-card" onclick="setMode('teacher-gradebook')">
+        <div class="class-card" onclick="setMode('faculty-gradebook')">
           <div class="class-code">📊 Class Gradebooks</div>
           <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Monitor scores and override student grades for quizzes and assignments.</p>
         </div>
-        <div class="class-card" onclick="setMode('teacher-groups')">
+        <div class="class-card" onclick="setMode('faculty-groups')">
           <div class="class-code">👥 Lab Groups</div>
           <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Organize enrolled students into experiment groups.</p>
         </div>
       </div>
     `;
+
+    // Query for lab classrooms to display grouping notices and student accountabilities
+    firestore.collection('classes')
+      .where('facultyEmail', '==', currentUser.email)
+      .where('status', '==', 'approved')
+      .get()
+      .then(querySnapshot => {
+        const noticesContainer = document.getElementById('faculty-notices-container');
+        if (!noticesContainer) return;
+        
+        const activeClasses = [];
+        let noticesHTML = '';
+        
+        querySnapshot.forEach(doc => {
+          const classData = doc.data();
+          const classId = doc.id;
+          activeClasses.push({ id: classId, ...classData });
+          
+          if (classData.subjectType === 'lab') {
+            const hasGroups = classData.labGroups && classData.labGroups.length > 0;
+            const dismissed = classData.dismissedGroupingNotice === true;
+            
+            if (!hasGroups && !dismissed) {
+              noticesHTML += `
+                <div id="notice-grouping-${classId}" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 16px; animation: fadeIn 0.3s ease;">
+                  <div>
+                    <h4 style="margin: 0 0 4px 0; color: #f97316; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">⚠️ Action Required: Unassigned Lab Groups</h4>
+                    <p style="margin: 0; font-size: 12.5px; color: var(--text-muted);">The laboratory subject <strong>${escapeHtml(classData.courseName)} (Sec ${escapeHtml(classData.section)})</strong> does not have student groups set up. Enrolled students cannot submit stockroom requisitions until they are grouped.</p>
+                  </div>
+                  <div style="display: flex; gap: 8px; shrink: 0;">
+                    <button class="settings-btn-primary" onclick="goToFacultyGroups('${classId}')" style="width: auto; margin: 0; padding: 8px 14px; font-size: 12px; font-weight: 600; background: #3b82f6;">Assign Groups</button>
+                    <button class="settings-btn-primary" onclick="dismissGroupingNotice('${classId}')" style="width: auto; margin: 0; padding: 8px 14px; font-size: 12px; font-weight: 600; background: transparent; border: 1px solid var(--border-card); color: var(--text-muted);">Dismiss</button>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        });
+        
+        noticesContainer.innerHTML = noticesHTML;
+
+        // Query pending student accountabilities matching this faculty's active classes
+        if (activeClasses.length > 0) {
+          firestore.collection('accountabilities')
+            .where('status', '==', 'pending')
+            .get()
+            .then(snap => {
+              const facultyAccs = [];
+              snap.forEach(docAcc => {
+                const d = docAcc.data();
+                const matchesClass = activeClasses.some(c => 
+                  c.section.toLowerCase().trim() === d.section.toLowerCase().trim() &&
+                  (c.courseId.toLowerCase().trim() === d.subject.toLowerCase().trim() || c.courseName.toLowerCase().trim() === d.subject.toLowerCase().trim())
+                );
+                if (matchesClass) {
+                  facultyAccs.push(d);
+                }
+              });
+
+              if (facultyAccs.length > 0) {
+                const accsListStr = facultyAccs.map(a => `<strong>${escapeHtml(a.studentName)}</strong> (${escapeHtml(a.subject)} Sec ${escapeHtml(a.section)}: ${escapeHtml(a.description)})`).join(', ');
+                
+                const alertHTML = `
+                  <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; text-align: left; display: flex; align-items: flex-start; gap: 12px; animation: fadeIn 0.3s ease;">
+                    <span style="font-size: 20px; margin-top: -2px;">⚠️</span>
+                    <div>
+                      <h4 style="margin: 0 0 4px 0; color: #ef4444; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">Outstanding Student Accountabilities</h4>
+                      <p style="margin: 0; font-size: 12.5px; color: var(--text-muted);">The following students in your laboratory classes have outstanding stockroom requirements: ${accsListStr}. Please remind them to settle these before the end of the semester.</p>
+                    </div>
+                  </div>
+                `;
+                
+                noticesContainer.insertAdjacentHTML('afterbegin', alertHTML);
+              }
+            })
+            .catch(err => {
+              console.error("Error checking faculty student accountabilities:", err);
+            });
+        }
+      })
+      .catch(err => {
+        console.error("Error checking lab grouping notices:", err);
+      });
+
+    // Query stockroom announcements for faculty
+    firestore.collection('stockroom_announcements').get()
+      .then(snap => {
+        const container = document.getElementById('faculty-stockroom-announcements-container');
+        if (!container) return;
+        let list = [];
+        snap.forEach(doc => {
+          const d = doc.data();
+          if (d.sendTo === 'faculty' || d.sendTo === 'both') {
+            list.push(d);
+          }
+        });
+        if (list.length === 0) return;
+        list.sort((a, b) => {
+          const tA = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+          const tB = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
+          return tB - tA;
+        });
+        let html = `
+          <div style="background: rgba(13,148,136,0.05); border: 1px solid rgba(13,148,136,0.25); border-radius: 16px; padding: 18px; text-align: left;">
+            <h3 style="font-family:'Outfit', sans-serif; font-size:15px; font-weight:700; color:#0d9488; margin:0 0 10px 0; display:flex; align-items:center; gap:6px;">
+              <span>🏢</span> Chemistry Stockroom Announcements
+            </h3>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              ${list.map(ann => `
+                <div style="border-bottom:1px dashed var(--border-card); padding-bottom:10px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px;">
+                    <span style="font-size:10px; color:var(--text-muted); font-family:monospace;">${ann.createdAt ? new Date(ann.createdAt.seconds ? ann.createdAt.seconds * 1000 : ann.createdAt).toLocaleString() : 'Recent'}</span>
+                  </div>
+                  <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.4; white-space:pre-wrap;">${escapeHtml(ann.content)}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        container.innerHTML = html;
+      })
+      .catch(err => console.error("Error loading faculty stockroom announcements:", err));
+
     return;
   }
 
@@ -1463,7 +1888,10 @@ function renderDashboardView() {
         </button>
       </div>
 
+      <div id="student-clearance-alerts" style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;"></div>
+
       ${announcementsHTML}
+      <div id="student-stockroom-announcements-container" style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;"></div>
 
       <div class="dashboard-grid">
         <div class="dashboard-stat-card">
@@ -1497,6 +1925,105 @@ function renderDashboardView() {
       </div>
     </div>
   `;
+
+  // Query pending accountabilities for student
+  firestore.collection('accountabilities')
+    .where('studentEmail', '==', currentUser.email)
+    .where('status', '==', 'pending')
+    .get()
+    .then(snap => {
+      const container = document.getElementById('student-clearance-alerts');
+      if (!container) return;
+      if (snap.empty) return;
+
+      let html = '';
+      snap.forEach(doc => {
+        const d = doc.data();
+        const docId = doc.id;
+
+        let petitionHTML = '';
+        if (d.petitionRemarks) {
+          petitionHTML = `
+            <div style="margin-top: 8px; padding: 10px; background: rgba(13,148,136,0.06); border: 1px solid rgba(13,148,136,0.25); border-radius: 8px; font-size: 12.5px;">
+              <span style="color:#0d9488; font-weight:700;">📝 Submitted Explanation:</span>
+              <span style="color:var(--text-main); font-style:italic;">"${escapeHtml(d.petitionRemarks)}"</span>
+              <div style="font-size: 10.5px; color:var(--text-muted); margin-top:4px;">Awaiting Stockroom Custodian Review</div>
+              <button class="settings-btn-primary" onclick="togglePetitionBox('${docId}', true)" style="font-size:11px; padding:4px 8px; margin:6px 0 0 0; width:auto; background:transparent; border:1px solid var(--border-card); color:var(--text-muted);">Update Explanation</button>
+            </div>
+          `;
+        } else {
+          petitionHTML = `
+            <button class="settings-btn-primary" onclick="togglePetitionBox('${docId}', true)" style="font-size:11.5px; padding:6px 12px; margin-top:8px; width:auto; background:#0d9488;">📝 Petition Clearance</button>
+          `;
+        }
+
+        html += `
+          <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; text-align: left; display: flex; align-items: flex-start; gap: 12px; animation: fadeIn 0.3s ease;">
+            <span style="font-size: 20px; margin-top: -2px;">⚠️</span>
+            <div style="flex: 1;">
+              <h4 style="margin: 0 0 2px 0; color: #ef4444; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">Outstanding Laboratory Accountability</h4>
+              <p style="margin: 0; font-size: 12.5px; color: var(--text-muted);">You have a pending stockroom accountability in <strong>${escapeHtml(d.subject)} (Sec ${escapeHtml(d.section)})</strong>: ${escapeHtml(d.description)}. Please settle this requirement with the Stockroom Laboratory staff.</p>
+              ${petitionHTML}
+              <div id="petition-box-${docId}" style="display:none; margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <textarea id="petition-text-${docId}" placeholder="Explain here if this has been paid, replaced, or satisfied..." style="padding:8px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12px; height:60px; font-family:inherit; outline:none; box-sizing:border-box; width:100%;">${d.petitionRemarks ? escapeHtml(d.petitionRemarks) : ''}</textarea>
+                <div style="display:flex; gap:6px; justify-content:flex-end;">
+                  <button class="settings-btn-primary" onclick="submitAccountabilityPetition('${docId}')" style="font-size:11px; padding:6px 12px; margin:0; width:auto; background:#0d9488;">Submit Remarks</button>
+                  <button class="settings-btn-primary" onclick="togglePetitionBox('${docId}', false)" style="font-size:11px; padding:6px 12px; margin:0; width:auto; background:transparent; border:1px solid var(--border-card); color:var(--text-muted);">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Error querying student accountabilities:", err);
+    });
+
+  // Query stockroom announcements for student
+  firestore.collection('stockroom_announcements').get()
+    .then(snap => {
+      const container = document.getElementById('student-stockroom-announcements-container');
+      if (!container) return;
+
+      let list = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        if (d.sendTo === 'students' || d.sendTo === 'both') {
+          list.push(d);
+        }
+      });
+
+      if (list.length === 0) return;
+
+      // Sort by newest first
+      list.sort((a, b) => {
+        const tA = a.createdAt ? (a.createdAt.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt).getTime()) : 0;
+        const tB = b.createdAt ? (b.createdAt.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt).getTime()) : 0;
+        return tB - tA;
+      });
+
+      let html = `
+        <div style="background: rgba(13,148,136,0.05); border: 1px solid rgba(13,148,136,0.2); border-radius: 16px; padding: 18px; text-align: left;">
+          <h3 style="font-family:'Outfit', sans-serif; font-size:15px; font-weight:700; color:#0d9488; margin:0 0 10px 0; display:flex; align-items:center; gap:6px;">
+            <span>🏢</span> Chemistry Stockroom Announcements
+          </h3>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            ${list.map(ann => `
+              <div style="border-bottom:1px dashed var(--border-card); padding-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px;">
+                  <span style="font-size:10px; color:var(--text-muted); font-family:monospace;">${ann.createdAt ? new Date(ann.createdAt.seconds ? ann.createdAt.seconds * 1000 : ann.createdAt).toLocaleString() : 'Recent'}</span>
+                </div>
+                <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.4; white-space:pre-wrap;">${escapeHtml(ann.content)}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+    })
+    .catch(err => console.error("Error loading student stockroom announcements:", err));
 }
 
 function launchModuleNotes(modId) {
@@ -1862,31 +2389,31 @@ function renderFacultyView() {
   const details = activeCourse.syllabusDetails;
   const manifestFaculty = details.faculty || {};
 
-  // Determine teacher email to query
-  let teacherEmail = manifestFaculty.email || '';
+  // Determine faculty email to query
+  let facultyEmail = manifestFaculty.email || '';
   
-  if (currentUserRole === 'teacher') {
-    teacherEmail = currentUser.email;
+  if (currentUserRole === 'faculty') {
+    facultyEmail = currentUser.email;
   } else {
     const classData = activeStudentClassData[currentCourseId];
-    if (classData && classData.teacherEmail) {
-      teacherEmail = classData.teacherEmail;
+    if (classData && classData.facultyEmail) {
+      facultyEmail = classData.facultyEmail;
     }
   }
 
   viewport.innerHTML = `<div class="empty-playlist-msg">Loading faculty details...</div>`;
 
-  const renderView = (teacherProfile) => {
-    // Priority: teacherProfile values > manifest syllabus values
-    const facultyName = (teacherProfile && teacherProfile.name) ? teacherProfile.name : (manifestFaculty.name || 'N/A');
-    const facultyEmail = (teacherProfile && teacherProfile.email) ? teacherProfile.email : (manifestFaculty.email || 'N/A');
-    const facultyMobile = (teacherProfile && teacherProfile.contactNumber) ? teacherProfile.contactNumber : (manifestFaculty.mobile || 'N/A');
-    const facultyOffice = (teacherProfile && teacherProfile.officeAddress) ? teacherProfile.officeAddress : (manifestFaculty.office || 'N/A');
+  const renderView = (facultyProfile) => {
+    // Priority: facultyProfile values > manifest syllabus values
+    const facultyName = (facultyProfile && facultyProfile.name) ? facultyProfile.name : (manifestFaculty.name || 'N/A');
+    const facultyEmail = (facultyProfile && facultyProfile.email) ? facultyProfile.email : (manifestFaculty.email || 'N/A');
+    const facultyMobile = (facultyProfile && facultyProfile.contactNumber) ? facultyProfile.contactNumber : (manifestFaculty.mobile || 'N/A');
+    const facultyOffice = (facultyProfile && facultyProfile.officeAddress) ? facultyProfile.officeAddress : (manifestFaculty.office || 'N/A');
     
     // Consultation
     let consultHTML = '';
-    if (teacherProfile && teacherProfile.consultationHours) {
-      const hours = teacherProfile.consultationHours.split('\n').filter(h => h.trim().length > 0);
+    if (facultyProfile && facultyProfile.consultationHours) {
+      const hours = facultyProfile.consultationHours.split('\n').filter(h => h.trim().length > 0);
       consultHTML = hours.map(h => `<li>${h}</li>`).join('');
     } else {
       consultHTML = (manifestFaculty.consultation || []).map(c => `<li>${c}</li>`).join('');
@@ -1894,24 +2421,24 @@ function renderFacultyView() {
 
     // Links: FB Messenger, Telegram GC, Messenger GC
     let linksHTML = '';
-    if (teacherProfile) {
-      if (teacherProfile.messengerLink || teacherProfile.telegramGc || teacherProfile.messengerGc) {
+    if (facultyProfile) {
+      if (facultyProfile.messengerLink || facultyProfile.telegramGc || facultyProfile.messengerGc) {
         linksHTML = `
           <div style="margin-top: 15px; border-top: 1px dashed var(--border-card); padding-top: 15px;">
             <h4 style="margin: 0 0 10px 0; font-size: 13.5px; font-family:'Outfit',sans-serif;">🔗 Dynamic Contact Links</h4>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              ${teacherProfile.messengerLink ? `<a href="${teacherProfile.messengerLink}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;">💬 FB Messenger</a>` : ''}
-              ${teacherProfile.messengerGc ? `<a href="${teacherProfile.messengerGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--secondary, #3b82f6);">👥 Class Messenger GC</a>` : ''}
-              ${teacherProfile.telegramGc ? `<a href="${teacherProfile.telegramGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: #0088cc;">✈️ Telegram Group Chat</a>` : ''}
+              ${facultyProfile.messengerLink ? `<a href="${facultyProfile.messengerLink}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;">💬 FB Messenger</a>` : ''}
+              ${facultyProfile.messengerGc ? `<a href="${facultyProfile.messengerGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--secondary, #3b82f6);">👥 Class Messenger GC</a>` : ''}
+              ${facultyProfile.telegramGc ? `<a href="${facultyProfile.telegramGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: #0088cc;">✈️ Telegram Group Chat</a>` : ''}
             </div>
           </div>
         `;
       }
     }
 
-    // Input editor for Teachers to edit in-place
+    // Input editor for Facultys to edit in-place
     let editSectionHTML = '';
-    if (currentUserRole === 'teacher') {
+    if (currentUserRole === 'faculty') {
       editSectionHTML = `
         <div class="section-card" style="margin-top: 24px; padding: 20px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-card);">
           <h3 style="margin-top: 0; margin-bottom: 14px; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 8px;">✏️ Edit Faculty Information</h3>
@@ -1919,35 +2446,35 @@ function renderFacultyView() {
           <div class="onboarding-form" style="display: flex; flex-direction: column; gap: 12px;">
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">👤 Full Name</label>
-              <input type="text" id="faculty-edit-name" value="${teacherProfile && teacherProfile.name ? escapeHtml(teacherProfile.name) : escapeHtml(currentUser.name)}" placeholder="e.g. Prof. Ramon M. Eduque, Jr." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('name', this.value)">
+              <input type="text" id="faculty-edit-name" value="${facultyProfile && facultyProfile.name ? escapeHtml(facultyProfile.name) : escapeHtml(currentUser.name)}" placeholder="e.g. Prof. Ramon M. Eduque, Jr." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('name', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📧 Email</label>
-              <input type="email" id="faculty-edit-email" value="${teacherProfile && teacherProfile.email ? escapeHtml(teacherProfile.email) : escapeHtml(currentUser.email)}" placeholder="e.g. email@msugensan.edu.ph" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('email', this.value)">
+              <input type="email" id="faculty-edit-email" value="${facultyProfile && facultyProfile.email ? escapeHtml(facultyProfile.email) : escapeHtml(currentUser.email)}" placeholder="e.g. email@msugensan.edu.ph" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('email', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📱 Contact Number</label>
-              <input type="text" id="faculty-edit-contact" value="${teacherProfile && teacherProfile.contactNumber ? escapeHtml(teacherProfile.contactNumber) : ''}" placeholder="e.g. 09123456789" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('contactNumber', this.value)">
+              <input type="text" id="faculty-edit-contact" value="${facultyProfile && facultyProfile.contactNumber ? escapeHtml(facultyProfile.contactNumber) : ''}" placeholder="e.g. 09123456789" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('contactNumber', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">🏢 Office Address</label>
-              <input type="text" id="faculty-edit-office" value="${teacherProfile && teacherProfile.officeAddress ? escapeHtml(teacherProfile.officeAddress) : ''}" placeholder="e.g. Department of Chemistry, RSRC" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('officeAddress', this.value)">
+              <input type="text" id="faculty-edit-office" value="${facultyProfile && facultyProfile.officeAddress ? escapeHtml(facultyProfile.officeAddress) : ''}" placeholder="e.g. Department of Chemistry, RSRC" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('officeAddress', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">💬 FB Messenger Profile Link</label>
-              <input type="url" id="faculty-edit-messenger" value="${teacherProfile && teacherProfile.messengerLink ? escapeHtml(teacherProfile.messengerLink) : ''}" placeholder="e.g. https://m.me/username" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('messengerLink', this.value)">
+              <input type="url" id="faculty-edit-messenger" value="${facultyProfile && facultyProfile.messengerLink ? escapeHtml(facultyProfile.messengerLink) : ''}" placeholder="e.g. https://m.me/username" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('messengerLink', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">👥 Class Messenger Group Chat (GC) Link</label>
-              <input type="url" id="faculty-edit-messenger-gc" value="${teacherProfile && teacherProfile.messengerGc ? escapeHtml(teacherProfile.messengerGc) : ''}" placeholder="e.g. https://messenger.com/j/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('messengerGc', this.value)">
+              <input type="url" id="faculty-edit-messenger-gc" value="${facultyProfile && facultyProfile.messengerGc ? escapeHtml(facultyProfile.messengerGc) : ''}" placeholder="e.g. https://messenger.com/j/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('messengerGc', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">✈️ Class Telegram Group Chat (GC) Link</label>
-              <input type="url" id="faculty-edit-telegram-gc" value="${teacherProfile && teacherProfile.telegramGc ? escapeHtml(teacherProfile.telegramGc) : ''}" placeholder="e.g. https://t.me/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('telegramGc', this.value)">
+              <input type="url" id="faculty-edit-telegram-gc" value="${facultyProfile && facultyProfile.telegramGc ? escapeHtml(facultyProfile.telegramGc) : ''}" placeholder="e.g. https://t.me/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateFacultyField('telegramGc', this.value)">
             </div>
             <div class="form-group" style="text-align: left;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📅 Consultation Hours (one per line)</label>
-              <textarea id="faculty-edit-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 80px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; font-family: sans-serif; resize: vertical; box-sizing: border-box;" onchange="updateTeacherField('consultationHours', this.value)">${teacherProfile && teacherProfile.consultationHours ? escapeHtml(teacherProfile.consultationHours) : ''}</textarea>
+              <textarea id="faculty-edit-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 80px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; font-family: sans-serif; resize: vertical; box-sizing: border-box;" onchange="updateFacultyField('consultationHours', this.value)">${facultyProfile && facultyProfile.consultationHours ? escapeHtml(facultyProfile.consultationHours) : ''}</textarea>
             </div>
           </div>
         </div>
@@ -2033,8 +2560,8 @@ function renderFacultyView() {
     `;
   };
 
-  if (teacherEmail) {
-    firestore.collection("students").doc(teacherEmail).get()
+  if (facultyEmail) {
+    firestore.collection("students").doc(facultyEmail).get()
       .then(doc => {
         if (doc.exists) {
           renderView(doc.data());
@@ -2043,7 +2570,7 @@ function renderFacultyView() {
         }
       })
       .catch(err => {
-        console.error("Error fetching teacher profile:", err);
+        console.error("Error fetching faculty profile:", err);
         renderView(null);
       });
   } else {
@@ -3777,7 +4304,7 @@ function updateProfileID(val) {
   updateProfileUI();
 }
 
-function updateTeacherField(field, value) {
+function updateFacultyField(field, value) {
   if (!currentUser) return;
   currentUser[field] = value.trim();
   saveStudentSession();
@@ -3835,7 +4362,7 @@ function renderSettingsDrawerContent() {
         <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
           <span style="font-weight: 500;">Profile Photo:</span>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'chemistry_logo.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
             <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
               📸 Choose Image
             </label>
@@ -3847,50 +4374,50 @@ function renderSettingsDrawerContent() {
         </div>
       </div>
     `;
-  } else if (currentUserRole === 'teacher') {
+  } else if (currentUserRole === 'faculty') {
     profileHTML = `
       <!-- Instructor Profile Section -->
       <div class="settings-section">
-        <h3>👤 Teacher Profile</h3>
+        <h3>👤 Faculty Profile</h3>
         <div class="settings-row" style="margin-bottom: 12px;">
           <span style="font-size: 13px; color: var(--text-muted);">Configure your contact details, consultation settings, and social links.</span>
         </div>
         <div class="settings-row">
           <label for="settings-nickname">Full Name:</label>
-          <input type="text" id="settings-nickname" placeholder="e.g. Prof. Ramon M. Eduque, Jr." value="${escapeHtml(currentUser.name)}" onchange="updateTeacherField('name', this.value)">
+          <input type="text" id="settings-nickname" placeholder="e.g. Prof. Ramon M. Eduque, Jr." value="${escapeHtml(currentUser.name)}" onchange="updateFacultyField('name', this.value)">
         </div>
         <div class="settings-row">
           <label>Email Address:</label>
           <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">${escapeHtml(currentUser.email)}</span>
         </div>
         <div class="settings-row">
-          <label for="settings-teacher-contact">Contact Number:</label>
-          <input type="text" id="settings-teacher-contact" placeholder="e.g. 09123456789" value="${escapeHtml(currentUser.contactNumber || '')}" onchange="updateTeacherField('contactNumber', this.value)">
+          <label for="settings-faculty-contact">Contact Number:</label>
+          <input type="text" id="settings-faculty-contact" placeholder="e.g. 09123456789" value="${escapeHtml(currentUser.contactNumber || '')}" onchange="updateFacultyField('contactNumber', this.value)">
         </div>
         <div class="settings-row">
-          <label for="settings-teacher-office">Office Address:</label>
-          <input type="text" id="settings-teacher-office" placeholder="e.g. Department of Chemistry, RSRC" value="${escapeHtml(currentUser.officeAddress || '')}" onchange="updateTeacherField('officeAddress', this.value)">
+          <label for="settings-faculty-office">Office Address:</label>
+          <input type="text" id="settings-faculty-office" placeholder="e.g. Department of Chemistry, RSRC" value="${escapeHtml(currentUser.officeAddress || '')}" onchange="updateFacultyField('officeAddress', this.value)">
         </div>
         <div class="settings-row">
-          <label for="settings-teacher-messenger">Messenger Link:</label>
-          <input type="url" id="settings-teacher-messenger" placeholder="e.g. https://m.me/username" value="${escapeHtml(currentUser.messengerLink || '')}" onchange="updateTeacherField('messengerLink', this.value)">
+          <label for="settings-faculty-messenger">Messenger Link:</label>
+          <input type="url" id="settings-faculty-messenger" placeholder="e.g. https://m.me/username" value="${escapeHtml(currentUser.messengerLink || '')}" onchange="updateFacultyField('messengerLink', this.value)">
         </div>
         <div class="settings-row">
-          <label for="settings-teacher-messenger-gc">Messenger GC Link:</label>
-          <input type="url" id="settings-teacher-messenger-gc" placeholder="Messenger Class GC URL" value="${escapeHtml(currentUser.messengerGc || '')}" onchange="updateTeacherField('messengerGc', this.value)">
+          <label for="settings-faculty-messenger-gc">Messenger GC Link:</label>
+          <input type="url" id="settings-faculty-messenger-gc" placeholder="Messenger Class GC URL" value="${escapeHtml(currentUser.messengerGc || '')}" onchange="updateFacultyField('messengerGc', this.value)">
         </div>
         <div class="settings-row">
-          <label for="settings-teacher-telegram-gc">Telegram GC Link:</label>
-          <input type="url" id="settings-teacher-telegram-gc" placeholder="Telegram Class GC URL" value="${escapeHtml(currentUser.telegramGc || '')}" onchange="updateTeacherField('telegramGc', this.value)">
+          <label for="settings-faculty-telegram-gc">Telegram GC Link:</label>
+          <input type="url" id="settings-faculty-telegram-gc" placeholder="Telegram Class GC URL" value="${escapeHtml(currentUser.telegramGc || '')}" onchange="updateFacultyField('telegramGc', this.value)">
         </div>
         <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
-          <label for="settings-teacher-consultation">Consultation Hours (one per line):</label>
-          <textarea id="settings-teacher-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 60px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;" onchange="updateTeacherField('consultationHours', this.value)">${escapeHtml(currentUser.consultationHours || '')}</textarea>
+          <label for="settings-faculty-consultation">Consultation Hours (one per line):</label>
+          <textarea id="settings-faculty-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 60px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;" onchange="updateFacultyField('consultationHours', this.value)">${escapeHtml(currentUser.consultationHours || '')}</textarea>
         </div>
         <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
           <span style="font-weight: 500;">Profile Photo:</span>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'chemistry_logo.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
             <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
               📸 Choose Image
             </label>
@@ -3918,7 +4445,7 @@ function renderSettingsDrawerContent() {
         <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
           <span style="font-weight: 500;">Profile Photo:</span>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'chemistry_logo.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
             <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
               📸 Choose Image
             </label>
@@ -4161,6 +4688,7 @@ function signOutStudent() {
   const confirmOut = confirm("Are you sure you want to sign out? Your profile details and score history will be saved.");
   if (!confirmOut) return;
 
+  stopSessionTracker();
 
   auth.signOut().then(() => {
     localStorage.removeItem('student_user_session');
@@ -4383,11 +4911,13 @@ function submitClassRequest(event) {
   const courseSelect = document.getElementById('request-course-id');
   const sectionInput = document.getElementById('request-section');
   const yearInput = document.getElementById('request-year');
+  const typeSelect = document.getElementById('request-subject-type');
   if (!courseSelect || !sectionInput || !yearInput) return;
 
   const courseId = courseSelect.value;
   const section = sectionInput.value.trim();
   const year = yearInput.value.trim();
+  const subjectType = typeSelect ? typeSelect.value : 'lecture';
   const activeCourse = manifestData.courses.find(c => c.id === courseId);
   const courseName = activeCourse ? activeCourse.name : courseId.toUpperCase();
   
@@ -4396,8 +4926,9 @@ function submitClassRequest(event) {
     courseName: courseName,
     section: section,
     year: year,
-    teacherEmail: currentUser.email,
-    teacherName: currentUser.name || currentUser.email,
+    subjectType: subjectType,
+    facultyEmail: currentUser.email,
+    facultyName: currentUser.name || currentUser.email,
     status: 'pending',
     students: [],
     labGroups: [],
@@ -4411,7 +4942,7 @@ function submitClassRequest(event) {
       closeClassRequestModal();
       sectionInput.value = '';
       yearInput.value = '2026-2027';
-      renderTeacherClassesView();
+      renderFacultyClassesView();
     })
     .catch(err => {
       console.error("Error submitting class request:", err);
@@ -4482,9 +5013,9 @@ function submitEnrollmentRoster() {
     alert(`Successfully enrolled ${emails.length} student(s) into class roster.`);
     closeEnrollmentModal();
     
-    if (currentMode === 'teacher-classes') {
-      renderTeacherClassesView();
-    } else if (currentMode === 'teacher-gradebook') {
+    if (currentMode === 'faculty-classes') {
+      renderFacultyClassesView();
+    } else if (currentMode === 'faculty-gradebook') {
       loadGradebookData(currentEnrollClassId);
     }
   })
@@ -4507,20 +5038,20 @@ window.submitEnrollmentRoster = submitEnrollmentRoster;
 // ==========================================================================
 // INSTRUCTOR DASHBOARD VIEW (MY CLASSES)
 // ==========================================================================
-let teacherSelectedClassId = null;
+let facultySelectedClassId = null;
 
 function goToClassGradebook(classId) {
-  teacherSelectedClassId = classId;
-  setMode('teacher-gradebook');
+  facultySelectedClassId = classId;
+  setMode('faculty-gradebook');
 }
 function goToClassGroups(classId) {
-  teacherSelectedClassId = classId;
-  setMode('teacher-groups');
+  facultySelectedClassId = classId;
+  setMode('faculty-groups');
 }
 window.goToClassGradebook = goToClassGradebook;
 window.goToClassGroups = goToClassGroups;
 
-function renderTeacherClassesView() {
+function renderFacultyClassesView() {
   const viewport = document.getElementById('viewport-body');
   if (!viewport || !currentUser) return;
 
@@ -4529,12 +5060,12 @@ function renderTeacherClassesView() {
       <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0; text-align: left;">🏫 My Classrooms</h2>
       <button class="settings-btn-primary" onclick="openClassRequestModal()" style="width: auto; margin: 0; padding: 10px 18px; font-size: 13px;">➕ Request New Class</button>
     </div>
-    <div class="empty-playlist-msg" id="teacher-classes-loading">Loading classrooms from database...</div>
-    <div class="class-grid" id="teacher-classes-grid" style="display: none;"></div>
+    <div class="empty-playlist-msg" id="faculty-classes-loading">Loading classrooms from database...</div>
+    <div class="class-grid" id="faculty-classes-grid" style="display: none;"></div>
   `;
 
-  const loadingEl = document.getElementById('teacher-classes-loading');
-  const gridEl = document.getElementById('teacher-classes-grid');
+  const loadingEl = document.getElementById('faculty-classes-loading');
+  const gridEl = document.getElementById('faculty-classes-grid');
   if (!gridEl) return;
 
   function renderClassesHtml(classesList) {
@@ -4591,7 +5122,7 @@ function renderTeacherClassesView() {
   }
 
   firestore.collection('classes')
-    .where('teacherEmail', '==', currentUser.email)
+    .where('facultyEmail', '==', currentUser.email)
     .get()
     .then(querySnapshot => {
       let classesList = [];
@@ -4600,9 +5131,9 @@ function renderTeacherClassesView() {
       });
 
       const hasSample = classesList.some(c => c.id === 'sample_class_49c');
-      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      const isFacultyRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
       
-      if (!hasSample && isTeacherRamon) {
+      if (!hasSample && isFacultyRamon) {
         classesList.push(GLOBAL_SAMPLE_CLASS);
       }
 
@@ -4610,8 +5141,8 @@ function renderTeacherClassesView() {
     })
     .catch(err => {
       console.error("Error loading classes:", err);
-      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
-      if (isTeacherRamon) {
+      const isFacultyRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (isFacultyRamon) {
         console.log("Offline fallback: rendering local sample class.");
         renderClassesHtml([GLOBAL_SAMPLE_CLASS]);
       } else if (loadingEl) {
@@ -4619,7 +5150,7 @@ function renderTeacherClassesView() {
       }
     });
 }
-window.renderTeacherClassesView = renderTeacherClassesView;
+window.renderFacultyClassesView = renderFacultyClassesView;
 
 
 // ==========================================================================
@@ -4628,7 +5159,7 @@ window.renderTeacherClassesView = renderTeacherClassesView;
 let gradebookClassData = null;
 let gradebookStudentsList = {};
 
-function renderTeacherGradebookView() {
+function renderFacultyGradebookView() {
   const viewport = document.getElementById('viewport-body');
   if (!viewport || !currentUser) return;
 
@@ -4649,7 +5180,7 @@ function renderTeacherGradebookView() {
 
   // Fetch approved classes
   firestore.collection('classes')
-    .where('teacherEmail', '==', currentUser.email)
+    .where('facultyEmail', '==', currentUser.email)
     .where('status', '==', 'approved')
     .get()
     .then(querySnapshot => {
@@ -4669,13 +5200,13 @@ function renderTeacherGradebookView() {
       select.innerHTML = options;
 
       // Check if we pre-selected a class
-      if (teacherSelectedClassId) {
-        select.value = teacherSelectedClassId;
+      if (facultySelectedClassId) {
+        select.value = facultySelectedClassId;
         const enrollBtn = document.getElementById('gradebook-enroll-btn');
         if (enrollBtn) enrollBtn.style.display = 'inline-block';
         const exportBtn = document.getElementById('gradebook-export-btn');
         if (exportBtn) exportBtn.style.display = 'inline-block';
-        loadGradebookData(teacherSelectedClassId);
+        loadGradebookData(facultySelectedClassId);
       }
     })
     .catch(err => {
@@ -5116,8 +5647,8 @@ function submitScoreOverride() {
       closeScoreEditorModal();
       if (currentEnrollClassId) {
         loadGradebookData(currentEnrollClassId);
-      } else if (teacherSelectedClassId) {
-        loadGradebookData(teacherSelectedClassId);
+      } else if (facultySelectedClassId) {
+        loadGradebookData(facultySelectedClassId);
       }
     })
     .catch(err => {
@@ -5126,13 +5657,13 @@ function submitScoreOverride() {
       closeScoreEditorModal();
       if (currentEnrollClassId) {
         loadGradebookData(currentEnrollClassId);
-      } else if (teacherSelectedClassId) {
-        loadGradebookData(teacherSelectedClassId);
+      } else if (facultySelectedClassId) {
+        loadGradebookData(facultySelectedClassId);
       }
     });
 }
 
-window.renderTeacherGradebookView = renderTeacherGradebookView;
+window.renderFacultyGradebookView = renderFacultyGradebookView;
 window.loadGradebookData = loadGradebookData;
 window.openScoreEditorModal = openScoreEditorModal;
 window.closeScoreEditorModal = closeScoreEditorModal;
@@ -5145,7 +5676,7 @@ window.submitScoreOverride = submitScoreOverride;
 let activeGroupsClassId = null;
 let activeGroupsClassData = null;
 
-function renderTeacherGroupsView() {
+function renderFacultyGroupsView() {
   const viewport = document.getElementById('viewport-body');
   if (!viewport || !currentUser) return;
 
@@ -5165,7 +5696,7 @@ function renderTeacherGroupsView() {
 
   // Fetch approved classes
   firestore.collection('classes')
-    .where('teacherEmail', '==', currentUser.email)
+    .where('facultyEmail', '==', currentUser.email)
     .where('status', '==', 'approved')
     .get()
     .then(querySnapshot => {
@@ -5178,8 +5709,8 @@ function renderTeacherGroupsView() {
       });
 
       const hasSample = classesList.some(c => c.id === 'sample_class_49c');
-      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
-      if (!hasSample && isTeacherRamon) {
+      const isFacultyRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (!hasSample && isFacultyRamon) {
         classesList.push(GLOBAL_SAMPLE_CLASS);
       }
 
@@ -5194,27 +5725,27 @@ function renderTeacherGroupsView() {
       });
       select.innerHTML = options;
 
-      if (teacherSelectedClassId) {
-        select.value = teacherSelectedClassId;
+      if (facultySelectedClassId) {
+        select.value = facultySelectedClassId;
         const addBtn = document.getElementById('groups-add-btn');
         if (addBtn) addBtn.style.display = 'inline-block';
-        loadGroupsData(teacherSelectedClassId);
+        loadGroupsData(facultySelectedClassId);
       }
     })
     .catch(err => {
       console.error("Error fetching classes for groups select:", err);
       const select = document.getElementById('groups-class-select');
       if (!select) return;
-      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
-      if (isTeacherRamon) {
+      const isFacultyRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (isFacultyRamon) {
         let options = `<option value="">-- Select Class --</option>`;
         options += `<option value="${GLOBAL_SAMPLE_CLASS.id}">${GLOBAL_SAMPLE_CLASS.courseName} (${GLOBAL_SAMPLE_CLASS.section})</option>`;
         select.innerHTML = options;
-        if (teacherSelectedClassId) {
-          select.value = teacherSelectedClassId;
+        if (facultySelectedClassId) {
+          select.value = facultySelectedClassId;
           const addBtn = document.getElementById('groups-add-btn');
           if (addBtn) addBtn.style.display = 'inline-block';
-          loadGroupsData(teacherSelectedClassId);
+          loadGroupsData(facultySelectedClassId);
         }
       } else {
         select.innerHTML = `<option value="">Error loading classes: ${err.message}</option>`;
@@ -5530,7 +6061,7 @@ function removeStudentFromLabGroup(groupId, studentEmail) {
   });
 }
 
-window.renderTeacherGroupsView = renderTeacherGroupsView;
+window.renderFacultyGroupsView = renderFacultyGroupsView;
 window.loadGroupsData = loadGroupsData;
 window.createLabGroup = createLabGroup;
 window.deleteLabGroup = deleteLabGroup;
@@ -5622,7 +6153,7 @@ function renderAdminRequestsView() {
                     <span class="class-status-badge pending">PENDING</span>
                   </div>
                   <div style="font-size:12.5px; color:var(--text-muted);">
-                    Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                    Faculty: <strong>${classData.facultyName}</strong> (${classData.facultyEmail})
                   </div>
                   <div style="font-size:11.5px; color:var(--text-muted);">
                     Academic Year: ${classData.year}
@@ -5647,7 +6178,7 @@ function renderAdminRequestsView() {
                   <span class="class-status-badge pending" style="background:#ef4444;">DENIED</span>
                 </div>
                 <div style="font-size:12.5px; color:var(--text-muted);">
-                  Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                  Faculty: <strong>${classData.facultyName}</strong> (${classData.facultyEmail})
                 </div>
                 <div style="font-size:11.5px; color:var(--text-muted);">
                   Academic Year: ${classData.year}
@@ -5671,7 +6202,7 @@ function renderAdminRequestsView() {
                   <span class="class-status-badge approved">APPROVED</span>
                 </div>
                 <div style="font-size:12.5px; color:var(--text-muted);">
-                  Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                  Faculty: <strong>${classData.facultyName}</strong> (${classData.facultyEmail})
                 </div>
                 <div style="font-size:11.5px; color:var(--text-muted);">
                   Students Enrolled: <strong>${studentCount}</strong> | Academic Year: ${classData.year}
@@ -5884,6 +6415,20 @@ window.bulkDenyRequests = bulkDenyRequests;
 window.clearAllDeniedRequests = clearAllDeniedRequests;
 
 
+let adminUsersSortColumn = 'name';
+let adminUsersSortOrder = 'asc';
+
+function toggleAdminUsersSort(column) {
+  if (adminUsersSortColumn === column) {
+    adminUsersSortOrder = adminUsersSortOrder === 'asc' ? 'desc' : 'asc';
+  } else {
+    adminUsersSortColumn = column;
+    adminUsersSortOrder = 'asc';
+  }
+  renderAdminUsersView();
+}
+window.toggleAdminUsersSort = toggleAdminUsersSort;
+
 function renderAdminUsersView() {
   const viewport = document.getElementById('viewport-body');
   if (!viewport || !currentUser) return;
@@ -5897,7 +6442,8 @@ function renderAdminUsersView() {
       <div style="display:flex; gap:8px; flex-wrap: wrap;">
         <input type="email" id="promote-email-input" placeholder="student.email@msugensan.edu.ph" style="flex:2; min-width: 200px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
         <select id="promote-role-select" style="flex:1; min-width: 120px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
-          <option value="teacher">Teacher</option>
+          <option value="faculty">Faculty</option>
+          <option value="laboratory">Laboratory</option>
           <option value="admin">Admin</option>
           <option value="student">Student</option>
         </select>
@@ -5909,11 +6455,13 @@ function renderAdminUsersView() {
       <table class="gradebook-table" style="width:100%; border-collapse:collapse;">
         <thead>
           <tr>
-            <th style="text-align:left; padding:12px;">Name</th>
-            <th style="text-align:left; padding:12px;">Email</th>
-            <th style="padding:12px;">ID Number</th>
-            <th style="padding:12px;">Year</th>
-            <th style="padding:12px;">Role</th>
+            <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('status')">Status ${adminUsersSortColumn === 'status' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="text-align:left; padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('name')">Name ${adminUsersSortColumn === 'name' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="text-align:left; padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('email')">Email ${adminUsersSortColumn === 'email' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('role')">Role ${adminUsersSortColumn === 'role' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('hours')">Hours Logged ${adminUsersSortColumn === 'hours' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('studentId')">ID Number ${adminUsersSortColumn === 'studentId' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
+            <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('year')">Year ${adminUsersSortColumn === 'year' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
             <th style="padding:12px;">Action</th>
           </tr>
         </thead>
@@ -5932,34 +6480,118 @@ function renderAdminUsersView() {
       if (!tbody) return;
 
       if (querySnapshot.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:var(--text-muted);">No onboarded student records found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; text-align:center; color:var(--text-muted);">No onboarded student records found.</td></tr>`;
         return;
       }
 
-      let html = '';
+      // Convert query snapshot to array of user objects
+      let usersList = [];
       querySnapshot.forEach(doc => {
-        const userData = doc.data();
-        const email = doc.id;
+        usersList.push({ email: doc.id, ...doc.data() });
+      });
+
+      // Client-side sort logic
+      usersList.sort((a, b) => {
+        let valA = '';
+        let valB = '';
+
+        if (adminUsersSortColumn === 'status') {
+          const now = Date.now();
+          const lastActiveA = a.lastActive ? ((typeof a.lastActive.toMillis === 'function') ? a.lastActive.toMillis() : a.lastActive) : 0;
+          const lastActiveB = b.lastActive ? ((typeof b.lastActive.toMillis === 'function') ? b.lastActive.toMillis() : b.lastActive) : 0;
+          const isActiveA = lastActiveA && (now - lastActiveA < 900000);
+          const isActiveB = lastActiveB && (now - lastActiveB < 900000);
+          valA = isActiveA ? 1 : 0;
+          valB = isActiveB ? 1 : 0;
+        } else if (adminUsersSortColumn === 'name') {
+          valA = (a.name || a.email.split('@')[0]).toLowerCase();
+          valB = (b.name || b.email.split('@')[0]).toLowerCase();
+        } else if (adminUsersSortColumn === 'email') {
+          valA = a.email.toLowerCase();
+          valB = b.email.toLowerCase();
+        } else if (adminUsersSortColumn === 'role') {
+          valA = (a.role || determineUserRole(a.email)).toLowerCase();
+          valB = (b.role || determineUserRole(b.email)).toLowerCase();
+        } else if (adminUsersSortColumn === 'hours') {
+          valA = a.totalHoursLogged || 0;
+          valB = b.totalHoursLogged || 0;
+        } else if (adminUsersSortColumn === 'studentId') {
+          valA = (a.studentId || '-').toLowerCase();
+          valB = (b.studentId || '-').toLowerCase();
+        } else if (adminUsersSortColumn === 'year') {
+          valA = (a.year || '-').toLowerCase();
+          valB = (b.year || '-').toLowerCase();
+        }
+
+        if (valA < valB) return adminUsersSortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return adminUsersSortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      let html = '';
+      const now = Date.now();
+      usersList.forEach(userData => {
+        const email = userData.email;
         const assignedRole = userData.role || determineUserRole(email);
         const isSelf = email.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
 
+        // Calculate active/inactive status
+        let lastActiveMs = 0;
+        if (userData.lastActive) {
+          lastActiveMs = (typeof userData.lastActive.toMillis === 'function') 
+            ? userData.lastActive.toMillis() 
+            : userData.lastActive;
+        }
+        
+        const isActive = lastActiveMs && (now - lastActiveMs < 900000); // 15 mins
+        
+        let statusBadgeHtml = '';
+        if (isActive) {
+          statusBadgeHtml = `<span style="font-size:11px; font-weight:700; color:#10b981; display:inline-flex; align-items:center; justify-content:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>Active</span>`;
+        } else {
+          let lastActiveText = 'Never';
+          if (lastActiveMs) {
+            const diffSecs = Math.floor((now - lastActiveMs) / 1000);
+            if (diffSecs < 60) {
+              lastActiveText = 'Just now';
+            } else if (diffSecs < 3600) {
+              const mins = Math.floor(diffSecs / 60);
+              lastActiveText = `${mins}m ago`;
+            } else if (diffSecs < 86400) {
+              const hrs = Math.floor(diffSecs / 3600);
+              lastActiveText = `${hrs}h ago`;
+            } else {
+              const days = Math.floor(diffSecs / 86400);
+              lastActiveText = `${days}d ago`;
+            }
+          }
+          statusBadgeHtml = `<span style="font-size:11px; font-weight:600; color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#6b7280;"></span>Offline (${lastActiveText})</span>`;
+        }
+
+        // Format total logged-in hours
+        const hoursLogged = userData.totalHoursLogged || 0;
+        const hoursText = `${hoursLogged.toFixed(2)} hrs`;
+
         html += `
           <tr>
+            <td style="padding:12px;">${statusBadgeHtml}</td>
             <td style="text-align:left; padding:12px; font-weight:700;">${userData.name || email.split('@')[0]}</td>
-            <td style="text-align:left; padding:12px; font-family:monospace;">${email}</td>
-            <td style="padding:12px;">${userData.studentId || '-'}</td>
-            <td style="padding:12px;">${userData.year || '-'}</td>
+            <td style="text-align:left; padding:12px; font-family:monospace; font-size:12px;">${email}</td>
             <td style="padding:12px;">
               <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:2px 6px; border-radius:4px; 
-                background: ${assignedRole === 'admin' ? 'rgba(16,185,129,0.1)' : assignedRole === 'teacher' ? 'rgba(59,130,246,0.1)' : 'rgba(107,114,128,0.1)'};
-                color: ${assignedRole === 'admin' ? '#10b981' : assignedRole === 'teacher' ? '#3b82f6' : 'var(--text-muted)'};">
+                background: ${assignedRole === 'admin' ? 'rgba(16,185,129,0.1)' : assignedRole === 'faculty' ? 'rgba(59,130,246,0.1)' : assignedRole === 'laboratory' ? 'rgba(236,72,153,0.1)' : 'rgba(107,114,128,0.1)'};
+                color: ${assignedRole === 'admin' ? '#10b981' : assignedRole === 'faculty' ? '#3b82f6' : assignedRole === 'laboratory' ? '#ec4899' : 'var(--text-muted)'};">
                 ${assignedRole}
               </span>
             </td>
+            <td style="padding:12px; font-weight:600; font-family:monospace;">${hoursText}</td>
+            <td style="padding:12px;">${userData.studentId || '-'}</td>
+            <td style="padding:12px;">${userData.year || '-'}</td>
             <td style="padding:12px;">
               ${isSelf ? `<span style="font-size:11px; color:var(--text-muted); font-style:italic;">Active Session</span>` : `
-                <div style="display:flex; gap:6px; justify-content:center;">
-                  <button onclick="updateUserRoleDatabase('${email}', 'teacher')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #3b82f6; background:transparent; color:#3b82f6; cursor:pointer;">Promote Teacher</button>
+                <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+                  <button onclick="updateUserRoleDatabase('${email}', 'faculty')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #3b82f6; background:transparent; color:#3b82f6; cursor:pointer;">Promote Faculty</button>
+                  <button onclick="updateUserRoleDatabase('${email}', 'laboratory')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #ec4899; background:transparent; color:#ec4899; cursor:pointer;">Promote Laboratory</button>
                   <button onclick="updateUserRoleDatabase('${email}', 'student')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid var(--border-card); background:transparent; color:var(--text-muted); cursor:pointer;">Demote Student</button>
                 </div>
               `}
@@ -5984,79 +6616,1476 @@ function updateUserRoleDatabase(email, role) {
 
   firestore.collection('students').doc(email).get()
     .then(doc => {
+      let currentRoles = [];
+      let userData = {};
       if (doc.exists) {
-        return firestore.collection('students').doc(email).update({
-          role: role
-        });
+        userData = doc.data();
+        currentRoles = userData.roles || [];
+        const currentPrimaryRole = userData.role || determineUserRole(email);
+        if (currentPrimaryRole && !currentRoles.includes(currentPrimaryRole)) {
+          currentRoles.push(currentPrimaryRole);
+        }
       } else {
-        return firestore.collection('students').doc(email).set({
-          name: email.split('@')[0],
-          email: email,
-          studentId: "Placeholder",
-          subjects: [],
-          year: "1",
-          avatar: "icon.png",
-          role: role
-        });
+        const defaultRole = determineUserRole(email);
+        currentRoles = [defaultRole];
       }
+
+      if (role === 'student') {
+        currentRoles = ['student'];
+      } else {
+        currentRoles = currentRoles.filter(r => r !== 'student');
+        if (!currentRoles.includes(role)) {
+          currentRoles.push(role);
+        }
+      }
+
+      // Deduplicate and filter out empty
+      currentRoles = [...new Set(currentRoles)].filter(Boolean);
+
+      const updatedData = {
+        ...userData,
+        role: role,
+        roles: currentRoles
+      };
+
+      if (!doc.exists) {
+        updatedData.name = email.split('@')[0];
+        updatedData.email = email;
+        updatedData.studentId = "Placeholder";
+        updatedData.subjects = [];
+        updatedData.year = "1";
+        updatedData.avatar = "chemistry_logo.png";
+      }
+
+      // If updating our own account, sync currentUser locally as well
+      if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+        currentUser.role = role;
+        currentUser.roles = currentRoles;
+        currentUserRole = role;
+        localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+        localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+      }
+
+      return firestore.collection('students').doc(email).set(updatedData);
     })
     .then(() => {
       alert(`Successfully assigned role ${role.toUpperCase()} to ${email}`);
+      
+      // If we updated ourselves, reload UI
+      if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+        updateProfileUI();
+        renderSidebarNavigation();
+        buildUIFromManifest();
+        setMode('home');
+      }
+      
       renderAdminUsersView();
     })
     .catch(err => {
       console.error("Error updating user role:", err);
       alert("Failed to update user role: " + err.message);
+// ==========================================================================
+// 🧪 CHEMISTRY STOCKROOM LIMS CORE MODULES
+// ==========================================================================
+let activeLimsTransactionFilter = 'all';
+let limsTransactionSearchQuery = '';
+let loadedLimsTransactions = [];
+
+let limsStudentSearchQuery = '';
+let activeLimsSelectedStudentEmail = null;
+let loadedLimsStudents = [];
+
+let generatedReportRows = [];
+let generatedReportCategory = '';
+
+function runFirestoreMigration() {
+  if (localStorage.getItem('firestore_migration_done_v2') === 'true') {
+    return;
+  }
+  
+  console.log("Starting client-side Firestore collection migration...");
+  
+  firestore.collection('requisitions').get()
+    .then(snapshot => {
+      const batch = firestore.batch();
+      let count = 0;
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        let changed = false;
+        const updateData = {};
+        
+        // Old 'returned' (returned to student for revision) -> 'returned_for_revision'
+        if (data.status === 'returned') {
+          updateData.status = 'returned_for_revision';
+          changed = true;
+        }
+        // Old 'cleared' (requisition cleared) -> 'completed'
+        else if (data.status === 'cleared') {
+          updateData.status = 'completed';
+          changed = true;
+        }
+        
+        if (changed) {
+          batch.update(doc.ref, updateData);
+          count++;
+        }
+      });
+      
+      if (count > 0) {
+        return batch.commit().then(() => {
+          console.log(`Successfully migrated ${count} requisition records.`);
+        });
+      } else {
+        console.log("No requisitions needed migration.");
+      }
+    })
+    .then(() => {
+      localStorage.setItem('firestore_migration_done_v2', 'true');
+      console.log("Firestore migration marked as complete.");
+    })
+    .catch(err => {
+      console.error("Firestore migration failed:", err);
     });
 }
 
-function promoteUserEmail() {
-  const emailInput = document.getElementById('promote-email-input');
-  const roleSelect = document.getElementById('promote-role-select');
-  if (!emailInput || !roleSelect) return;
+function getDefaultSemester() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
+  if (year < 2026 || (year === 2026 && month < 8)) {
+    return "AY2026-2027, First Semester";
+  }
+  let ayStart = year;
+  let term = "First Semester";
+  if (month >= 8) {
+    ayStart = year;
+    term = "First Semester";
+  } else if (month >= 1 && month <= 5) {
+    ayStart = year - 1;
+    term = "Second Semester";
+  } else {
+    ayStart = year - 1;
+    term = "Summer Semester";
+  }
+  return `AY${ayStart}-${ayStart + 1}, ${term}`;
+}
 
-  const email = emailInput.value.trim().toLowerCase();
-  const role = roleSelect.value;
+function openActionDrawer(title, bodyHTML, footerHTML) {
+  const overlay = document.getElementById('action-drawer-overlay');
+  const drawer = document.getElementById('action-drawer');
+  const elTitle = document.getElementById('action-drawer-title');
+  const elBody = document.getElementById('action-drawer-body');
+  const elFooter = document.getElementById('action-drawer-footer');
 
-  if (!email || !email.endsWith('@msugensan.edu.ph')) {
-    alert("Please enter a valid student/faculty email ending with @msugensan.edu.ph");
+  if (!overlay || !drawer) return;
+
+  if (elTitle) elTitle.innerText = title;
+  if (elBody) elBody.innerHTML = bodyHTML || '';
+  if (elFooter) elFooter.innerHTML = footerHTML || '';
+
+  overlay.classList.add('active');
+  drawer.classList.add('active');
+}
+
+function closeActionDrawer() {
+  const overlay = document.getElementById('action-drawer-overlay');
+  const drawer = document.getElementById('action-drawer');
+  if (overlay) overlay.classList.remove('active');
+  if (drawer) drawer.classList.remove('active');
+}
+
+// --- 1. HOME MODULE ---
+function renderLaboratoryDashboard() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  // Semester End date alert
+  let reminderHTML = '';
+  if (semesterEndDate) {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const endDateObj = new Date(semesterEndDate);
+    const diffTime = endDateObj - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays >= 0 && diffDays <= 14) {
+      reminderHTML = `
+        <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: left; display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 20px;">🔔</span>
+          <div>
+            <h4 style="margin: 0 0 2px 0; color: #f97316; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">End of Semester Reminder</h4>
+            <p style="margin: 0; font-size: 12.5px; color: var(--text-muted);">The semester is scheduled to end on <strong>${semesterEndDate}</strong> (in ${diffDays} days). Please ensure all student accountabilities have been updated.</p>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  viewport.innerHTML = `
+    ${reminderHTML}
+    
+    <div class="home-greeting-card" style="padding: 24px; background: rgba(13,148,136,0.05); border: 1px solid rgba(13,148,136,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
+      <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: var(--accent); margin: 0 0 8px 0;">🏢 Home Dashboard</h2>
+      <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Welcome to the Chemistry Stockroom LIMS. You have administrative access.</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; text-align: left;">
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; cursor: pointer;" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='pending'; loadLimsTransactionsData();">
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">⌛ Pending Approval</div>
+        <div id="stat-pending-approvals" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #f59e0b;">...</div>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; cursor: pointer;" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='approved'; loadLimsTransactionsData();">
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">📦 Current Releases</div>
+        <div id="stat-current-releases" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #3b82f6;">...</div>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; cursor: pointer;" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='borrowed'; loadLimsTransactionsData();">
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">🧪 Borrowed Items</div>
+        <div id="stat-borrowed-items" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #a855f7;">...</div>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; cursor: pointer;" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='overdue'; loadLimsTransactionsData();">
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">⚠️ Overdue Returns</div>
+        <div id="stat-overdue-returns" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #ef4444;">...</div>
+      </div>
+    </div>
+
+    <!-- Double Column: Timeline Feed & Quick Actions -->
+    <div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; text-align: left; margin-bottom: 24px;">
+      
+      <!-- Timeline Feed -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <h3 style="margin: 0; font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif; color: var(--text-main);">📅 Laboratory Timeline & Releases</h3>
+        <div id="dashboard-timeline" class="lims-timeline">
+          <div style="font-size: 12.5px; color: var(--text-muted);">Loading timeline...</div>
+        </div>
+      </div>
+
+      <!-- Quick Actions and Today's Schedule -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Quick Actions -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 16px; padding: 20px;">
+          <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">⚡ Quick Actions</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button class="settings-btn-primary" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='pending'; loadLimsTransactionsData();" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); color:#f59e0b; display:flex; align-items:center; gap:8px;">
+              <span>📋</span> Approve Requisition
+            </button>
+            <button class="settings-btn-primary" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='approved'; loadLimsTransactionsData();" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.2); color:#3b82f6; display:flex; align-items:center; gap:8px;">
+              <span>📦</span> Issue / Release Equipment
+            </button>
+            <button class="settings-btn-primary" onclick="setMode('lab-transactions'); activeLimsTransactionFilter='borrowed'; loadLimsTransactionsData();" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.2); color:#a855f7; display:flex; align-items:center; gap:8px;">
+              <span>🧪</span> Receive Returns
+            </button>
+            <button class="settings-btn-primary" onclick="setMode('lab-students');" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.2); color:#10b981; display:flex; align-items:center; gap:8px;">
+              <span>👤</span> Add Manual Accountability
+            </button>
+            <button class="settings-btn-primary" onclick="setMode('lab-communication');" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(13,148,136,0.06); border:1px solid rgba(13,148,136,0.2); color:#0d9488; display:flex; align-items:center; gap:8px;">
+              <span>📢</span> Post Announcement / Reminder
+            </button>
+          </div>
+        </div>
+
+        <!-- Today's Classes -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 16px; padding: 20px; text-align: left;">
+          <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 700; font-family: 'Outfit', sans-serif;">🔬 Today's Lab Schedules</h3>
+          <div id="todays-schedules-container" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:12px; color:var(--text-muted); font-style:italic;">Checking schedule...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  loadLimsDashboardStats();
+}
+
+function loadLimsDashboardStats() {
+  if (typeof firestore === 'undefined' || !firestore) return;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  
+  firestore.collection('requisitions').get()
+    .then(snapshot => {
+      let pendingApprovals = 0;
+      let currentReleases = 0; // approved
+      let borrowedItems = 0;
+      let overdueReturns = 0;
+      let timelineData = [];
+      let todaysSchedules = [];
+
+      const now = new Date();
+      now.setHours(0,0,0,0);
+
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const id = doc.id;
+      targetEmail: facultyEmail,
+      targetName: facultyName,
+      subject: subject,
+      message: `Student ${studentName} has a pending accountability for ${subject}: ${description}. Please follow up.`,
+      sentBy: currentUser.email,
+      sentByName: currentUser.name,
+      sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+      read: false
+    };
+    
+    return firestore.collection('notifications').add(reminder);
+  })
+  .then(ref => {
+    if (ref) {
+      alert(`Reminder sent to faculty member: ${facultyName}.`);
+    }
+  })
+  .catch(err => {
+    console.error("Error sending faculty reminder:", err);
+    alert("Failed to send faculty reminder: " + err.message);
+  });
+}
+
+function sendBulkReminders(mode) {
+  // mode: 'current' (active semester) or 'past' (previous uncleared)
+  const currentSemester = getDefaultSemester();
+  
+  firestore.collection('accountabilities').where('status', '==', 'pending').get()
+    .then(snap => {
+      const targets = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        if (mode === 'current' && d.semester === currentSemester) {
+          targets.push(d);
+        } else if (mode === 'past' && d.semester !== currentSemester) {
+          targets.push(d);
+        }
+      });
+      
+      if (targets.length === 0) {
+        alert(mode === 'current' 
+          ? "No pending accountabilities in the current semester." 
+          : "No uncleared accountabilities from previous semesters.");
+        return;
+      }
+      
+      const confirmMsg = mode === 'current'
+        ? `Send reminders to ${targets.length} students/faculty with pending accountabilities in ${currentSemester}?`
+        : `Send reminders to ${targets.length} students/faculty with uncleared accountabilities from previous semesters?`;
+      
+      if (!confirm(confirmMsg)) return;
+      
+      const promises = [];
+      const sentEmails = new Set();
+      
+      targets.forEach(t => {
+        // Remind student
+        if (t.studentEmail && t.studentEmail !== 'Unlinked Account' && !sentEmails.has(t.studentEmail)) {
+          sentEmails.add(t.studentEmail);
+          promises.push(firestore.collection('notifications').add({
+            type: 'accountability_reminder',
+            targetEmail: t.studentEmail,
+            targetName: t.studentName,
+            subject: t.subject,
+            message: `You have a pending accountability for ${t.subject}: ${t.description}. Please settle your obligations with the Chemistry Stockroom.`,
+            sentBy: currentUser.email,
+            sentByName: currentUser.name,
+            sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+            read: false
+          }));
+        }
+      });
+      
+      return Promise.all(promises).then(() => {
+        alert(`Bulk reminders sent to ${promises.length} recipient(s).`);
+      });
+    })
+    .catch(err => {
+      console.error("Error sending bulk reminders:", err);
+      alert("Failed to send bulk reminders: " + err.message);
+    });
+}
+
+function updateStockroomSearch(val) {
+  stockroomSearchQuery = val;
+  loadStockroomClearanceData();
+}
+
+function updateStockroomSemester(val) {
+  activeStockroomSemester = val;
+  loadStockroomClearanceData();
+}
+
+window.renderLaboratoryDashboard = renderLaboratoryDashboard;
+window.renderLabAccountabilitiesView = renderLabAccountabilitiesView;
+window.toggleStockroomSort = toggleStockroomSort;
+window.dismissPetition = dismissPetition;
+window.exportStockroomCSV = exportStockroomCSV;
+window.loadStockroomClearanceData = loadStockroomClearanceData;
+window.clearAccountability = clearAccountability;
+window.handleExcelUpload = handleExcelUpload;
+window.processAccountabilityExcelRows = processAccountabilityExcelRows;
+window.updateStockroomSearch = updateStockroomSearch;
+window.updateStockroomSemester = updateStockroomSemester;
+window.editManualAccountability = editManualAccountability;
+window.cancelManualAccountabilityEdit = cancelManualAccountabilityEdit;
+window.handleManualAccountabilitySubmit = handleManualAccountabilitySubmit;
+window.openAccountabilityDetailModal = openAccountabilityDetailModal;
+window.closeAccountabilityDetailModal = closeAccountabilityDetailModal;
+window.remindStudent = remindStudent;
+window.remindFacultyMember = remindFacultyMember;
+window.sendBulkReminders = sendBulkReminders;
+
+function handleExcelUpload(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+  const file = files[0];
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        alert("The Excel file seems to be empty.");
+        return;
+      }
+
+      console.log("Parsed Excel rows:", jsonData);
+      processAccountabilityExcelRows(jsonData);
+    } catch(err) {
+      console.error("Error parsing Excel file:", err);
+      alert("Failed to parse Excel file. Make sure it is a valid .xlsx or .xls file.");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = ''; // Reset input
+}
+
+function processAccountabilityExcelRows(rows) {
+  firestore.collection('classes').where('status', '==', 'approved').get()
+    .then(classesSnap => {
+      const activeClasses = [];
+      classesSnap.forEach(doc => {
+        activeClasses.push({ id: doc.id, ...doc.data() });
+      });
+
+      return firestore.collection('students').get().then(studentsSnap => {
+        const studentProfiles = [];
+        studentsSnap.forEach(doc => {
+          studentProfiles.push({ email: doc.id, ...doc.data() });
+        });
+
+        let importedCount = 0;
+        const promises = [];
+
+        let defaultSemester = "AY2026-2027, First Semester";
+        if (semesterEndDate) {
+          const yearPart = parseInt(semesterEndDate.substring(0, 4), 10);
+          const month = parseInt(semesterEndDate.substring(5, 7), 10);
+          let term = "First Semester";
+          let ayStart = yearPart;
+          if (month >= 8) {
+            ayStart = yearPart;
+            term = "First Semester";
+          } else if (month >= 1 && month <= 5) {
+            ayStart = yearPart - 1;
+            term = "Second Semester";
+          } else {
+            ayStart = yearPart - 1;
+            term = "Summer";
+          }
+          defaultSemester = `AY${ayStart}-${ayStart + 1}, ${term}`;
+        }
+        
+        const selectedSemester = prompt("Please confirm the Semester for this accountability upload:", defaultSemester) || defaultSemester;
+
+        rows.forEach(row => {
+          let studentName = "";
+          let subject = "";
+          let section = "";
+          let faculty = "";
+          let description = "";
+          let semester = selectedSemester;
+
+          for (const key in row) {
+            const val = String(row[key]).trim();
+            const keyLower = key.toLowerCase();
+            if (keyLower.includes('name') || keyLower.includes('student') || keyLower.includes('fullname')) {
+              studentName = val;
+            } else if (keyLower.includes('subject') || keyLower.includes('course') || keyLower.includes('code')) {
+              subject = val;
+            } else if (keyLower.includes('section') || keyLower.includes('class')) {
+              section = val;
+            } else if (keyLower.includes('faculty') || keyLower.includes('instructor') || keyLower.includes('faculty')) {
+              faculty = val;
+            } else if (keyLower.includes('account') || keyLower.includes('item') || keyLower.includes('detail') || keyLower.includes('reason') || keyLower.includes('broken')) {
+              description = val;
+            } else if (keyLower.includes('semester') || keyLower.includes('term')) {
+              semester = val;
+            }
+          }
+
+          if (!studentName || !subject || !section) {
+            console.log("Row missing critical details, skipping:", row);
+            return;
+          }
+
+          let matchedEmail = null;
+
+          const matchingClass = activeClasses.find(c => 
+            (c.courseId.toLowerCase().trim() === subject.toLowerCase().trim() || c.courseName.toLowerCase().trim() === subject.toLowerCase().trim()) &&
+            c.section.toLowerCase().trim() === section.toLowerCase().trim()
+          );
+
+          if (matchingClass && matchingClass.students) {
+            const matchingProfile = studentProfiles.find(s => {
+              const inClass = matchingClass.students.some(email => email.toLowerCase().trim() === s.email.toLowerCase().trim());
+              if (!inClass) return false;
+              
+              const nameA = s.name.toLowerCase().replace(/[^a-z]/g, '');
+              const nameB = studentName.toLowerCase().replace(/[^a-z]/g, '');
+              return nameA.includes(nameB) || nameB.includes(nameA);
+            });
+
+            if (matchingProfile) {
+              matchedEmail = matchingProfile.email;
+            } else {
+              const rosterMatch = matchingClass.students.find(email => {
+                const prefix = email.split('@')[0].replace(/[^a-z]/g, '').toLowerCase();
+                const nameB = studentName.toLowerCase().replace(/[^a-z]/g, '');
+                return prefix.includes(nameB) || nameB.includes(prefix);
+              });
+              if (rosterMatch) matchedEmail = rosterMatch;
+            }
+          }
+
+          const record = {
+            studentName: studentName,
+            studentEmail: matchedEmail,
+            subject: subject,
+            section: section,
+            faculty: faculty || (matchingClass ? matchingClass.facultyName : "Unknown Faculty"),
+            faculty: faculty || (matchingClass ? matchingClass.facultyName : "Unknown Faculty"),
+            description: description || "Outstanding accountability",
+            semester: semester,
+            status: "pending",
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          };
+
+          const p = firestore.collection('accountabilities')
+            .where('studentName', '==', studentName)
+            .where('subject', '==', subject)
+            .where('section', '==', section)
+            .where('description', '==', description)
+            .where('semester', '==', semester)
+            .get()
+            .then(snap => {
+              if (snap.empty) {
+                importedCount++;
+                return firestore.collection('accountabilities').add(record);
+              } else {
+                const docId = snap.docs[0].id;
+                return firestore.collection('accountabilities').doc(docId).update({
+                  status: 'pending',
+                  studentEmail: matchedEmail,
+                  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+              }
+            });
+          promises.push(p);
+        });
+
+        return Promise.all(promises).then(() => {
+          alert(`Excel upload complete! Imported/Updated ${importedCount} accountability records.`);
+          loadStockroomClearanceData();
+        });
+      });
+    })
+    .catch(err => {
+      console.error("Error processing Excel records:", err);
+      alert("Error importing Excel rows: " + err.message);
+    });
+}
+
+function editManualAccountability(id, name, subject, section, faculty, remarks, semester) {
+  const cancelBtn = document.getElementById('manual-acc-cancel');
+  if (cancelBtn) cancelBtn.style.display = 'inline-block';
+  
+  const title = document.getElementById('manual-accountability-form-title');
+  if (title) title.innerText = "✏️ Edit Accountability Record";
+  
+  document.getElementById('manual-acc-id').value = id;
+  document.getElementById('manual-acc-name').value = name;
+  document.getElementById('manual-acc-subject').value = subject;
+  document.getElementById('manual-acc-section').value = section;
+  const facInput = document.getElementById('manual-acc-faculty') || document.getElementById('manual-acc-faculty');
+  if (facInput) facInput.value = (faculty === 'Unknown Faculty' || faculty === 'undefined') ? '' : faculty;
+  document.getElementById('manual-acc-remarks').value = remarks;
+  
+  const semesterSelect = document.getElementById('manual-acc-semester');
+  if (semesterSelect) {
+    const val = semester || getDefaultSemester();
+    let exists = false;
+    for (let i = 0; i < semesterSelect.options.length; i++) {
+      if (semesterSelect.options[i].value === val) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.text = val;
+      semesterSelect.add(opt);
+    }
+    semesterSelect.value = val;
+  }
+  
+  const form = document.getElementById('manual-accountability-form');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function cancelManualAccountabilityEdit() {
+  const cancelBtn = document.getElementById('manual-acc-cancel');
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  
+  const title = document.getElementById('manual-accountability-form-title');
+  if (title) title.innerText = "📝 Add Accountability";
+  
+  document.getElementById('manual-acc-id').value = '';
+  document.getElementById('manual-accountability-form').reset();
+  
+  const semesterSelect = document.getElementById('manual-acc-semester');
+  if (semesterSelect) {
+    semesterSelect.value = "AY2026-2027, First Semester";
+  }
+}
+
+function handleManualAccountabilitySubmit(event) {
+  event.preventDefault();
+  
+  const id = document.getElementById('manual-acc-id').value;
+  const name = document.getElementById('manual-acc-name').value.trim();
+  const subject = document.getElementById('manual-acc-subject').value.trim();
+  const section = document.getElementById('manual-acc-section').value.trim();
+  const facInput = document.getElementById('manual-acc-faculty') || document.getElementById('manual-acc-faculty');
+  const faculty = facInput ? facInput.value.trim() : '';
+  const remarks = document.getElementById('manual-acc-remarks').value.trim();
+  const semester = document.getElementById('manual-acc-semester').value.trim();
+  
+  if (!name || !subject || !section || !remarks || !semester) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+  
+  let matchedEmail = null;
+
+  const savePromise = firestore.collection('students').get().then(studentsSnap => {
+    const studentProfiles = [];
+    studentsSnap.forEach(doc => {
+      studentProfiles.push({ email: doc.id, ...doc.data() });
+    });
+
+    const matchingProfile = studentProfiles.find(s => {
+      const nameA = s.name.toLowerCase().replace(/[^a-z]/g, '');
+      const nameB = name.toLowerCase().replace(/[^a-z]/g, '');
+      return nameA.includes(nameB) || nameB.includes(nameA);
+    });
+
+    if (matchingProfile) {
+      matchedEmail = matchingProfile.email;
+    }
+    
+    if (id) {
+      return firestore.collection('accountabilities').doc(id).update({
+        studentName: name,
+        studentEmail: matchedEmail,
+        subject: subject,
+        section: section,
+        faculty: faculty || "Unknown Faculty",
+        faculty: faculty || "Unknown Faculty",
+        description: remarks,
+        semester: semester
+      });
+    } else {
+      const mainRecord = {
+        studentName: name,
+        studentEmail: matchedEmail,
+        subject: subject,
+        section: section,
+        faculty: faculty || "Unknown Faculty",
+        faculty: faculty || "Unknown Faculty",
+        description: remarks,
+        semester: semester,
+        status: "pending",
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      const promises = [firestore.collection('accountabilities').add(mainRecord)];
+      
+      // Auto-group population per semester: only if single name added (no commas)
+      if (!name.includes(',') && matchedEmail) {
+        const pGroup = firestore.collection('classes').get().then(classesSnap => {
+          const classPromises = [];
+          classesSnap.forEach(classDoc => {
+            const c = classDoc.data();
+            const isMatch = (c.courseId.toLowerCase().trim() === subject.toLowerCase().trim() ||
+                             c.courseName.toLowerCase().trim() === subject.toLowerCase().trim()) &&
+                            c.section.toLowerCase().trim() === section.toLowerCase().trim();
+            
+            if (isMatch && c.labGroups) {
+              const group = c.labGroups.find(g => g.members && g.members.some(m => m.toLowerCase().trim() === matchedEmail.toLowerCase().trim()));
+              if (group) {
+                const otherEmails = group.members.filter(m => m.toLowerCase().trim() !== matchedEmail.toLowerCase().trim());
+                
+                otherEmails.forEach(email => {
+                  const profile = studentProfiles.find(p => p.email.toLowerCase().trim() === email.toLowerCase().trim());
+                  const memberName = profile ? profile.name : email.split('@')[0];
+                  const groupRecord = {
+                    studentName: memberName,
+                    studentEmail: email,
+                    subject: subject,
+                    section: section,
+                    faculty: faculty || "Unknown Faculty",
+                    faculty: faculty || "Unknown Faculty",
+                    description: remarks,
+                    semester: semester,
+                    status: "pending",
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                  };
+                  classPromises.push(firestore.collection('accountabilities').add(groupRecord));
+                });
+              }
+            }
+          });
+          return Promise.all(classPromises);
+        });
+        promises.push(pGroup);
+      }
+      
+      return Promise.all(promises);
+    }
+  });
+
+  savePromise.then(() => {
+    alert(id ? "Accountability record updated successfully!" : "Accountability record added successfully!");
+    cancelManualAccountabilityEdit();
+    loadStockroomClearanceData();
+  }).catch(err => {
+    console.error("Error saving manual accountability:", err);
+    alert("Failed to save accountability record: " + err.message);
+  });
+}
+
+function matchUnlinkedAccountabilities(studentEmail, studentName) {
+  if (!studentEmail || !studentName) return Promise.resolve();
+  const nameNorm = studentName.toLowerCase().replace(/[^a-z]/g, '');
+  if (!nameNorm) return Promise.resolve();
+
+  return firestore.collection('accountabilities')
+    .get()
+    .then(snap => {
+      const promises = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        if (!d.studentEmail || d.studentEmail === 'Unlinked Account') {
+          const accNameNorm = d.studentName.toLowerCase().replace(/[^a-z]/g, '');
+          if (accNameNorm && (accNameNorm.includes(nameNorm) || nameNorm.includes(accNameNorm))) {
+            console.log(`Linking accountability doc ${doc.id} to student ${studentEmail}`);
+            promises.push(
+              firestore.collection('accountabilities').doc(doc.id).update({
+                studentEmail: studentEmail
+              })
+            );
+          }
+        }
+      });
+      return Promise.all(promises);
+    })
+    .catch(err => {
+      console.error("Error matching unlinked accountabilities:", err);
+    });
+}
+
+
+
+// ==========================================================================
+// STUDENT LABORATORY REQUISITION PORTAL
+// ==========================================================================
+let activeEditRequisitionId = null;
+
+function renderStudentRequisitionView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser || !currentCourseId) return;
+
+  const classData = activeStudentClassData[currentCourseId];
+  if (!classData) {
+    viewport.innerHTML = `<div class="empty-playlist-msg">Classroom details not found for this course.</div>`;
     return;
   }
 
-  updateUserRoleDatabase(email, role);
-  emailInput.value = '';
+  // Resolve student group and members
+  let userGroup = null;
+  let groupMembersEmails = [currentUser.email];
+  if (classData.labGroups) {
+    userGroup = classData.labGroups.find(g => g.members && g.members.map(m => m.toLowerCase().trim()).includes(currentUser.email.toLowerCase().trim()));
+    if (userGroup) {
+      groupMembersEmails = userGroup.members || [];
+    }
+  }
+
+  const groupName = userGroup ? userGroup.name : "Individual";
+
+  // Resolve full names of members first, then family names
+  const promises = groupMembersEmails.map(email => 
+    firestore.collection('students').doc(email.toLowerCase().trim()).get()
+      .then(doc => doc.exists ? doc.data().name : email.split('@')[0])
+      .catch(() => email.split('@')[0])
+  );
+
+  viewport.innerHTML = `<div class="empty-playlist-msg">Loading requisition portal...</div>`;
+
+  Promise.all(promises).then(names => {
+    const familyNames = names.map(n => extractFamilyName(n)).filter(n => n !== '');
+    const familyNamesStr = familyNames.join(', ') || extractFamilyName(currentUser.name);
+
+    renderStudentRequisitionsList(classData, groupName, familyNamesStr, names);
+  });
 }
 
-window.renderAdminUsersView = renderAdminUsersView;
-window.updateUserRoleDatabase = updateUserRoleDatabase;
-window.promoteUserEmail = promoteUserEmail;
+function extractFamilyName(fullName) {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return '';
+  const suffixes = ['jr', 'jr.', 'sr', 'sr.', 'iii', 'ii', 'iv', 'v'];
+  let last = parts[parts.length - 1];
+  if (suffixes.includes(last.toLowerCase()) && parts.length > 1) {
+    return parts[parts.length - 2];
+  }
+  return last;
+}
+
+function renderStudentRequisitionsList(classData, groupName, familyNamesStr, fullNames) {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport) return;
+
+  viewport.innerHTML = `
+    <div class="home-greeting-card" style="padding: 24px; background: rgba(13,148,136,0.05); border: 1px solid rgba(13,148,136,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <div>
+        <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: var(--active-subject-color, #0d9488); margin: 0 0 8px 0;">🧪 Requisitions Portal</h2>
+        <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Submit and track laboratory requisitions for your experiment group.</p>
+      </div>
+      <button class="settings-btn-primary" onclick="showNewRequisitionForm('${classData.id}', '${groupName}', '${familyNamesStr}', ${JSON.stringify(fullNames)})" style="width: auto; margin: 0; padding: 10px 20px; font-size: 13px; background: var(--active-subject-color, #0d9488);">➕ New Requisition</button>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 24px;">
+      <h4 style="margin:0 0 4px 0; font-size:12.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">👥 My Lab Group Details</h4>
+      <p style="margin:0; font-size:14px; font-weight:600; color:var(--text-main); margin-top:4px;">Group Name: <span style="color:var(--accent);">${escapeHtml(groupName)}</span></p>
+      <p style="margin:6px 0 0 0; font-size:13px; color:var(--text-muted);">Family Names: <strong>${escapeHtml(familyNamesStr)}</strong></p>
+    </div>
+
+    <h3 style="font-size:16px; font-weight:700; font-family:'Outfit',sans-serif; text-align:left; margin:0 0 12px 0;">📋 Requisition History</h3>
+    <div id="student-req-history-container">
+      <div class="empty-playlist-msg">Loading history...</div>
+    </div>
+  `;
+
+  loadStudentRequisitionsHistory(classData.id);
+}
+
+function loadStudentRequisitionsHistory(classId) {
+  firestore.collection('requisitions')
+    .where('classId', '==', classId)
+    .get()
+    .then(snapshot => {
+      const container = document.getElementById('student-req-history-container');
+      if (!container) return;
+
+      // Filter to only user's submissions
+      let reqs = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.studentEmails && data.studentEmails.map(e => e.toLowerCase().trim()).includes(currentUser.email.toLowerCase().trim())) {
+          reqs.push({ id: doc.id, ...data });
+        }
+      });
+
+      if (reqs.length === 0) {
+        container.innerHTML = `<div class="empty-playlist-msg" style="padding:40px; border: 1px dashed var(--border-card); border-radius:12px; background:var(--bg-card);">No past laboratory requisitions found for your group. Click "New Requisition" to create one.</div>`;
+        return;
+      }
+
+      reqs.sort((a, b) => new Date(b.timestamp ? b.timestamp.seconds * 1000 : 0) - new Date(a.timestamp ? a.timestamp.seconds * 1000 : 0));
+
+      let html = '<div style="display:flex; flex-direction:column; gap:16px;">';
+      reqs.forEach(r => {
+        let statusColor = '#f59e0b';
+        let statusBg = 'rgba(245,158,11,0.1)';
+        if (r.status === 'approved') {
+          statusColor = '#10b981';
+          statusBg = 'rgba(16,185,129,0.1)';
+        } else if (r.status === 'returned') {
+          statusColor = '#ef4444';
+          statusBg = 'rgba(239,68,68,0.1)';
+        }
+
+        html += `
+          <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px; text-align:left; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+              <div>
+                <h4 style="margin:0; font-size:15px; font-weight:700; color:var(--text-main); font-family:'Outfit',sans-serif;">Lab Conduct: ${escapeHtml(r.scheduleDate)} @ ${escapeHtml(r.scheduleTime)}</h4>
+                <p style="margin:4px 0 0 0; font-size:11.5px; color:var(--text-muted);">Submitted on ${new Date(r.timestamp ? r.timestamp.seconds * 1000 : Date.now()).toLocaleString()}</p>
+              </div>
+              <span style="font-size:10.5px; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:6px; background:${statusBg}; color:${statusColor};">
+                ${r.status === 'returned' ? 'Returned (Needs Revision)' : r.status}
+              </span>
+            </div>
+
+            <!-- Details Preview -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; background:var(--bg-body); padding:12px; border-radius:8px; border:1px solid var(--border-card);">
+              <div>
+                <strong style="font-size:11.5px; color:var(--text-muted); display:block; margin-bottom:4px;">Chemicals (${r.chemicals ? r.chemicals.length : 0})</strong>
+                <span style="font-size:12.5px; color:var(--text-main); line-height:1.4;">
+                  ${r.chemicals ? r.chemicals.map(c => `${escapeHtml(c.name)} (${escapeHtml(c.volume)} / ${escapeHtml(c.concentration)})`).join(', ') : 'None'}
+                </span>
+              </div>
+              <div>
+                <strong style="font-size:11.5px; color:var(--text-muted); display:block; margin-bottom:4px;">Glasswares (${r.materials ? r.materials.length : 0})</strong>
+                <span style="font-size:12.5px; color:var(--text-main); line-height:1.4;">
+                  ${r.materials ? r.materials.map(m => `${escapeHtml(m.name)} (qty: ${m.quantity})`).join(', ') : 'None'}
+                </span>
+              </div>
+            </div>
+
+            ${r.unknowns ? `
+              <div style="font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:8px 12px; border-radius:6px; border-left:3px solid var(--accent);">
+                <strong>Unknowns:</strong> ${escapeHtml(r.unknowns)}
+              </div>
+            ` : ''}
+
+            ${r.remarks ? `
+              <div style="background:rgba(239,68,68,0.05); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:12px; font-size:13px; color:#ef4444;">
+                <strong>⚠️ Stockroom Remarks:</strong> ${escapeHtml(r.remarks)}
+              </div>
+            ` : ''}
+
+            ${r.status === 'returned' ? `
+              <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+                <button class="settings-btn-primary" onclick="editReturnedRequisition('${r.id}')" style="width:auto; margin:0; padding:8px 16px; font-size:12px; font-weight:600; background:#3b82f6;">✏️ Edit & Resubmit</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Error fetching requisitions history:", err);
+      const container = document.getElementById('student-req-history-container');
+      if (container) {
+        container.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">⚠️ Error loading history: ${err.message}</div>`;
+      }
+    });
+}
+
+function showNewRequisitionForm(classId, groupName, familyNamesStr, fullNames) {
+  activeEditRequisitionId = null;
+  renderRequisitionFormUI(classId, groupName, familyNamesStr, fullNames, null);
+}
+
+function editReturnedRequisition(reqId) {
+  activeEditRequisitionId = reqId;
+  const viewport = document.getElementById('viewport-body');
+  if (viewport) viewport.innerHTML = `<div class="empty-playlist-msg">Loading requisition form data...</div>`;
+
+  firestore.collection('requisitions').doc(reqId).get()
+    .then(doc => {
+      if (!doc.exists) {
+        alert("Requisition not found.");
+        renderStudentRequisitionView();
+        return;
+      }
+      const data = doc.data();
+      const promises = data.studentEmails.map(email => 
+        firestore.collection('students').doc(email.toLowerCase().trim()).get()
+          .then(docProfile => docProfile.exists ? docProfile.data().name : email.split('@')[0])
+          .catch(() => email.split('@')[0])
+      );
+      
+      return Promise.all(promises).then(names => {
+        const familyNames = names.map(n => extractFamilyName(n)).filter(n => n !== '');
+        const familyNamesStr = familyNames.join(', ');
+        renderRequisitionFormUI(data.classId, data.groupName, familyNamesStr, names, data);
+      });
+    })
+    .catch(err => {
+      console.error("Error loading edit requisition:", err);
+      alert("Failed to load requisition data: " + err.message);
+      renderStudentRequisitionView();
+    });
+}
+
+function renderRequisitionFormUI(classId, groupName, familyNamesStr, fullNames, existingData) {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser || !currentCourseId) return;
+
+  const classData = activeStudentClassData[currentCourseId];
+  if (!classData) return;
+
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() + 3);
+  const minDateStr = minDate.toISOString().split('T')[0];
+
+  const dateVal = existingData ? existingData.scheduleDate : minDateStr;
+  const timeVal = existingData ? existingData.scheduleTime : '09:00';
+  const unknownsVal = existingData ? existingData.unknowns || '' : '';
+
+  viewport.innerHTML = `
+    <h2 style="font-size:20px; font-weight:800; font-family:'Outfit',sans-serif; text-align:left; margin:0 0 16px 0;">
+      ${existingData ? '✏️ Edit Requisition Form' : '🧪 New Laboratory Requisition'}
+    </h2>
+
+    <form id="lab-req-form" onsubmit="submitRequisitionForm(event, '${classId}', '${groupName}', ${JSON.stringify(fullNames)})" style="text-align:left; font-family:'Outfit',sans-serif; display:flex; flex-direction:column; gap:20px;">
+      <!-- Metadata Group -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Group / Individual</span>
+          <span style="font-size:14px; font-weight:700; color:var(--accent);">${escapeHtml(groupName)}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Prepopulated Members</span>
+          <span style="font-size:13px; font-weight:600; color:var(--text-main);">${escapeHtml(familyNamesStr)}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Subject & Section</span>
+          <span style="font-size:13px; font-weight:600; color:var(--text-main);">${escapeHtml(classData.courseName)} - ${escapeHtml(classData.section.toUpperCase())}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <span style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Instructor</span>
+          <span style="font-size:13px; font-weight:600; color:var(--text-main);">${escapeHtml(classData.facultyName)}</span>
+        </div>
+      </div>
+
+      <!-- Schedule of Conduct -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px;">
+        <h4 style="margin:0 0 12px 0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">📅 Schedule of Lab Conduct</h4>
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; gap:6px; flex:1; min-width:180px;">
+            <label style="font-size:11.5px; font-weight:600; color:var(--text-muted);">Conduct Date (Must be 3+ days in advance)</label>
+            <input type="date" id="req-date-input" min="${minDateStr}" value="${dateVal}" required style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; flex:1; min-width:180px;">
+            <label style="font-size:11.5px; font-weight:600; color:var(--text-muted);">Conduct Time</label>
+            <input type="time" id="req-time-input" value="${timeVal}" required style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Two Columns Inputs Grid -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px; align-items:flex-start;">
+        <!-- Column 1: Chemicals -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h4 style="margin:0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">🧪 Chemicals and Reagents</h4>
+            <button type="button" class="settings-btn-primary" onclick="addChemicalRow()" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px;">➕ Add Row</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px dashed var(--border-card);">
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted);">Chemical Name</th>
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted); width:80px;">Volume</th>
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted); width:80px;">Conc.</th>
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted); width:40px; text-align:center;"></th>
+                </tr>
+              </thead>
+              <tbody id="chem-rows-container">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Column 2: Materials -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h4 style="margin:0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">🔬 Materials & Glasswares</h4>
+            <button type="button" class="settings-btn-primary" onclick="addGlasswareRow()" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px;">➕ Add Row</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px dashed var(--border-card);">
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted);">Glassware Description / Specs</th>
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted); width:70px;">Quantity</th>
+                  <th style="padding:8px 4px; font-size:11px; color:var(--text-muted); width:40px; text-align:center;"></th>
+                </tr>
+              </thead>
+              <tbody id="glass-rows-container">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unknown Samples Option B Textbox -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+        <h4 style="margin:0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">🧪 Unknown Samples & Codes</h4>
+        <p style="margin:0; font-size:12px; color:var(--text-muted);">List any codes or identifiers for unknown samples required in this conduct.</p>
+        <textarea id="req-unknowns-input" placeholder="e.g. Unknown Code A-102, Unknown Sample B" style="width:100%; height:70px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; resize:vertical; box-sizing:border-box;">${escapeHtml(unknownsVal)}</textarea>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" class="settings-btn-primary" onclick="renderStudentRequisitionView()" style="width:auto; margin:0; padding:12px 20px; font-size:13.5px; background:transparent; border:1px solid var(--border-card); color:var(--text-muted);">Cancel</button>
+        <button type="submit" class="settings-btn-primary" style="width:auto; margin:0; padding:12px 24px; font-size:13.5px; background:var(--active-subject-color, #0d9488);">${existingData ? 'Resubmit Requisition 🚀' : 'Submit Requisition 🚀'}</button>
+      </div>
+    </form>
+  `;
+
+  if (existingData) {
+    if (existingData.chemicals && existingData.chemicals.length > 0) {
+      existingData.chemicals.forEach(c => addChemicalRow(c.name, c.volume, c.concentration));
+    } else {
+      addChemicalRow();
+    }
+    if (existingData.materials && existingData.materials.length > 0) {
+      existingData.materials.forEach(m => addGlasswareRow(m.name, m.quantity));
+    } else {
+      addGlasswareRow();
+    }
+  } else {
+    addChemicalRow();
+    addGlasswareRow();
+  }
+}
+
+function addChemicalRow(name = '', vol = '', conc = '') {
+  const container = document.getElementById('chem-rows-container');
+  if (!container) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'chemical-row';
+  tr.style.borderBottom = '1px solid var(--border-card)';
+  tr.innerHTML = `
+    <td style="padding:6px 2px;"><input type="text" placeholder="e.g. HCl" value="${escapeHtml(name)}" class="chem-name-input" required style="width:100%; border:none; background:transparent; color:var(--text-main); font-size:13px; padding:6px; box-sizing:border-box;"></td>
+    <td style="padding:6px 2px;"><input type="text" placeholder="e.g. 50 mL" value="${escapeHtml(vol)}" class="chem-volume-input" required style="width:100%; border:none; background:transparent; color:var(--text-main); font-size:13px; padding:6px; box-sizing:border-box;"></td>
+    <td style="padding:6px 2px;"><input type="text" placeholder="e.g. 0.1 M" value="${escapeHtml(conc)}" class="chem-conc-input" required style="width:100%; border:none; background:transparent; color:var(--text-main); font-size:13px; padding:6px; box-sizing:border-box;"></td>
+    <td style="padding:6px 2px; text-align:center;"><button type="button" onclick="this.closest('tr').remove()" style="background:none; border:none; color:var(--incorrect); font-size:14px; cursor:pointer;">❌</button></td>
+  `;
+  container.appendChild(tr);
+}
+
+function addGlasswareRow(specs = '', qty = 1) {
+  const container = document.getElementById('glass-rows-container');
+  if (!container) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'glassware-row';
+  tr.style.borderBottom = '1px solid var(--border-card)';
+  tr.innerHTML = `
+    <td style="padding:6px 2px;"><input type="text" placeholder="e.g. 50-ml beaker" value="${escapeHtml(specs)}" class="glass-specs-input" required style="width:100%; border:none; background:transparent; color:var(--text-main); font-size:13px; padding:6px; box-sizing:border-box;"></td>
+    <td style="padding:6px 2px;"><input type="number" placeholder="1" min="1" value="${qty}" class="glass-qty-input" required style="width:100%; border:none; background:transparent; color:var(--text-main); font-size:13px; padding:6px; box-sizing:border-box;"></td>
+    <td style="padding:6px 2px; text-align:center;"><button type="button" onclick="this.closest('tr').remove()" style="background:none; border:none; color:var(--incorrect); font-size:14px; cursor:pointer;">❌</button></td>
+  `;
+  container.appendChild(tr);
+}
+
+function submitRequisitionForm(event, classId, groupName, fullNames) {
+  event.preventDefault();
+  if (!currentUser || !currentCourseId) return;
+
+  const classData = activeStudentClassData[currentCourseId];
+  if (!classData) return;
+
+  const dateInput = document.getElementById('req-date-input');
+  const timeInput = document.getElementById('req-time-input');
+  if (!dateInput || !timeInput) return;
+
+  const scheduleDate = dateInput.value;
+  const scheduleTime = timeInput.value;
+
+  const selectedDate = new Date(scheduleDate + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const diffTime = selectedDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 3) {
+    alert("Error: Requisition schedule must be at least 3 days in advance of the laboratory conduct.");
+    return;
+  }
+
+  const chemRows = document.querySelectorAll('#chem-rows-container .chemical-row');
+  const chemicals = [];
+  chemRows.forEach(row => {
+    const name = row.querySelector('.chem-name-input').value.trim();
+    const volume = row.querySelector('.chem-volume-input').value.trim();
+    const conc = row.querySelector('.chem-conc-input').value.trim();
+    if (name) {
+      chemicals.push({ name, volume, concentration: conc });
+    }
+  });
+
+  const glassRows = document.querySelectorAll('#glass-rows-container .glassware-row');
+  const materials = [];
+  glassRows.forEach(row => {
+    const specs = row.querySelector('.glass-specs-input').value.trim();
+    const qtyVal = row.querySelector('.glass-qty-input').value;
+    const quantity = parseInt(qtyVal, 10) || 1;
+    if (specs) {
+      materials.push({ name: specs, quantity });
+    }
+  });
+
+  if (chemicals.length === 0 && materials.length === 0) {
+    alert("Please add at least one chemical or glassware to submit the requisition.");
+    return;
+  }
+
+  const unknowns = document.getElementById('req-unknowns-input').value.trim();
+
+  let studentEmails = [currentUser.email];
+  if (classData.labGroups) {
+    const userGroup = classData.labGroups.find(g => g.members && g.members.map(m => m.toLowerCase().trim()).includes(currentUser.email.toLowerCase().trim()));
+    if (userGroup) {
+      studentEmails = userGroup.members || [];
+    }
+  }
+
+  const requisitionData = {
+    classId: classId,
+    courseId: classData.courseId,
+    section: classData.section,
+    facultyEmail: classData.facultyEmail,
+    facultyName: classData.facultyName,
+    groupName: groupName,
+    studentEmails: studentEmails,
+    studentNames: fullNames,
+    scheduleDate: scheduleDate,
+    scheduleTime: scheduleTime,
+    chemicals: chemicals,
+    materials: materials,
+    unknowns: unknowns,
+    status: 'pending',
+    remarks: '',
+    submittedBy: currentUser.email,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  const submitPromise = activeEditRequisitionId 
+    ? firestore.collection('requisitions').doc(activeEditRequisitionId).set(requisitionData, { merge: true })
+    : firestore.collection('requisitions').add(requisitionData);
+
+  submitPromise
+    .then(() => {
+      alert("Laboratory requisition form submitted successfully!");
+      activeEditRequisitionId = null;
+      renderStudentRequisitionView();
+    })
+    .catch(err => {
+      console.error("Error submitting laboratory requisition:", err);
+      alert("Failed to submit requisition: " + err.message);
+    });
+}
+
+window.renderStudentRequisitionView = renderStudentRequisitionView;
+window.extractFamilyName = extractFamilyName;
+window.renderStudentRequisitionsList = renderStudentRequisitionsList;
+window.loadStudentRequisitionsHistory = loadStudentRequisitionsHistory;
+window.showNewRequisitionForm = showNewRequisitionForm;
+window.editReturnedRequisition = editReturnedRequisition;
+window.renderRequisitionFormUI = renderRequisitionFormUI;
+window.addChemicalRow = addChemicalRow;
+window.addGlasswareRow = addGlasswareRow;
+window.submitRequisitionForm = submitRequisitionForm;
+
+
+// ==========================================================================
+// --- End of LIMS Old Modules Migration ---
+
+function togglePetitionBox(docId, show) {
+  const box = document.getElementById(`petition-box-${docId}`);
+  if (box) {
+    box.style.display = show ? 'flex' : 'none';
+  }
+}
+window.togglePetitionBox = togglePetitionBox;
+
+function submitAccountabilityPetition(docId) {
+  const textInput = document.getElementById(`petition-text-${docId}`);
+  const text = textInput ? textInput.value.trim() : '';
+  if (!text) {
+    alert("Please enter your explanation remarks before submitting.");
+    return;
+  }
+  firestore.collection('accountabilities').doc(docId).update({
+    petitionRemarks: text,
+    petitionTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+  })
+  .then(() => {
+    alert("Clearance explanation submitted successfully! The stockroom custodian will review it.");
+    renderDashboardView();
+  })
+  .catch(err => {
+    console.error("Error submitting petition:", err);
+    alert("Failed to submit petition: " + err.message);
+  });
+}
+window.submitAccountabilityPetition = submitAccountabilityPetition;
 
 
 // ==========================================================================
 // INSTRUCTOR DASHBOARD VIEW (CLASSROOM DETAIL MANAGEMENT)
 // ==========================================================================
 let activeDetailsTab = 'announcements';
+let facultyClassAccSemester = 'AY2026-2027, First Semester';
 
 function viewClassroomDetails(classId) {
-  teacherSelectedClassId = classId;
+  facultySelectedClassId = classId;
   activeDetailsTab = 'announcements';
-  setMode('teacher-class-details');
+  facultyClassAccSemester = typeof getDefaultSemester === 'function' ? getDefaultSemester() : 'AY2026-2027, First Semester';
+  setMode('faculty-class-details');
 }
 window.viewClassroomDetails = viewClassroomDetails;
 
 function setClassDetailsTab(tabName) {
   activeDetailsTab = tabName;
-  renderTeacherClassDetailsView();
+  renderFacultyClassDetailsView();
 }
 window.setClassDetailsTab = setClassDetailsTab;
 
-function renderTeacherClassDetailsView() {
+function loadFacultyClassAccountabilities(courseId, section) {
+  const container = document.getElementById('faculty-acc-list-container');
+  if (!container) return;
+
+  firestore.collection('accountabilities')
+    .where('subject', '==', courseId)
+    .where('section', '==', section)
+    .where('semester', '==', facultyClassAccSemester)
+    .get()
+    .then(snap => {
+      if (snap.empty) {
+        container.innerHTML = `<div style="font-size:12.5px; font-style:italic; color:var(--text-muted); text-align:center; padding:20px; background:rgba(255,255,255,0.01); border:1px dashed var(--border-card); border-radius:8px;">No student accountabilities found for this semester section.</div>`;
+        return;
+      }
+
+      let accs = [];
+      snap.forEach(doc => accs.push(doc.data()));
+
+      accs.sort((a, b) => (a.studentName || '').localeCompare(b.studentName || ''));
+
+      let html = `
+        <div style="overflow-x:auto; border:1px solid var(--border-card); border-radius:10px; background:var(--bg-body); -webkit-overflow-scrolling: touch;">
+          <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px; min-width: 500px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-card); background:rgba(255,255,255,0.02); color:var(--text-muted); font-weight:700;">
+                <th style="padding:12px 10px;">Student Name</th>
+                <th style="padding:12px 10px;">Email</th>
+                <th style="padding:12px 10px;">Accountability Remarks</th>
+                <th style="padding:12px 10px;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accs.map(a => `
+                <tr style="border-bottom:1px solid var(--border-card);">
+                  <td style="padding:10px; font-weight:700; color:var(--text-main);">${escapeHtml(a.studentName)}</td>
+                  <td style="padding:10px; font-family:monospace; font-size:11.5px; color:var(--text-muted);">${escapeHtml(a.studentEmail || 'Unlinked')}</td>
+                  <td style="padding:10px; color:var(--text-main);">${escapeHtml(a.description)}</td>
+                  <td style="padding:10px;">
+                    <span style="font-size:9.5px; font-weight:700; text-transform:uppercase; padding:2px 6px; border-radius:4px; 
+                      background: ${a.status === 'pending' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)'};
+                      color: ${a.status === 'pending' ? '#f59e0b' : '#10b981'};">
+                      ${a.status}
+                    </span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Error loading faculty class accountabilities:", err);
+      container.innerHTML = `<div style="font-size:12px; color:var(--incorrect); text-align:center; padding:12px;">⚠️ Error loading records: ${err.message}</div>`;
+    });
+}
+window.loadFacultyClassAccountabilities = loadFacultyClassAccountabilities;
+
+function updateFacultyClassAccSemester(classId, val) {
+  facultyClassAccSemester = val;
+  firestore.collection('classes').doc(classId).get().then(doc => {
+    if (doc.exists) {
+      const c = doc.data();
+      loadFacultyClassAccountabilities(c.courseId, c.section);
+    }
+  });
+}
+window.updateFacultyClassAccSemester = updateFacultyClassAccSemester;
+
+function sendFacultyClearanceReminders(classId) {
+  firestore.collection('classes').doc(classId).get().then(classDoc => {
+    if (!classDoc.exists) return;
+    const c = classDoc.data();
+    
+    firestore.collection('accountabilities')
+      .where('subject', '==', c.courseId)
+      .where('section', '==', c.section)
+      .where('semester', '==', facultyClassAccSemester)
+      .where('status', '==', 'pending')
+      .get()
+      .then(snap => {
+        if (snap.empty) {
+          alert("No pending student accountabilities found for this semester section.");
+          return;
+        }
+        
+        if (!confirm(`Send clearance notifications to the ${snap.size} student(s) with pending requirements in this section?`)) return;
+        
+        const promises = [];
+        snap.forEach(doc => {
+          const a = doc.data();
+          if (a.studentEmail && a.studentEmail !== 'Unlinked Account') {
+            promises.push(firestore.collection('notifications').add({
+              type: 'accountability_reminder',
+              targetEmail: a.studentEmail,
+              targetName: a.studentName,
+              subject: a.subject,
+              message: `Clearance Follow-up: You have a pending laboratory accountability in ${a.subject} (Sec ${a.section}): ${a.description}. Please settle this requirement with the Chemistry Stockroom.`,
+              sentBy: currentUser.email,
+              sentByName: currentUser.name,
+              sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+              read: false
+            }));
+          }
+        });
+        
+        return Promise.all(promises).then(() => {
+          alert(`Automated reminders sent successfully to ${promises.length} student(s).`);
+        });
+      })
+      .catch(err => {
+        console.error("Error sending reminders:", err);
+        alert("Failed to send reminders: " + err.message);
+      });
+  });
+}
+window.sendFacultyClearanceReminders = sendFacultyClearanceReminders;
+
+function renderFacultyClassDetailsView() {
   const viewport = document.getElementById('viewport-body');
-  if (!viewport || !currentUser || !teacherSelectedClassId) return;
+  if (!viewport || !currentUser || !facultySelectedClassId) return;
 
   viewport.innerHTML = `<div class="empty-playlist-msg">Loading classroom details...</div>`;
 
-  const isSampleClass = teacherSelectedClassId === 'sample_class_49c';
+  const isSampleClass = facultySelectedClassId === 'sample_class_49c';
 
   function renderDetailsWithData(classData, classId) {
     const studentCount = classData.students ? classData.students.length : 0;
@@ -6239,11 +8268,32 @@ function renderTeacherClassDetailsView() {
           </div>
         </div>
       `;
+    } else if (activeDetailsTab === 'accountabilities') {
+      tabContent = `
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; text-align:left; display:flex; flex-direction:column; gap:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <h3 style="margin:0; font-size:15px; font-family:'Outfit',sans-serif;">📋 Student Clearance & Accountabilities</h3>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <select id="faculty-acc-semester-select" onchange="updateFacultyClassAccSemester('${classId}', this.value)" style="padding:6px 10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; cursor:pointer;">
+                <option value="AY2026-2027, First Semester" ${facultyClassAccSemester === 'AY2026-2027, First Semester' ? 'selected' : ''}>AY2026-2027, First Semester</option>
+                <option value="AY2025-2026, Summer" ${facultyClassAccSemester === 'AY2025-2026, Summer' ? 'selected' : ''}>AY2025-2026, Summer</option>
+                <option value="AY2025-2026, Second Semester" ${facultyClassAccSemester === 'AY2025-2026, Second Semester' ? 'selected' : ''}>AY2025-2026, Second Semester</option>
+                <option value="AY2025-2026, First Semester" ${facultyClassAccSemester === 'AY2025-2026, First Semester' ? 'selected' : ''}>AY2025-2026, First Semester</option>
+              </select>
+              <button class="settings-btn-primary" onclick="sendFacultyClearanceReminders('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:#f59e0b;">🔔 Send Clearance Reminders</button>
+            </div>
+          </div>
+          
+          <div id="faculty-acc-list-container">
+            <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:12px;">Loading accountability records...</div>
+          </div>
+        </div>
+      `;
     }
 
     viewport.innerHTML = `
       <div style="display: flex; gap:12px; align-items: center; margin-bottom: 20px; text-align:left;">
-        <button class="settings-btn-primary" style="width:auto; margin:0; padding:8px 16px; font-size:12px; background:transparent; border:1px solid var(--border-card); color:var(--text-main);" onclick="setMode('teacher-classes')">← Back</button>
+        <button class="settings-btn-primary" style="width:auto; margin:0; padding:8px 16px; font-size:12px; background:transparent; border:1px solid var(--border-card); color:var(--text-main);" onclick="setMode('faculty-classes')">← Back</button>
         <span style="font-size:12.5px; color:var(--text-muted);">Classrooms / Details</span>
       </div>
       
@@ -6272,6 +8322,7 @@ function renderTeacherClassDetailsView() {
           <button onclick="setClassDetailsTab('materials')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'materials' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'materials' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">📚 Resources</button>
           <button onclick="setClassDetailsTab('scheduler')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'scheduler' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'scheduler' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">✍️ Scheduler</button>
           <button onclick="setClassDetailsTab('roster')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'roster' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'roster' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">👥 Roster (${studentCount})</button>
+          <button onclick="setClassDetailsTab('accountabilities')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'accountabilities' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'accountabilities' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">📋 Accountabilities</button>
         </div>
         
         <!-- Tab content area -->
@@ -6281,9 +8332,15 @@ function renderTeacherClassDetailsView() {
       </div>
     `;
     renderChemistrySymbols(viewport);
+    
+    if (activeDetailsTab === 'accountabilities') {
+      setTimeout(() => {
+        loadFacultyClassAccountabilities(classData.courseId, classData.section);
+      }, 50);
+    }
   }
 
-  firestore.collection('classes').doc(teacherSelectedClassId).get()
+  firestore.collection('classes').doc(facultySelectedClassId).get()
     .then(classDoc => {
       if (!classDoc.exists) {
         if (isSampleClass) {
@@ -6375,7 +8432,7 @@ function postClassAnnouncement(classId) {
 
     titleInput.value = '';
     contentInput.value = '';
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6385,7 +8442,7 @@ function postClassAnnouncement(classId) {
   .then(() => {
     titleInput.value = '';
     contentInput.value = '';
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
   })
   .catch(err => {
     console.error("Error posting announcement:", err);
@@ -6404,7 +8461,7 @@ function deleteClassAnnouncement(classId, annId) {
       announcements: GLOBAL_SAMPLE_CLASS.announcements
     }).catch(err => console.warn("Firestore update failed for sample class announcement delete:", err));
 
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6418,7 +8475,7 @@ function deleteClassAnnouncement(classId, annId) {
       });
     })
     .then(() => {
-      renderTeacherClassDetailsView();
+      renderFacultyClassDetailsView();
     })
     .catch(err => {
       console.error("Error deleting announcement:", err);
@@ -6457,7 +8514,7 @@ function postClassMaterial(classId) {
 
     nameInput.value = '';
     urlInput.value = '';
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6467,7 +8524,7 @@ function postClassMaterial(classId) {
   .then(() => {
     nameInput.value = '';
     urlInput.value = '';
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
   })
   .catch(err => {
     console.error("Error posting study material:", err);
@@ -6486,7 +8543,7 @@ function deleteClassMaterial(classId, matId) {
       customMaterials: GLOBAL_SAMPLE_CLASS.customMaterials
     }).catch(err => console.warn("Firestore update failed for sample class material delete:", err));
 
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6500,7 +8557,7 @@ function deleteClassMaterial(classId, matId) {
       });
     })
     .then(() => {
-      renderTeacherClassDetailsView();
+      renderFacultyClassDetailsView();
     })
     .catch(err => {
       console.error("Error deleting study material:", err);
@@ -6519,7 +8576,7 @@ function removeStudentFromClass(classId, studentEmail) {
       students: firebase.firestore.FieldValue.arrayRemove(studentEmail)
     }).catch(err => console.warn("Firestore update failed for sample class student remove:", err));
 
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6527,7 +8584,7 @@ function removeStudentFromClass(classId, studentEmail) {
     students: firebase.firestore.FieldValue.arrayRemove(studentEmail)
   })
   .then(() => {
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
   })
   .catch(err => {
     console.error("Error removing student from roster:", err);
@@ -6547,7 +8604,7 @@ function updateClassSyllabusUrl(classId) {
     }).catch(err => console.warn("Firestore update failed for sample class syllabus update:", err));
 
     alert("Classroom syllabus URL updated successfully!");
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -6556,7 +8613,7 @@ function updateClassSyllabusUrl(classId) {
   })
   .then(() => {
     alert("Classroom syllabus URL updated successfully!");
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
   })
   .catch(err => {
     console.error("Failed to update class syllabus URL:", err);
@@ -6718,7 +8775,7 @@ function exportGradebookToCSV() {
   });
 }
 
-window.renderTeacherClassDetailsView = renderTeacherClassDetailsView;
+window.renderFacultyClassDetailsView = renderFacultyClassDetailsView;
 window.updateModuleSchedule = updateModuleSchedule;
 window.postClassAnnouncement = postClassAnnouncement;
 window.deleteClassAnnouncement = deleteClassAnnouncement;
@@ -7032,10 +9089,10 @@ function updatePeriodicTableButtonVisibility() {
   const isQuizRunning = activeQuizData !== null;
   const isEligibleMode = [
     'notes', 'assessments', 'foundations', 'syllabus', 'references', 'guidelines',
-    'teacher-classes', 'teacher-gradebook', 'teacher-groups', 'teacher-class-details'
+    'faculty-classes', 'faculty-gradebook', 'faculty-groups', 'faculty-class-details'
   ].includes(currentMode);
   
-  if (currentUser && (currentUserRole === 'student' || currentUserRole === 'teacher') && (isEligibleMode || isQuizRunning)) {
+  if (currentUser && (currentUserRole === 'student' || currentUserRole === 'faculty') && (isEligibleMode || isQuizRunning)) {
     ptBtn.style.display = 'inline-block';
   } else {
     ptBtn.style.display = 'none';
@@ -7255,9 +9312,9 @@ function processExamText(text) {
 }
 
 function publishImportedExam() {
-  if (!parsedCustomQuiz || !teacherSelectedClassId) return;
+  if (!parsedCustomQuiz || !facultySelectedClassId) return;
 
-  const classId = teacherSelectedClassId;
+  const classId = facultySelectedClassId;
 
   if (classId === 'sample_class_49c') {
     if (!GLOBAL_SAMPLE_CLASS.customQuizzes) {
@@ -7272,7 +9329,7 @@ function publishImportedExam() {
     document.getElementById('exam-preview-modal').style.display = 'none';
     parsedCustomQuiz = null;
     playSFX(true);
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -7284,7 +9341,7 @@ function publishImportedExam() {
     document.getElementById('exam-preview-modal').style.display = 'none';
     parsedCustomQuiz = null;
     playSFX(true);
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
   })
   .catch(err => {
     console.error("Failed to publish custom exam:", err);
@@ -7314,7 +9371,7 @@ function deleteCustomQuiz(classId, quizId) {
     }).catch(err => console.warn("Firestore delete failed for sample class:", err));
 
     alert("Custom exam deleted successfully.");
-    renderTeacherClassDetailsView();
+    renderFacultyClassDetailsView();
     return;
   }
 
@@ -7335,7 +9392,7 @@ function deleteCustomQuiz(classId, quizId) {
     })
     .then(() => {
       alert("Custom exam deleted successfully.");
-      renderTeacherClassDetailsView();
+      renderFacultyClassDetailsView();
     })
     .catch(err => {
       console.error("Error deleting custom quiz:", err);

@@ -4102,14 +4102,14 @@ body.light-mode .developer-debug-bar {
   color: white;
 }
 .role-badge.admin { background: #10b981; }
-.role-badge.teacher { background: #3b82f6; }
+.role-badge.faculty { background: #3b82f6; }
 .role-badge.student { background: var(--active-subject-color, #0ea5e9); }
 
 /* ==========================================================================
    INSTRUCTOR PORTAL & GRADEBOOK STYLES
    ========================================================================== */
 
-/* Teacher dashboard classroom cards */
+/* Faculty dashboard classroom cards */
 .class-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -4413,6 +4413,186 @@ body.light-mode .developer-debug-bar {
   box-shadow: 0 6px 14px rgba(13, 148, 136, 0.35);
   opacity: 0.95;
 }
+
+/* ==========================================================================
+   🧪 CHEMISTRY STOCKROOM LIMS REDESIGN STYLES
+   ========================================================================== */
+.lims-double-pane {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 190px);
+  min-height: 520px;
+  text-align: left;
+}
+.lims-left-pane {
+  flex: 0 0 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 16px;
+  overflow-y: auto;
+}
+.lims-right-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 20px;
+  overflow-y: auto;
+}
+@media (max-width: 900px) {
+  .lims-double-pane {
+    flex-direction: column;
+    height: auto;
+  }
+  .lims-left-pane {
+    flex: none;
+    max-height: 350px;
+  }
+}
+
+/* Option B Search Layout */
+.lims-search-bar-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lims-search-input {
+  flex: 1;
+  background: var(--bg-body);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.lims-search-input:focus {
+  border-color: var(--accent);
+}
+
+/* Slide-out Action Drawer */
+.action-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.action-drawer-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+.action-drawer {
+  position: fixed;
+  top: 0;
+  right: -480px;
+  width: 480px;
+  max-width: 100%;
+  height: 100%;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border-card);
+  z-index: 1000;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+}
+.action-drawer.active {
+  right: 0;
+}
+.action-drawer-header {
+  padding: 20px;
+  border-bottom: 1px dashed var(--border-card);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.action-drawer-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.action-drawer-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-card);
+  background: var(--bg-body);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* LIMS Stepper Timeline */
+.lims-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 20px;
+  margin-top: 10px;
+}
+.lims-timeline::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--border-card);
+}
+.lims-timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lims-timeline-item::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: -20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-card);
+  border: 2px solid var(--bg-card);
+}
+.lims-timeline-item.active::before {
+  background: var(--accent);
+}
+.lims-timeline-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.lims-timeline-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
 
 
 

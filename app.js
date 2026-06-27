@@ -860,23 +860,42 @@ function updateProfileUI() {
     profilePic.src = currentUser.avatar || 'icon.png';
   }
 
-  // Update Settings Form fields
+  // Update Settings Form fields if they exist in the DOM (depending on active drawer content)
   const settingsName = document.getElementById('settings-nickname');
   if (settingsName) settingsName.value = currentUser.name;
 
   const settingsId = document.getElementById('settings-studentid');
-  if (settingsId) settingsId.value = currentUser.studentId;
-
-  // Render settings chips
-  renderSettingsSelectedClasses();
+  if (settingsId) settingsId.value = currentUser.studentId || '';
 
   const settingsYear = document.getElementById('settings-year');
-  if (settingsYear) settingsYear.value = currentUser.year;
+  if (settingsYear) settingsYear.value = currentUser.year || '1';
 
   const settingsPic = document.getElementById('settings-profile-pic');
   if (settingsPic) {
     settingsPic.src = currentUser.avatar || 'icon.png';
   }
+
+  // Teacher specific settings updates
+  const teacherContact = document.getElementById('settings-teacher-contact');
+  if (teacherContact) teacherContact.value = currentUser.contactNumber || '';
+
+  const teacherOffice = document.getElementById('settings-teacher-office');
+  if (teacherOffice) teacherOffice.value = currentUser.officeAddress || '';
+
+  const teacherMessenger = document.getElementById('settings-teacher-messenger');
+  if (teacherMessenger) teacherMessenger.value = currentUser.messengerLink || '';
+
+  const teacherMessengerGc = document.getElementById('settings-teacher-messenger-gc');
+  if (teacherMessengerGc) teacherMessengerGc.value = currentUser.messengerGc || '';
+
+  const teacherTelegramGc = document.getElementById('settings-teacher-telegram-gc');
+  if (teacherTelegramGc) teacherTelegramGc.value = currentUser.telegramGc || '';
+
+  const teacherConsultation = document.getElementById('settings-teacher-consultation');
+  if (teacherConsultation) teacherConsultation.value = currentUser.consultationHours || '';
+
+  // Render settings chips
+  renderSettingsSelectedClasses();
 }
 
 // ==========================================================================
@@ -1841,84 +1860,195 @@ function renderFacultyView() {
   }
 
   const details = activeCourse.syllabusDetails;
-  const faculty = details.faculty || {};
-  const consultList = (faculty.consultation || []).map(c => `<li>${c}</li>`).join('');
+  const manifestFaculty = details.faculty || {};
 
-  const facultyHTML = `
-    <div class="faculty-info-container">
-      <div class="faculty-contact-row">
-        <span class="faculty-contact-icon">👤</span>
-        <div class="faculty-contact-details">
-          <span class="faculty-contact-label">Instructor Name</span>
-          <span class="faculty-contact-value">${faculty.name || 'N/A'}</span>
-        </div>
-      </div>
-      <div class="faculty-contact-row">
-        <span class="faculty-contact-icon">📧</span>
-        <div class="faculty-contact-details">
-          <span class="faculty-contact-label">Academic Email</span>
-          <span class="faculty-contact-value">${faculty.email || 'N/A'}</span>
-        </div>
-      </div>
-      <div class="faculty-contact-row">
-        <span class="faculty-contact-icon">📱</span>
-        <div class="faculty-contact-details">
-          <span class="faculty-contact-label">Mobile Number</span>
-          <span class="faculty-contact-value">${faculty.mobile || 'N/A'}</span>
-        </div>
-      </div>
-      <div class="faculty-contact-row">
-        <span class="faculty-contact-icon">🏢</span>
-        <div class="faculty-contact-details">
-          <span class="faculty-contact-label">Faculty Office</span>
-          <span class="faculty-contact-value">${faculty.office || 'N/A'}</span>
-        </div>
-      </div>
-      <div class="faculty-contact-row" style="flex-direction:column; align-items:flex-start; gap:6px;">
-        <span class="faculty-contact-label" style="margin-left:42px;">📅 Consultation Schedule</span>
-        <ul style="margin:0; padding-left:58px; font-size:13px; font-weight:700; color:var(--text-main); list-style-type:square;">
-          ${consultList || '<li>No consultation schedule specified.</li>'}
-        </ul>
-      </div>
-    </div>
-  `;
-
-  // Resolve QR codes for instructors
-  let qrCodesHTML = '';
-  const facultyName = (faculty.name || '').toLowerCase();
-  if (facultyName.includes('eduque')) {
-    qrCodesHTML = `
-      <div class="faculty-header-qrs" style="display: flex; gap: 15px; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); padding: 10px; border-radius: 12px;">
-        <div style="text-align: center;">
-          <img src="rem_qr.png" alt="FB Messenger QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
-          <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">FB Messenger</span>
-        </div>
-        <div style="text-align: center;">
-          <img src="ree_qr.png" alt="Email QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
-          <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">Email QR</span>
-        </div>
-      </div>
-    `;
+  // Determine teacher email to query
+  let teacherEmail = manifestFaculty.email || '';
+  
+  if (currentUserRole === 'teacher') {
+    teacherEmail = currentUser.email;
+  } else {
+    const classData = activeStudentClassData[currentCourseId];
+    if (classData && classData.teacherEmail) {
+      teacherEmail = classData.teacherEmail;
+    }
   }
 
-  viewport.innerHTML = `
-    <div class="syllabus-view-container" style="animation: fadeIn 0.3s ease;">
-      <div class="faculty-header-container" style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
-        <div class="faculty-header-text" style="flex: 1; min-width: 280px;">
-          <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">👨‍🏫 Faculty Information</h2>
-          <p style="margin: 6px 0 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.5;">
-            Instructor contact details, office location, and consultation hours.
-          </p>
-        </div>
-        ${qrCodesHTML}
-      </div>
+  viewport.innerHTML = `<div class="empty-playlist-msg">Loading faculty details...</div>`;
 
-      <div class="section-card" style="margin-bottom:24px; padding:20px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border-card);">
-        <h3 style="margin-top:0; margin-bottom:14px; font-family:'Outfit',sans-serif;">Instructor Contact</h3>
-        ${facultyHTML}
+  const renderView = (teacherProfile) => {
+    // Priority: teacherProfile values > manifest syllabus values
+    const facultyName = (teacherProfile && teacherProfile.name) ? teacherProfile.name : (manifestFaculty.name || 'N/A');
+    const facultyEmail = (teacherProfile && teacherProfile.email) ? teacherProfile.email : (manifestFaculty.email || 'N/A');
+    const facultyMobile = (teacherProfile && teacherProfile.contactNumber) ? teacherProfile.contactNumber : (manifestFaculty.mobile || 'N/A');
+    const facultyOffice = (teacherProfile && teacherProfile.officeAddress) ? teacherProfile.officeAddress : (manifestFaculty.office || 'N/A');
+    
+    // Consultation
+    let consultHTML = '';
+    if (teacherProfile && teacherProfile.consultationHours) {
+      const hours = teacherProfile.consultationHours.split('\n').filter(h => h.trim().length > 0);
+      consultHTML = hours.map(h => `<li>${h}</li>`).join('');
+    } else {
+      consultHTML = (manifestFaculty.consultation || []).map(c => `<li>${c}</li>`).join('');
+    }
+
+    // Links: FB Messenger, Telegram GC, Messenger GC
+    let linksHTML = '';
+    if (teacherProfile) {
+      if (teacherProfile.messengerLink || teacherProfile.telegramGc || teacherProfile.messengerGc) {
+        linksHTML = `
+          <div style="margin-top: 15px; border-top: 1px dashed var(--border-card); padding-top: 15px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 13.5px; font-family:'Outfit',sans-serif;">🔗 Dynamic Contact Links</h4>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              ${teacherProfile.messengerLink ? `<a href="${teacherProfile.messengerLink}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;">💬 FB Messenger</a>` : ''}
+              ${teacherProfile.messengerGc ? `<a href="${teacherProfile.messengerGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: var(--secondary, #3b82f6);">👥 Class Messenger GC</a>` : ''}
+              ${teacherProfile.telegramGc ? `<a href="${teacherProfile.telegramGc}" target="_blank" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 6px; text-decoration: none; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; background: #0088cc;">✈️ Telegram Group Chat</a>` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Input editor for Teachers to edit in-place
+    let editSectionHTML = '';
+    if (currentUserRole === 'teacher') {
+      editSectionHTML = `
+        <div class="section-card" style="margin-top: 24px; padding: 20px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-card);">
+          <h3 style="margin-top: 0; margin-bottom: 14px; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 8px;">✏️ Edit Faculty Information</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px; margin-bottom: 15px;">Updates here override the default syllabus details and are instantly visible to students enrolled in your sections.</p>
+          <div class="onboarding-form" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">👤 Full Name</label>
+              <input type="text" id="faculty-edit-name" value="${teacherProfile && teacherProfile.name ? escapeHtml(teacherProfile.name) : escapeHtml(currentUser.name)}" placeholder="e.g. Prof. Ramon M. Eduque, Jr." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('name', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📧 Email</label>
+              <input type="email" id="faculty-edit-email" value="${teacherProfile && teacherProfile.email ? escapeHtml(teacherProfile.email) : escapeHtml(currentUser.email)}" placeholder="e.g. email@msugensan.edu.ph" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('email', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📱 Contact Number</label>
+              <input type="text" id="faculty-edit-contact" value="${teacherProfile && teacherProfile.contactNumber ? escapeHtml(teacherProfile.contactNumber) : ''}" placeholder="e.g. 09123456789" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('contactNumber', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">🏢 Office Address</label>
+              <input type="text" id="faculty-edit-office" value="${teacherProfile && teacherProfile.officeAddress ? escapeHtml(teacherProfile.officeAddress) : ''}" placeholder="e.g. Department of Chemistry, RSRC" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('officeAddress', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">💬 FB Messenger Profile Link</label>
+              <input type="url" id="faculty-edit-messenger" value="${teacherProfile && teacherProfile.messengerLink ? escapeHtml(teacherProfile.messengerLink) : ''}" placeholder="e.g. https://m.me/username" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('messengerLink', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">👥 Class Messenger Group Chat (GC) Link</label>
+              <input type="url" id="faculty-edit-messenger-gc" value="${teacherProfile && teacherProfile.messengerGc ? escapeHtml(teacherProfile.messengerGc) : ''}" placeholder="e.g. https://messenger.com/j/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('messengerGc', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">✈️ Class Telegram Group Chat (GC) Link</label>
+              <input type="url" id="faculty-edit-telegram-gc" value="${teacherProfile && teacherProfile.telegramGc ? escapeHtml(teacherProfile.telegramGc) : ''}" placeholder="e.g. https://t.me/..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; box-sizing: border-box;" onchange="updateTeacherField('telegramGc', this.value)">
+            </div>
+            <div class="form-group" style="text-align: left;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">📅 Consultation Hours (one per line)</label>
+              <textarea id="faculty-edit-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 80px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; font-family: sans-serif; resize: vertical; box-sizing: border-box;" onchange="updateTeacherField('consultationHours', this.value)">${teacherProfile && teacherProfile.consultationHours ? escapeHtml(teacherProfile.consultationHours) : ''}</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const facultyHTML = `
+      <div class="faculty-info-container">
+        <div class="faculty-contact-row">
+          <span class="faculty-contact-icon">👤</span>
+          <div class="faculty-contact-details">
+            <span class="faculty-contact-label">Instructor Name</span>
+            <span class="faculty-contact-value">${facultyName}</span>
+          </div>
+        </div>
+        <div class="faculty-contact-row">
+          <span class="faculty-contact-icon">📧</span>
+          <div class="faculty-contact-details">
+            <span class="faculty-contact-label">Academic Email</span>
+            <span class="faculty-contact-value">${facultyEmail}</span>
+          </div>
+        </div>
+        <div class="faculty-contact-row">
+          <span class="faculty-contact-icon">📱</span>
+          <div class="faculty-contact-details">
+            <span class="faculty-contact-label">Mobile Number</span>
+            <span class="faculty-contact-value">${facultyMobile}</span>
+          </div>
+        </div>
+        <div class="faculty-contact-row">
+          <span class="faculty-contact-icon">🏢</span>
+          <div class="faculty-contact-details">
+            <span class="faculty-contact-label">Faculty Office</span>
+            <span class="faculty-contact-value">${facultyOffice}</span>
+          </div>
+        </div>
+        <div class="faculty-contact-row" style="flex-direction:column; align-items:flex-start; gap:6px;">
+          <span class="faculty-contact-label" style="margin-left:42px;">📅 Consultation Schedule</span>
+          <ul style="margin:0; padding-left:58px; font-size:13px; font-weight:700; color:var(--text-main); list-style-type:square;">
+            ${consultHTML || '<li>No consultation schedule specified.</li>'}
+          </ul>
+        </div>
+        ${linksHTML}
       </div>
-    </div>
-  `;
+    `;
+
+    // Resolve QR codes for instructors
+    let qrCodesHTML = '';
+    if (facultyName.toLowerCase().includes('eduque')) {
+      qrCodesHTML = `
+        <div class="faculty-header-qrs" style="display: flex; gap: 15px; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-card); padding: 10px; border-radius: 12px;">
+          <div style="text-align: center;">
+            <img src="rem_qr.png" alt="FB Messenger QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
+            <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">FB Messenger</span>
+          </div>
+          <div style="text-align: center;">
+            <img src="ree_qr.png" alt="Email QR" style="width: 80px; height: 80px; border-radius: 6px; border: 2px solid white; display: block; object-fit: cover; margin-bottom: 4px;">
+            <span style="font-size: 9px; color: var(--text-muted); font-weight: 600;">Email QR</span>
+          </div>
+        </div>
+      `;
+    }
+
+    viewport.innerHTML = `
+      <div class="syllabus-view-container" style="animation: fadeIn 0.3s ease;">
+        <div class="faculty-header-container" style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
+          <div class="faculty-header-text" style="flex: 1; min-width: 280px;">
+            <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">👨‍🏫 Faculty Information</h2>
+            <p style="margin: 6px 0 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.5;">
+              Instructor contact details, office location, and consultation hours.
+            </p>
+          </div>
+          ${qrCodesHTML}
+        </div>
+
+        <div class="section-card" style="margin-bottom:24px; padding:20px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border-card);">
+          <h3 style="margin-top:0; margin-bottom:14px; font-family:'Outfit',sans-serif;">Instructor Contact</h3>
+          ${facultyHTML}
+        </div>
+        
+        ${editSectionHTML}
+      </div>
+    `;
+  };
+
+  if (teacherEmail) {
+    firestore.collection("students").doc(teacherEmail).get()
+      .then(doc => {
+        if (doc.exists) {
+          renderView(doc.data());
+        } else {
+          renderView(null);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching teacher profile:", err);
+        renderView(null);
+      });
+  } else {
+    renderView(null);
+  }
 }
 
 function renderReferencesView() {
@@ -3616,17 +3746,8 @@ function openSettings() {
     overlay.classList.add('open');
   }
 
-  // Update Settings Form inputs values
-  if (currentUser) {
-    document.getElementById('settings-nickname').value = currentUser.name;
-    document.getElementById('settings-studentid').value = currentUser.studentId;
-    document.getElementById('settings-year').value = currentUser.year;
-    
-    const settingsPic = document.getElementById('settings-profile-pic');
-    if (settingsPic) {
-      settingsPic.src = currentUser.avatar || 'icon.png';
-    }
-  }
+  // Render role-specific settings elements dynamically
+  renderSettingsDrawerContent();
 
   const themeToggle = document.getElementById('settings-theme-toggle');
   if (themeToggle) themeToggle.checked = document.body.classList.contains('light-mode');
@@ -3654,6 +3775,253 @@ function updateProfileID(val) {
   currentUser.studentId = val.trim();
   saveStudentSession();
   updateProfileUI();
+}
+
+function updateTeacherField(field, value) {
+  if (!currentUser) return;
+  currentUser[field] = value.trim();
+  saveStudentSession();
+  updateProfileUI();
+  
+  // If the active view is faculty, re-render it instantly to reflect changes
+  if (currentMode === 'faculty') {
+    renderFacultyView();
+  }
+}
+
+function renderSettingsDrawerContent() {
+  const container = document.getElementById('settings-body-container');
+  if (!container || !currentUser) return;
+
+  let profileHTML = '';
+
+  if (currentUserRole === 'student') {
+    profileHTML = `
+      <!-- Learner Profile Section -->
+      <div class="settings-section">
+        <h3>👤 Student Profile</h3>
+        <div class="settings-row">
+          <label for="settings-nickname">Display Name:</label>
+          <input type="text" id="settings-nickname" placeholder="Name" value="${escapeHtml(currentUser.name)}" onchange="updateProfileName(this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-studentid">Student ID:</label>
+          <input type="text" id="settings-studentid" placeholder="e.g., 2024-1234" value="${escapeHtml(currentUser.studentId)}" onchange="updateProfileID(this.value)">
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
+          <label>🧪 Subjects & Sections:</label>
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <select id="settings-subject-select" style="flex: 2; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+              <!-- Dynamically populated below -->
+            </select>
+            <select id="settings-section-select" style="flex: 1; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+              <!-- Dynamically populated below -->
+            </select>
+            <button type="button" class="settings-btn-primary" onclick="addClassSettings()" style="width: auto; margin-top: 0; padding: 10px 14px; white-space: nowrap;">➕ Add</button>
+          </div>
+          <div id="settings-selected-classes" class="selected-classes-container">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+        <div class="settings-row">
+          <label for="settings-year">Year Level:</label>
+          <select id="settings-year" onchange="updateProfileYear(this.value)">
+            <option value="1" ${currentUser.year === '1' ? 'selected' : ''}>1</option>
+            <option value="2" ${currentUser.year === '2' ? 'selected' : ''}>2</option>
+            <option value="3" ${currentUser.year === '3' ? 'selected' : ''}>3</option>
+            <option value="4" ${currentUser.year === '4' ? 'selected' : ''}>4</option>
+          </select>
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">Profile Photo:</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+              📸 Choose Image
+            </label>
+            <button class="settings-btn-primary" onclick="removeProfilePic()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+              Remove
+            </button>
+          </div>
+          <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(this.files)">
+        </div>
+      </div>
+    `;
+  } else if (currentUserRole === 'teacher') {
+    profileHTML = `
+      <!-- Instructor Profile Section -->
+      <div class="settings-section">
+        <h3>👤 Teacher Profile</h3>
+        <div class="settings-row" style="margin-bottom: 12px;">
+          <span style="font-size: 13px; color: var(--text-muted);">Configure your contact details, consultation settings, and social links.</span>
+        </div>
+        <div class="settings-row">
+          <label for="settings-nickname">Full Name:</label>
+          <input type="text" id="settings-nickname" placeholder="e.g. Prof. Ramon M. Eduque, Jr." value="${escapeHtml(currentUser.name)}" onchange="updateTeacherField('name', this.value)">
+        </div>
+        <div class="settings-row">
+          <label>Email Address:</label>
+          <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">${escapeHtml(currentUser.email)}</span>
+        </div>
+        <div class="settings-row">
+          <label for="settings-teacher-contact">Contact Number:</label>
+          <input type="text" id="settings-teacher-contact" placeholder="e.g. 09123456789" value="${escapeHtml(currentUser.contactNumber || '')}" onchange="updateTeacherField('contactNumber', this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-teacher-office">Office Address:</label>
+          <input type="text" id="settings-teacher-office" placeholder="e.g. Department of Chemistry, RSRC" value="${escapeHtml(currentUser.officeAddress || '')}" onchange="updateTeacherField('officeAddress', this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-teacher-messenger">Messenger Link:</label>
+          <input type="url" id="settings-teacher-messenger" placeholder="e.g. https://m.me/username" value="${escapeHtml(currentUser.messengerLink || '')}" onchange="updateTeacherField('messengerLink', this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-teacher-messenger-gc">Messenger GC Link:</label>
+          <input type="url" id="settings-teacher-messenger-gc" placeholder="Messenger Class GC URL" value="${escapeHtml(currentUser.messengerGc || '')}" onchange="updateTeacherField('messengerGc', this.value)">
+        </div>
+        <div class="settings-row">
+          <label for="settings-teacher-telegram-gc">Telegram GC Link:</label>
+          <input type="url" id="settings-teacher-telegram-gc" placeholder="Telegram Class GC URL" value="${escapeHtml(currentUser.telegramGc || '')}" onchange="updateTeacherField('telegramGc', this.value)">
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+          <label for="settings-teacher-consultation">Consultation Hours (one per line):</label>
+          <textarea id="settings-teacher-consultation" placeholder="e.g. MWF 9:00 AM - 11:00 AM" style="width: 100%; height: 60px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;" onchange="updateTeacherField('consultationHours', this.value)">${escapeHtml(currentUser.consultationHours || '')}</textarea>
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">Profile Photo:</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+              📸 Choose Image
+            </label>
+            <button class="settings-btn-primary" onclick="removeProfilePic()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+              Remove
+            </button>
+          </div>
+          <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(this.files)">
+        </div>
+      </div>
+    `;
+  } else if (currentUserRole === 'admin') {
+    profileHTML = `
+      <!-- Admin Profile Section -->
+      <div class="settings-section">
+        <h3>🛡️ Administrator Profile</h3>
+        <div class="settings-row">
+          <label for="settings-nickname">Admin Name:</label>
+          <input type="text" id="settings-nickname" value="${escapeHtml(currentUser.name)}" onchange="updateProfileName(this.value)">
+        </div>
+        <div class="settings-row">
+          <label>Email Address:</label>
+          <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">${escapeHtml(currentUser.email)}</span>
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">Profile Photo:</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'icon.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+              📸 Choose Image
+            </label>
+            <button class="settings-btn-primary" onclick="removeProfilePic()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+              Remove
+            </button>
+          </div>
+          <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(this.files)">
+        </div>
+      </div>
+
+      <!-- Visible Admin Config Section -->
+      <div class="settings-section">
+        <h3>⚙️ LMS System Configuration</h3>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px; margin-bottom: 12px;">
+          <label for="admin-sheets-url" style="font-size: 11px; font-weight: 600;">Google Sheets Script URL:</label>
+          <input type="text" id="admin-sheets-url" placeholder="Apps Script Web App URL" style="width: 100%;" value="${escapeHtml(REMOTE_SHEETS_SCRIPT_URL)}" onchange="updateAdminSheetsURL(this.value)">
+        </div>
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+          <label for="admin-manifest-url" style="font-size: 11px; font-weight: 600;">Remote Manifest URL:</label>
+          <input type="text" id="admin-manifest-url" placeholder="Manifest JSON URL" style="width: 100%;" value="${escapeHtml(REMOTE_MANIFEST_URL)}" onchange="updateAdminManifestURL(this.value)">
+        </div>
+      </div>
+    `;
+  }
+
+  // Theme & Audio Section (Always relevant but customized slightly if needed)
+  const themeAudioHTML = `
+    <div class="settings-section">
+      <h3>🎨 Theme & Audio</h3>
+      <div class="settings-row">
+        <span>🌓 Light Mode:</span>
+        <label class="toggle-container">
+          <input type="checkbox" id="settings-theme-toggle" onchange="toggleTheme()" ${document.body.classList.contains('light-mode') ? 'checked' : ''}>
+          <div class="toggle-slider"></div>
+        </label>
+      </div>
+      <div style="display: ${currentUserRole === 'student' ? 'block' : 'none'}; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+        <span style="font-weight: 500;">🎵 Custom Background Music Playlist:</span>
+        <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 8px 0;">Upload your own audio files (MP3/OGG). Stored locally on your device.</p>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <label class="upload-btn-label" for="music-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600;">
+            📁 Upload Audio Files
+          </label>
+        </div>
+        <input type="file" id="music-upload" accept="audio/*" multiple style="display: none;" onchange="handleMusicUpload(this.files)">
+        
+        <div class="music-playlist-manager">
+          <div class="playlist-header">
+            <span>Tracklist</span>
+            <button onclick="clearAllMusic()" class="btn-clear-playlist">Clear All</button>
+          </div>
+          <ul class="playlist-tracks" id="playlist-tracks-list">
+            <!-- Rendered dynamically -->
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // LMS Sync & Maintenance Section
+  let maintenanceHTML = '';
+  if (currentUserRole === 'student') {
+    maintenanceHTML = `
+      <div class="settings-section">
+        <h3>🔄 LMS Sync & Maintenance</h3>
+        <button class="settings-btn-primary" id="update-topics-btn" onclick="checkWeeklyUpdates()">
+          📥 Sync Courses & Notes
+        </button>
+        <button class="settings-btn-primary" id="changelog-btn" onclick="showChangelog()" style="margin-top: 8px; background: var(--secondary, #3b82f6);">
+          📋 View App Changelog
+        </button>
+        <button class="settings-btn-danger" onclick="confirmClearAllProgress()" style="margin-top: 12px; width: 100%;">
+          🗑️ Clear Cached Study Data
+        </button>
+      </div>
+    `;
+  } else {
+    maintenanceHTML = `
+      <div class="settings-section">
+        <h3>🔄 LMS Maintenance</h3>
+        <button class="settings-btn-primary" id="update-topics-btn" onclick="checkWeeklyUpdates()">
+          📥 Sync LMS Manifest
+        </button>
+        <button class="settings-btn-primary" id="changelog-btn" onclick="showChangelog()" style="margin-top: 8px; background: var(--secondary, #3b82f6);">
+          📋 View App Changelog
+        </button>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    ${profileHTML}
+    ${themeAudioHTML}
+    ${maintenanceHTML}
+  `;
+
+  // After rendering HTML, trigger secondary dropdowns or lists populators
+  if (currentUserRole === 'student') {
+    populateSubjectDropdowns();
+    renderSettingsSelectedClasses();
+    renderTracklistUI();
+  }
 }
 
 function addClassSettings() {

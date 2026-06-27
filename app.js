@@ -2,6 +2,35 @@
 // Mindanao State University - General Santos, Department of Chemistry
 
 // ==========================================================================
+// FIREBASE CONFIGURATION & INITIALIZATION
+// ==========================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCurNjFwsOTL_zjMevhGkojc_pxMDfA6MI",
+  authDomain: "doc-learning-hub-web.firebaseapp.com",
+  projectId: "doc-learning-hub-web",
+  storageBucket: "doc-learning-hub-web.firebasestorage.app",
+  messagingSenderId: "148696552118",
+  appId: "1:148696552118:web:55be0502a4f3f24423cc17",
+  measurementId: "G-1J5XXGBRW4"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const firestore = firebase.firestore();
+const storage = firebase.storage();
+
+// Enable Firestore Offline Persistence
+firestore.enablePersistence()
+  .catch((err) => {
+    if (err.code == 'failed-precondition') {
+      console.warn("Firestore persistence failed: Multiple tabs open.");
+    } else if (err.code == 'unimplemented') {
+      console.warn("Firestore persistence is not supported in this browser.");
+    }
+  });
+
+// ==========================================================================
 // GLOBAL STATE & CONSTANTS
 // ==========================================================================
 const DB_NAME = 'doc_learning_hub_music_db';
@@ -9,12 +38,65 @@ const DB_VERSION = 1;
 
 const SEMESTER_START_DATE = "2026-08-10";
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function escapeJsString(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/</g, '\\x3c')
+    .replace(/>/g, '\\x3e')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+function getLocalStudentScore(email, moduleId, mode, maxScore) {
+  const normEmail = email.toLowerCase().trim();
+  const overrideVal = localStorage.getItem(`override_score_${normEmail}_${moduleId}`);
+  if (overrideVal !== null) {
+    return { score: parseFloat(overrideVal), override: true };
+  }
+  if (mode === 'quiz') {
+    const saved = localStorage.getItem(`quiz_score_${normEmail}_${moduleId}`);
+    if (saved !== null) {
+      return { score: parseFloat(saved), override: false };
+    }
+  } else if (mode === 'assignment') {
+    const submitted = localStorage.getItem(`assignment_submitted_${normEmail}_${moduleId}`);
+    if (submitted === 'true') {
+      return { score: maxScore, override: false };
+    }
+  }
+  return null;
+}
+
+
 function isQuizScheduled(module) {
-  return module.id === 'chm151_m1';
+  if (currentUserRole !== 'student') return true;
+  const courseId = currentCourseId;
+  if (!courseId) return false;
+  const classData = activeStudentClassData[courseId];
+  if (!classData || !classData.scheduledQuizzes) return false;
+  return classData.scheduledQuizzes.includes(module.id);
 }
 
 function isAssignScheduled(module) {
-  return module.id === 'chm151_m1';
+  if (currentUserRole !== 'student') return true;
+  const courseId = currentCourseId;
+  if (!courseId) return false;
+  const classData = activeStudentClassData[courseId];
+  if (!classData || !classData.scheduledAssignments) return false;
+  return classData.scheduledAssignments.includes(module.id);
 }
 
 function getWeekDateRange(weeksStr) {
@@ -65,6 +147,7 @@ let currentMode = 'home'; // 'home', 'notes', 'assessments', 'progress'
 
 // User Session
 let currentUser = null; // { name, email, studentId, section, year, avatar }
+let uploadedSyllabusUrl = "";
 
 // Quiz Session State
 let activeQuizModule = null; // active module being quizzed
@@ -74,7 +157,119 @@ let quizScore = 0;
 let quizAnswers = []; // Array of student answers
 let quizTimerInterval = null;
 let quizSecondsLeft = 0;
+let questionTimerInterval = null;
+let questionSecondsLeft = 0;
 let wrongAnswersLog = []; // [{ question, yourAnswer, correctAnswer }]
+
+const GLOBAL_SAMPLE_CUSTOM_QUIZ = {
+  id: "sample_timed_quiz",
+  title: "Timed Chemistry Diagnostic Quiz",
+  timeLimitSeconds: null,
+  questions: [
+    {
+      type: "mc",
+      question: "Which of the following is an alkaline earth metal? \\ce{Ca} or \\ce{Na}?",
+      choices: ["Na (Sodium)", "Ca (Calcium)", "Cl (Chlorine)", "H (Hydrogen)"],
+      answer: 1,
+      points: 2,
+      timeLimitSeconds: 5
+    },
+    {
+      type: "id",
+      question: "State the name of the lightest element in the periodic table (Helium or Hydrogen):",
+      answer: "Hydrogen",
+      points: 2,
+      timeLimitSeconds: 15
+    },
+    {
+      type: "tf",
+      question: "The chemical formula of water is \\ce{H2O}. (True/False)",
+      answer: true,
+      points: 1,
+      timeLimitSeconds: 10
+    }
+  ]
+};
+
+const GLOBAL_SAMPLE_CUSTOM_QUIZ_2 = {
+  id: "sample_timed_quiz_2",
+  title: "Inorganic Chemistry Quiz 2",
+  timeLimitSeconds: null,
+  questions: [
+    {
+      id: "q_1",
+      type: "mc",
+      question: "Which element has the chemical symbol \"O\"?",
+      choices: ["Osmium", "Oxygen", "Gold", "Helium"],
+      answer: 1,
+      points: 2,
+      timeLimitSeconds: 5
+    },
+    {
+      id: "q_2",
+      type: "tf",
+      question: "Water consists of hydrogen and oxygen. (True/False)",
+      answer: true,
+      points: 1,
+      timeLimitSeconds: 5
+    },
+    {
+      id: "q_3",
+      type: "id",
+      question: "What is the atomic symbol of Carbon?",
+      answer: "C",
+      points: 2,
+      timeLimitSeconds: 8
+    },
+    {
+      id: "q_4",
+      type: "mc",
+      question: "which is color red? (mcq)",
+      choices: ["golf ball", "red roses", "red basketball", "red car"],
+      answer: 0,
+      points: 2,
+      timeLimitSeconds: 8
+    }
+  ]
+};
+
+const GLOBAL_SAMPLE_CLASS = {
+  id: "sample_class_49c",
+  courseId: "chm151",
+  courseName: "Inorganic Chemistry 1",
+  section: "49C",
+  year: "2026-2027",
+  teacherName: "Prof. Ramon M. Eduque, Jr.",
+  teacherEmail: atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg="),
+  status: "approved",
+  students: [
+    "test.student@msugensan.edu.ph",
+    "student1@msugensan.edu.ph",
+    "student2@msugensan.edu.ph",
+    "student3@msugensan.edu.ph",
+    "student4@msugensan.edu.ph"
+  ],
+  announcements: [
+    {
+      id: "ann_sample_1",
+      title: "Welcome to GenChem 1!",
+      content: "This is a sample classroom seeded automatically for testing timed quizzes and progressive paths.",
+      createdAt: 1782432000000
+    }
+  ],
+  customMaterials: [
+    {
+      id: "material_sample_pdf",
+      name: "PPT for Class Orientation (PDF)",
+      url: "https://raw.githubusercontent.com/iammoondae/doclearninghub/main/PPT%20for%20Class%20Orientation.pdf",
+      createdAt: 1782432000000
+    }
+  ],
+  scheduledQuizzes: ["sample_timed_quiz", "sample_timed_quiz_2"],
+  scheduledAssignments: [],
+  customQuizzes: [GLOBAL_SAMPLE_CUSTOM_QUIZ, GLOBAL_SAMPLE_CUSTOM_QUIZ_2],
+  syllabusUrl: ""
+};
 
 // Music Player State
 let audioPlayer = new Audio();
@@ -218,16 +413,89 @@ function loadPreferences() {
   }
 }
 
+function determineUserRole(email) {
+  if (!email) return 'student';
+  const lowerEmail = email.toLowerCase().trim();
+  const encoded = btoa(lowerEmail);
+  // Teacher: ramon.eduque@msugensan.edu.ph
+  if (encoded === 'cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=' || lowerEmail === 'teacher@msugensan.edu.ph') {
+    return 'teacher';
+  // Admin: mon.eduque@gmail.com (primary) + legacy admin emails
+  } else if (encoded === 'bW9uLmVkdXF1ZUBnbWFpbC5jb20=' || encoded === 'bW9vbmR1a2Uuc2FuZHNAZ21haWwuY29t' || lowerEmail === 'admin@msugensan.edu.ph') {
+    return 'admin';
+  }
+  // Everyone else (including pco@msugensan.edu.ph) defaults to student
+  return 'student';
+}
+
+let activeStudentClassData = {};
+
+function loadStudentClassData() {
+  if (!currentUser || currentUserRole !== 'student') {
+    activeStudentClassData = {};
+    return Promise.resolve();
+  }
+  
+  console.log("Loading classroom schedules for student email:", currentUser.email);
+  return firestore.collection('classes')
+    .where('students', 'array-contains', currentUser.email)
+    .get()
+    .then(querySnapshot => {
+      activeStudentClassData = {};
+      let hasSample = false;
+      querySnapshot.forEach(doc => {
+        const classData = doc.data();
+        activeStudentClassData[classData.courseId] = classData;
+        if (doc.id === 'sample_class_49c') {
+          hasSample = true;
+        }
+      });
+      
+      const lowerEmail = currentUser.email.toLowerCase().trim();
+      const isMockStudent = lowerEmail === 'test.student@msugensan.edu.ph' || 
+                            lowerEmail === 'pco@msugensan.edu.ph' ||
+                            lowerEmail.startsWith('student');
+                            
+      if (!hasSample && isMockStudent) {
+        activeStudentClassData[GLOBAL_SAMPLE_CLASS.courseId] = GLOBAL_SAMPLE_CLASS;
+      }
+      console.log("Loaded student classroom schedules:", activeStudentClassData);
+    })
+    .catch(err => {
+      console.error("Error loading student class data:", err);
+      // Offline fallback: seed sample class for mock students
+      const lowerEmail = currentUser.email.toLowerCase().trim();
+      const isMockStudent = lowerEmail === 'test.student@msugensan.edu.ph' || 
+                            lowerEmail === 'pco@msugensan.edu.ph' ||
+                            lowerEmail.startsWith('student');
+      if (isMockStudent) {
+        console.log("Offline fallback: adding sample class locally.");
+        activeStudentClassData[GLOBAL_SAMPLE_CLASS.courseId] = GLOBAL_SAMPLE_CLASS;
+      }
+    });
+}
+
 function loadUserSession() {
   const savedUser = localStorage.getItem('student_user_session');
   const onboardingOverlay = document.getElementById('onboarding-overlay');
 
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
+    currentUserRole = currentUser.role || determineUserRole(currentUser.email);
     updateProfileUI();
-    if (onboardingOverlay) {
-      onboardingOverlay.style.display = 'none';
-      onboardingOverlay.classList.remove('show');
+    
+    // If student has incomplete onboarding details, show Stage 2 onboarding
+    if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
+      if (onboardingOverlay) {
+        onboardingOverlay.style.display = 'flex';
+        onboardingOverlay.classList.add('show');
+        showOnboardingStage(2);
+      }
+    } else {
+      if (onboardingOverlay) {
+        onboardingOverlay.style.display = 'none';
+        onboardingOverlay.classList.remove('show');
+      }
     }
   } else {
     // Show Onboarding Login Overlay
@@ -247,88 +515,224 @@ function showOnboardingStage(stageNum) {
   }
 }
 
-function parseJwt(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error("JWT Parsing error:", e);
-    return null;
-  }
-}
-
-function handleCredentialResponse(response) {
-  const payload = parseJwt(response.credential);
-  if (!payload) {
-    alert("Authentication failed: Unable to parse identity token.");
-    return;
-  }
-
-  const email = payload.email || '';
-  if (!email.endsWith('@msugensan.edu.ph')) {
-    alert("Access Denied: Only Google accounts from the @msugensan.edu.ph domain are permitted.");
-    return;
-  }
-
-  // Check if a persistent profile exists for this email
-  const savedProfileStr = localStorage.getItem('doc_lms_saved_profile');
-  if (savedProfileStr) {
-    try {
-      const savedProfile = JSON.parse(savedProfileStr);
-      if (savedProfile && savedProfile.email === email && savedProfile.subjects && savedProfile.subjects.length > 0) {
-        currentUser = savedProfile;
-        // Log in automatically using the saved profile (skip onboarding entirely!)
-        localStorage.setItem('student_user_session', JSON.stringify(currentUser));
-        updateProfileUI();
-        
-        const overlay = document.getElementById('onboarding-overlay');
-        if (overlay) {
-          overlay.classList.remove('show');
-          setTimeout(() => overlay.style.display = 'none', 300);
-        }
-        
-        buildUIFromManifest();
-        setMode('home');
-        return;
-      }
-    } catch (err) {
-      console.error("Error reading saved profile:", err);
+// Firebase Auth State Listener
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    console.log("Firebase user logged in:", user.email);
+    
+    // Enforce email domain (allow approved admin Gmail accounts)
+    const approvedGmails = ['mon.eduque@gmail.com', 'moonduke.sands@gmail.com'];
+    if (!user.email.endsWith('@msugensan.edu.ph') && !approvedGmails.includes(user.email.toLowerCase())) {
+      alert("Access Denied: Only @msugensan.edu.ph accounts are allowed.");
+      auth.signOut();
+      return;
+    }
+    
+    // Load student profile from Firestore
+    loadOrCreateUserProfile(user);
+  } else {
+    console.log("Firebase user logged out.");
+    currentUser = null;
+    localStorage.removeItem('student_user_session');
+    
+    // Reset UI profile info
+    document.getElementById('user-display-name').innerText = "Guest Student";
+    document.getElementById('user-display-email').innerText = "Not Signed In";
+    const profilePic = document.getElementById('user-profile-pic');
+    if (profilePic) profilePic.src = 'icon.png';
+    
+    // Show login onboarding
+    const onboardingOverlay = document.getElementById('onboarding-overlay');
+    if (onboardingOverlay) {
+      onboardingOverlay.style.display = 'flex';
+      onboardingOverlay.classList.add('show');
+      showOnboardingStage(1);
     }
   }
+});
 
-  currentUser = {
-    name: payload.name || '',
-    email: email,
-    studentId: '',
-    subjects: [], // selected subject IDs
-    year: '1',
-    avatar: payload.picture || 'icon.png'
-  };
+function handleCredentialResponse(response) {
+  const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
+  auth.signInWithCredential(credential)
+    .catch((error) => {
+      console.error("Firebase Sign-in Error:", error);
+      alert("Authentication failed: " + error.message);
+    });
+}
 
-  // Switch to Stage 2: Enrollment Info
-  showOnboardingStage(2);
+function loadOrCreateUserProfile(firebaseUser) {
+  const email = firebaseUser.email;
   
-  // Pre-fill profile fields
-  const nicknameInput = document.getElementById('onboarding-nickname');
-  if (nicknameInput) {
-    nicknameInput.value = currentUser.name;
-  }
-
-  const studentIdInput = document.getElementById('onboarding-studentid');
-  if (studentIdInput) {
-    studentIdInput.value = '';
-  }
-
-  const yearSelect = document.getElementById('onboarding-year');
-  if (yearSelect) {
-    yearSelect.value = '1';
-  }
-
-  renderOnboardingSelectedClasses();
+  // Try loading from Firestore first
+  firestore.collection("students").doc(email).get()
+    .then((doc) => {
+      if (doc.exists) {
+        // Profile exists in Firestore!
+        currentUser = doc.data();
+        currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+        
+        // Save locally for quick access
+        localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+        localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+        
+        // Sync UI
+        updateProfileUI();
+        
+        // If student, check if onboarding is complete
+        if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
+          showOnboardingStage(2);
+          
+          const nicknameInput = document.getElementById('onboarding-nickname');
+          if (nicknameInput) nicknameInput.value = currentUser.name || firebaseUser.displayName || '';
+          
+          const studentIdInput = document.getElementById('onboarding-studentid');
+          if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
+          
+          const yearSelect = document.getElementById('onboarding-year');
+          if (yearSelect) yearSelect.value = currentUser.year || '1';
+          
+          renderOnboardingSelectedClasses();
+        } else {
+          // Hide onboarding
+          const overlay = document.getElementById('onboarding-overlay');
+          if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.style.display = 'none', 300);
+          }
+          
+          buildUIFromManifest();
+          setMode('home');
+        }
+      } else {
+        // Profile doesn't exist in Firestore yet!
+        // Check if there is a local cached profile as fallback
+        const savedProfileStr = localStorage.getItem('doc_lms_saved_profile');
+        let localProfile = null;
+        if (savedProfileStr) {
+          try {
+            const parsed = JSON.parse(savedProfileStr);
+            if (parsed && parsed.email === email) {
+              localProfile = parsed;
+            }
+          } catch(e) {}
+        }
+        
+        if (localProfile) {
+          // If we have a local profile, save it to Firestore to sync
+          currentUser = localProfile;
+          currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+          
+          // Check if student needs onboarding
+          if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
+            saveStudentSession();
+            updateProfileUI();
+            showOnboardingStage(2);
+            
+            const nicknameInput = document.getElementById('onboarding-nickname');
+            if (nicknameInput) nicknameInput.value = currentUser.name || firebaseUser.displayName || '';
+            
+            const studentIdInput = document.getElementById('onboarding-studentid');
+            if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
+            
+            const yearSelect = document.getElementById('onboarding-year');
+            if (yearSelect) yearSelect.value = currentUser.year || '1';
+            
+            renderOnboardingSelectedClasses();
+          } else {
+            saveStudentSession(); // Writes to localStorage + Firestore
+            updateProfileUI();
+            
+            const overlay = document.getElementById('onboarding-overlay');
+            if (overlay) {
+              overlay.classList.remove('show');
+              setTimeout(() => overlay.style.display = 'none', 300);
+            }
+            buildUIFromManifest();
+            setMode('home');
+          }
+        } else {
+          // Determine role before deciding on onboarding
+          currentUserRole = determineUserRole(email);
+          
+          if (currentUserRole === 'admin' || currentUserRole === 'teacher') {
+            // Admin/Teacher: auto-create profile and skip onboarding
+            currentUser = {
+              name: firebaseUser.displayName || email.split('@')[0],
+              email: email,
+              studentId: '',
+              subjects: [],
+              year: '',
+              role: currentUserRole,
+              avatar: firebaseUser.photoURL || 'icon.png'
+            };
+            
+            saveStudentSession();
+            updateProfileUI();
+            
+            const overlay = document.getElementById('onboarding-overlay');
+            if (overlay) {
+              overlay.classList.remove('show');
+              setTimeout(() => overlay.style.display = 'none', 300);
+            }
+            
+            buildUIFromManifest();
+            setMode('home');
+          } else {
+            // Student: show onboarding Stage 2 for enrollment
+            currentUser = {
+              name: firebaseUser.displayName || '',
+              email: email,
+              studentId: '',
+              subjects: [],
+              year: '1',
+              avatar: firebaseUser.photoURL || 'icon.png'
+            };
+          
+            showOnboardingStage(2);
+          
+            const nicknameInput = document.getElementById('onboarding-nickname');
+            if (nicknameInput) nicknameInput.value = currentUser.name;
+          
+            const studentIdInput = document.getElementById('onboarding-studentid');
+            if (studentIdInput) studentIdInput.value = '';
+          
+            const yearSelect = document.getElementById('onboarding-year');
+            if (yearSelect) yearSelect.value = '1';
+          
+            renderOnboardingSelectedClasses();
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      console.error("Error loading user profile from Firestore:", err);
+      // Fallback to local storage if offline/network error
+      const savedProfileStr = localStorage.getItem('doc_lms_saved_profile');
+      if (savedProfileStr) {
+        try {
+          const parsed = JSON.parse(savedProfileStr);
+          if (parsed && parsed.email === email) {
+            currentUser = parsed;
+            currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+            updateProfileUI();
+            
+            if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
+              showOnboardingStage(2);
+            } else {
+              const overlay = document.getElementById('onboarding-overlay');
+              if (overlay) {
+                overlay.classList.remove('show');
+                setTimeout(() => overlay.style.display = 'none', 300);
+              }
+              buildUIFromManifest();
+              setMode('home');
+            }
+            return;
+          }
+        } catch(e) {}
+      }
+      alert("Error logging in: Could not load user profile.");
+    });
 }
 
 window.handleCredentialResponse = handleCredentialResponse;
@@ -391,8 +795,22 @@ function renderOnboardingSelectedClasses() {
 
 function saveStudentSession() {
   if (currentUser) {
+    if (!currentUser.role) {
+      currentUser.role = currentUserRole;
+    }
     localStorage.setItem('student_user_session', JSON.stringify(currentUser));
     localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+    
+    // Sync profile to Firestore if signed in
+    if (auth.currentUser && currentUser.email === auth.currentUser.email) {
+      firestore.collection("students").doc(currentUser.email).set(currentUser)
+        .then(() => {
+          console.log("Profile synced to Firestore successfully.");
+        })
+        .catch((err) => {
+          console.error("Failed to sync profile to Firestore:", err);
+        });
+    }
   }
 }
 
@@ -494,49 +912,104 @@ function loadManifest() {
     });
 }
 
-function buildUIFromManifest() {
-  if (!manifestData || !manifestData.courses) return;
+let currentUserRole = 'student'; // 'student', 'teacher', 'admin'
 
-  populateSubjectDropdowns();
 
-  const listContainer = document.getElementById('courses-list');
-  if (!listContainer) return;
+function renderSidebarNavigation() {
+  const container = document.getElementById('sidebar-dynamic-tabs');
+  if (!container) return;
 
-  if (!currentUser || !currentUser.subjects || currentUser.subjects.length === 0) {
-    listContainer.innerHTML = `<div class="empty-playlist-msg">No subjects chosen. Go to App Settings to select your courses.</div>`;
-    return;
+  let html = '';
+
+  if (currentUserRole === 'admin') {
+    // Admin navigation
+    html += `
+      <div class="nav-section-title">Admin Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-admin-requests" onclick="setMode('admin-requests')">🔔 Class Requests</button>
+        <button class="mode-tab-btn" id="tab-admin-users" onclick="setMode('admin-users')">👥 User Directory</button>
+      </div>
+    `;
+  } else if (currentUserRole === 'teacher') {
+    // Teacher navigation
+    html += `
+      <div class="nav-section-title">Instructor Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-teacher-classes" onclick="setMode('teacher-classes')">🏫 My Classes</button>
+        <button class="mode-tab-btn" id="tab-teacher-gradebook" onclick="setMode('teacher-gradebook')">📊 Class Gradebooks</button>
+        <button class="mode-tab-btn" id="tab-teacher-groups" onclick="setMode('teacher-groups')">👥 Lab Groups</button>
+      </div>
+      
+      <div class="nav-section-title">Academic Foundations</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-foundations" onclick="setMode('foundations')">🏛️ Foundations</button>
+        <button class="mode-tab-btn" id="tab-faculty" onclick="setMode('faculty')">👨‍🏫 Faculty Info</button>
+      </div>
+    `;
+  } else {
+    // Student navigation (default)
+    const coursesHtml = renderStudentCoursesList();
+    
+    html += `
+      <div class="nav-section-title">Courses</div>
+      <div class="courses-buttons-list" id="courses-list">
+        ${coursesHtml}
+      </div>
+
+      <div class="nav-section-title">Student Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-syllabus" onclick="setMode('syllabus')">📋 Syllabus</button>
+        <button class="mode-tab-btn" id="tab-notes" onclick="setMode('notes')">📚 Lecture Notes</button>
+        <button class="mode-tab-btn" id="tab-safety" onclick="setMode('safety')">🥽 Lab Safety Guide</button>
+        <button class="mode-tab-btn" id="tab-assessments" onclick="setMode('assessments')">✍️ Quizzes & Tasks</button>
+        <button class="mode-tab-btn" id="tab-progress" onclick="setMode('progress')">📊 My Progress</button>
+      </div>
+
+      <div class="nav-section-title">Academic Foundations</div>
+      <div class="mode-tabs" style="margin-bottom: 20px;">
+        <button class="mode-tab-btn" id="tab-foundations" onclick="setMode('foundations')">🏛️ Institutional Foundations</button>
+        <button class="mode-tab-btn" id="tab-faculty" onclick="setMode('faculty')">👨‍🏫 Faculty Information</button>
+        <button class="mode-tab-btn" id="tab-requirements" onclick="setMode('requirements')">💯 Course Requirements</button>
+        <button class="mode-tab-btn" id="tab-references" onclick="setMode('references')">📚 References</button>
+        <button class="mode-tab-btn" id="tab-guidelines" onclick="setMode('guidelines')">💡 Course Guidelines</button>
+      </div>
+    `;
   }
 
-  // Find all chosen courses and group them by section
+  container.innerHTML = html;
+
+  // Make sure active mode button has highlights
+  document.querySelectorAll('.mode-tab-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.getElementById(`tab-${currentMode}`);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+function renderStudentCoursesList() {
+  if (!manifestData || !manifestData.courses || !currentUser || !currentUser.subjects) {
+    return `<div class="empty-playlist-msg">No subjects chosen. Go to App Settings to select your courses.</div>`;
+  }
+
   const chosenCourses = [];
-  
   manifestData.courses.forEach(course => {
     const matchingSelected = currentUser.subjects.filter(subKey => subKey.startsWith(course.id + '_'));
-    
     if (matchingSelected.length > 0) {
-      const sectionLabels = matchingSelected.map(subKey => {
-        const sectionCode = subKey.replace(course.id + '_', '');
-        return sectionCode.toUpperCase();
-      });
-      
-      chosenCourses.push({
-        course: course,
-        sections: sectionLabels
-      });
+      const sectionLabels = matchingSelected.map(subKey => subKey.replace(course.id + '_', '').toUpperCase());
+      chosenCourses.push({ course: course, sections: sectionLabels });
     }
   });
 
   if (chosenCourses.length === 0) {
-    listContainer.innerHTML = `<div class="empty-playlist-msg">No matched courses. Select your subjects in App Settings.</div>`;
-    return;
+    return `<div class="empty-playlist-msg">No matched courses. Select your subjects in App Settings.</div>`;
   }
 
-  let html = '';
-  chosenCourses.forEach(item => {
+  return chosenCourses.map(item => {
     const course = item.course;
     const sectionsStr = item.sections.join(', ');
     const activeClass = course.id === currentCourseId ? 'active' : '';
-    html += `
+    return `
       <button class="course-btn ${activeClass}" id="course-btn-${course.id}" onclick="setCourse('${course.id}')">
         <span>${course.icon}</span> 
         <div style="display:flex; flex-direction:column; line-height:1.2; text-align:left;">
@@ -545,14 +1018,30 @@ function buildUIFromManifest() {
         </div>
       </button>
     `;
-  });
-  listContainer.innerHTML = html;
+  }).join('');
+}
 
-  // Make sure the active course is one of the chosen courses, otherwise select the first chosen one
-  const activeChosen = chosenCourses.find(item => item.course.id === currentCourseId);
-  if (!activeChosen && chosenCourses.length > 0) {
-    setCourse(chosenCourses[0].course.id);
+function buildUIFromManifest() {
+  if (!manifestData || !manifestData.courses) return;
+
+  populateSubjectDropdowns();
+
+  if (currentUserRole === 'student') {
+    loadStudentClassData().then(() => {
+      renderSidebarNavigation();
+      const activeBtn = document.querySelector('.course-btn.active');
+      if (!activeBtn) {
+        const firstCourseBtn = document.querySelector('.course-btn');
+        if (firstCourseBtn) {
+          const firstId = firstCourseBtn.id.replace('course-btn-', '');
+          setCourse(firstId);
+          return;
+        }
+      }
+      renderCurrentModeView();
+    });
   } else {
+    renderSidebarNavigation();
     renderCurrentModeView();
   }
 }
@@ -658,13 +1147,130 @@ function renderCurrentModeView() {
     case 'guidelines':
       renderGuidelinesView();
       break;
+    case 'teacher-classes':
+      renderTeacherClassesView();
+      break;
+    case 'teacher-gradebook':
+      renderTeacherGradebookView();
+      break;
+    case 'teacher-groups':
+      renderTeacherGroupsView();
+      break;
+    case 'admin-requests':
+      renderAdminRequestsView();
+      break;
+    case 'admin-users':
+      renderAdminUsersView();
+      break;
+    case 'teacher-class-details':
+      renderTeacherClassDetailsView();
+      break;
     default:
       renderDashboardView();
   }
+  updatePeriodicTableButtonVisibility();
 }
 
 function renderDashboardView() {
   const viewport = document.getElementById('viewport-body');
+  
+  if (currentUserRole === 'admin') {
+    viewport.innerHTML = `
+      <div class="home-greeting-card" style="padding: 24px; background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
+        <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: #10b981; margin: 0 0 8px 0;">🛡️ Welcome, System Administrator!</h2>
+        <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Manage classes approval, verify user roles, and monitor system performance from your admin dashboards.</p>
+      </div>
+      
+      <!-- Admin Statistics Grid -->
+      <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; text-align: left;">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">👥 Total Enrolled Students</div>
+          <div id="admin-stat-students" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
+        </div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🏫 Total Classrooms</div>
+          <div id="admin-stat-classes" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
+        </div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🔔 Pending Approvals</div>
+          <div id="admin-stat-pending" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #f59e0b;">...</div>
+        </div>
+      </div>
+
+      <div class="class-grid">
+        <div class="class-card" onclick="setMode('admin-requests')">
+          <div class="class-code">🔔 Class Catalog & Requests</div>
+          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Approve or deny class creation requested by faculty, and manage catalog.</p>
+        </div>
+        <div class="class-card" onclick="setMode('admin-users')">
+          <div class="class-code">👥 User Directory</div>
+          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Promote student accounts to instructors and manage directory.</p>
+        </div>
+      </div>
+    `;
+
+    // Fetch stats from Firestore
+    firestore.collection('students').get().then(snap => {
+      const el = document.getElementById('admin-stat-students');
+      if (el) el.innerText = snap.size;
+    }).catch(err => {
+      console.error("Error loading students count:", err);
+      const el = document.getElementById('admin-stat-students');
+      if (el) el.innerText = "0";
+    });
+
+    firestore.collection('classes').get().then(snap => {
+      const elClasses = document.getElementById('admin-stat-classes');
+      const elPending = document.getElementById('admin-stat-pending');
+      
+      let totalClasses = 0;
+      let pendingClasses = 0;
+      
+      snap.forEach(doc => {
+        const d = doc.data();
+        totalClasses++;
+        if (d.status === 'pending') {
+          pendingClasses++;
+        }
+      });
+      
+      if (elClasses) elClasses.innerText = totalClasses;
+      if (elPending) elPending.innerText = pendingClasses;
+    }).catch(err => {
+      console.error("Error loading classes stats:", err);
+      const elClasses = document.getElementById('admin-stat-classes');
+      const elPending = document.getElementById('admin-stat-pending');
+      if (elClasses) elClasses.innerText = "0";
+      if (elPending) elPending.innerText = "0";
+    });
+
+    return;
+  }
+  
+  if (currentUserRole === 'teacher') {
+    viewport.innerHTML = `
+      <div class="home-greeting-card" style="padding: 24px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
+        <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: #3b82f6; margin: 0 0 8px 0;">👨‍🏫 Welcome, Faculty Instructor!</h2>
+        <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Manage class records, view gradebooks, assign laboratory groups, and track student statistics.</p>
+      </div>
+      <div class="class-grid">
+        <div class="class-card" onclick="setMode('teacher-classes')">
+          <div class="class-code">🏫 My Classrooms</div>
+          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">View requested classes and manage student roster enrollments.</p>
+        </div>
+        <div class="class-card" onclick="setMode('teacher-gradebook')">
+          <div class="class-code">📊 Class Gradebooks</div>
+          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Monitor scores and override student grades for quizzes and assignments.</p>
+        </div>
+        <div class="class-card" onclick="setMode('teacher-groups')">
+          <div class="class-code">👥 Lab Groups</div>
+          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Organize enrolled students into experiment groups.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   const activeCourse = manifestData.courses.find(c => c.id === currentCourseId);
   
   if (!activeCourse) {
@@ -800,6 +1406,30 @@ function renderDashboardView() {
     `;
   }
 
+  let announcementsHTML = '';
+  const classData = activeStudentClassData[currentCourseId];
+  if (classData && classData.announcements && classData.announcements.length > 0) {
+    const sortedAnns = [...classData.announcements].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    announcementsHTML = `
+      <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 16px; padding: 18px; margin-bottom: 24px; text-align: left;">
+        <h3 style="font-family:'Outfit', sans-serif; font-size:15px; font-weight:700; color:#f59e0b; margin:0 0 10px 0; display:flex; align-items:center; gap:6px;">
+          <span>📢</span> Class Announcements
+        </h3>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${sortedAnns.map(ann => `
+            <div style="border-bottom:1px dashed var(--border-card); padding-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px;">
+                <strong style="font-size:13px; color:var(--text-main);">${ann.title}</strong>
+                <span style="font-size:10px; color:var(--text-muted); font-family:monospace;">${new Date(ann.createdAt).toLocaleDateString()}</span>
+              </div>
+              <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.4;">${ann.content}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   viewport.innerHTML = `
     <div class="dashboard-container">
       <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 25px;">
@@ -813,6 +1443,8 @@ function renderDashboardView() {
           🧪 Add / Remove Subjects
         </button>
       </div>
+
+      ${announcementsHTML}
 
       <div class="dashboard-grid">
         <div class="dashboard-stat-card">
@@ -878,6 +1510,33 @@ function renderSyllabusView() {
 
   if (!activeCourse) {
     viewport.innerHTML = `<div class="empty-playlist-msg">No course selected</div>`;
+    return;
+  }
+
+  const classData = activeStudentClassData[currentCourseId];
+  const customSyllabusUrl = classData ? classData.syllabusUrl : null;
+
+  if (customSyllabusUrl) {
+    viewport.innerHTML = `
+      <div class="syllabus-view-container" style="animation: fadeIn 0.3s ease; text-align: left;">
+        <h2 style="font-family:'Outfit',sans-serif; font-size:22px; font-weight:800; margin-bottom: 8px;">📋 Section Syllabus</h2>
+        <p style="margin-top:0; color:var(--text-muted); font-size: 13.5px; margin-bottom: 24px;">
+          Your instructor has provided a custom syllabus for this classroom section. Use the actions below to view or download the document.
+        </p>
+        
+        <div class="module-card" style="margin-bottom: 30px; border-left: 4px solid var(--accent); border-radius: 12px; padding: 18px; background:var(--bg-card); border-top:1px solid var(--border-card); border-right:1px solid var(--border-card); border-bottom:1px solid var(--border-card);">
+          <div class="module-info">
+            <span class="module-title" style="font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif;">Class Syllabus Override</span>
+            <span class="module-desc" style="font-size: 12.5px; margin-top: 4px; display: block; color:var(--text-muted);">Custom curriculum requirements, schedule outline, and policies designated for your specific laboratory or lecture section.</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-top: 8px; display: block;">Source: Classroom Syllabus URL</span>
+          </div>
+          <div class="module-actions" style="margin-top: 14px; display:flex; gap:10px;">
+            <button class="pdf-action-btn" style="border-radius: 8px; padding: 8px 16px;" onclick="viewSyllabusInApp('${customSyllabusUrl}', 'Classroom Syllabus')">👁️ View Syllabus</button>
+            <button class="pdf-action-btn" style="background:#475569; border-radius: 8px; padding: 8px 16px;" onclick="exportPDFExternally('${customSyllabusUrl}')">📤 Download</button>
+          </div>
+        </div>
+      </div>
+    `;
     return;
   }
 
@@ -997,6 +1656,7 @@ function renderSyllabusView() {
       <div id="pdf-syllabus-viewer-box" style="display: none;"></div>
     </div>
   `;
+  renderChemistrySymbols(viewport);
 }
 
 function formatRichText(text) {
@@ -1610,6 +2270,40 @@ function renderLectureNotesView() {
     });
 }
 
+function getCustomMaterialsHTML() {
+  if (currentUserRole !== 'student') return '';
+  const classData = activeStudentClassData[currentCourseId];
+  if (!classData || !classData.customMaterials || classData.customMaterials.length === 0) return '';
+  
+  let html = `
+    <div style="margin-top: 25px; border-top: 1px dashed var(--border-card); padding-top: 20px;">
+      <h3 style="font-family: 'Outfit', sans-serif; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; text-align: left;">
+        <span>📎</span> Additional Classroom Resources (Faculty Uploaded)
+      </h3>
+      <div class="module-list" style="display:flex; flex-direction:column; gap:12px;">
+  `;
+  
+  classData.customMaterials.forEach(mat => {
+    html += `
+      <div class="module-card" style="border-left: 4px solid var(--active-subject-color, #0ea5e9);">
+        <div class="module-info" style="text-align:left;">
+          <span class="module-title" style="font-weight:700;">${mat.name}</span>
+          <span class="module-desc">Posted on: ${new Date(mat.createdAt).toLocaleDateString()}</span>
+        </div>
+        <div class="module-actions">
+          <button class="pdf-action-btn" style="background:#475569;" onclick="exportPDFExternally('${mat.url}')">📤 Download</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `
+      </div>
+    </div>
+  `;
+  return html;
+}
+
 function renderLectureNotesWithFiles(files) {
   const viewport = document.getElementById('viewport-body');
   const activeCourse = manifestData.courses.find(c => c.id === currentCourseId);
@@ -1666,24 +2360,39 @@ function renderLectureNotesWithFiles(files) {
       const sizeFormatted = file.size ? (file.size / (1024 * 1024)).toFixed(2) + " MB" : "N/A";
       const downloadUrl = file.download_url || `https://raw.githubusercontent.com/iammoondae/doclearninghub/main/courses/${currentCourseId}/lecturenotes/${encodeURIComponent(file.name)}`;
 
+      let completionHTML = '';
+      if (matchedModule && currentUserRole === 'student') {
+        const isDone = currentUser.completedMaterials && currentUser.completedMaterials.includes(matchedModule.id);
+        completionHTML = `
+          <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; font-weight:600; cursor:pointer; text-align:left;">
+            <input type="checkbox" onchange="toggleMaterialCompleted('${matchedModule.id}', this.checked)" ${isDone ? 'checked' : ''} style="accent-color:var(--active-subject-color, #0ea5e9);">
+            Mark Notes as Completed
+          </label>
+        `;
+      }
+
       html += `
-        <div class="module-card">
-          <div class="module-info">
-            <span class="module-title">${title}</span>
-            <span class="module-desc">${desc}</span>
-            <span style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">File size: ${sizeFormatted} • Source: GitHub Repository</span>
+        <div class="module-card" style="flex-direction:column; align-items:stretch;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+            <div class="module-info" style="text-align:left; flex:1;">
+              <span class="module-title">${title}</span>
+              <span class="module-desc">${desc}</span>
+              <span style="font-size: 11px; color: var(--text-muted); margin-top: 5px; display:block;">File size: ${sizeFormatted} • Source: GitHub Repository</span>
+            </div>
+            <div class="module-actions" style="flex-shrink:0; display:flex; gap:8px;">
+              <button class="pdf-action-btn" style="background:#475569;" onclick="exportPDFExternally('${downloadUrl}')">📤 Download</button>
+            </div>
           </div>
-          <div class="module-actions">
-            <button class="pdf-action-btn" onclick="viewPDFInApp('${downloadUrl}', '${title}')">👁️ View</button>
-            <button class="pdf-action-btn" style="background:#475569;" onclick="exportPDFExternally('${downloadUrl}')">📤 Download</button>
-          </div>
+          ${completionHTML}
         </div>
       `;
     });
   }
 
   html += `</div>`;
+  html += getCustomMaterialsHTML();
   viewport.innerHTML = html;
+  renderChemistrySymbols(viewport);
 }
 
 function renderLectureNotesFallback() {
@@ -1702,23 +2411,38 @@ function renderLectureNotesFallback() {
   `;
 
   activeCourse.modules.forEach(m => {
+    let completionHTML = '';
+    if (currentUserRole === 'student') {
+      const isDone = currentUser.completedMaterials && currentUser.completedMaterials.includes(m.id);
+      completionHTML = `
+        <label style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12.5px; font-weight:600; cursor:pointer; text-align:left;">
+          <input type="checkbox" onchange="toggleMaterialCompleted('${m.id}', this.checked)" ${isDone ? 'checked' : ''} style="accent-color:var(--active-subject-color, #0ea5e9);">
+          Mark Notes as Completed
+        </label>
+      `;
+    }
+
     html += `
-      <div class="module-card" id="note-card-${m.id}">
-        <div class="module-info">
-          <span class="module-title">${m.title} Notes</span>
-          <span class="module-desc">Current active syllabus chapter handouts</span>
-          <span style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">File size: ${m.pdfSize || 'N/A'} • Source: Faculty Server</span>
+      <div class="module-card" id="note-card-${m.id}" style="flex-direction:column; align-items:stretch;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+          <div class="module-info" style="text-align:left; flex:1;">
+            <span class="module-title">${m.title} Notes</span>
+            <span class="module-desc">Current active syllabus chapter handouts</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-top: 5px; display:block;">File size: ${m.pdfSize || 'N/A'} • Source: Faculty Server</span>
+          </div>
+          <div class="module-actions" id="note-actions-${m.id}" style="flex-shrink:0; display:flex; gap:8px;">
+            <button class="pdf-action-btn" style="background:#475569;" onclick="exportPDFExternally('${m.pdfUrl}')">📤 Download</button>
+          </div>
         </div>
-        <div class="module-actions" id="note-actions-${m.id}">
-          <button class="pdf-action-btn" onclick="viewPDFInApp('${m.pdfUrl}', '${m.title}')">👁️ View</button>
-          <button class="pdf-action-btn" style="background:#475569;" onclick="exportPDFExternally('${m.pdfUrl}')">📤 Download</button>
-        </div>
+        ${completionHTML}
       </div>
     `;
   });
   html += `</div>`;
+  html += getCustomMaterialsHTML();
 
   viewport.innerHTML = html;
+  renderChemistrySymbols(viewport);
 
   // Asynchronously verify each file availability in background
   activeCourse.modules.forEach(async (m) => {
@@ -1790,10 +2514,20 @@ function renderAssessmentsView() {
       const savedScore = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`);
       const savedMax = localStorage.getItem(`quiz_max_${currentUser.email}_${m.id}`);
       
+      // Progressive gating check
+      const isLocked = currentUserRole === 'student' && 
+                      (!currentUser.completedMaterials || !currentUser.completedMaterials.includes(m.id));
+
       if (savedScore !== null) {
         quizSectionHTML = `
           <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
             <span style="font-size: 13px; font-weight: 600; color: var(--correct);">✅ Completed Quiz Grade: ${savedScore}/${savedMax}</span>
+          </div>
+        `;
+      } else if (isLocked) {
+        quizSectionHTML = `
+          <div style="margin-top: 10px; padding: 12px; border-radius: 8px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); text-align: center; font-size: 13px; font-weight: 600; color: var(--incorrect);">
+            🔒 Complete Module Lecture Notes to unlock this quiz
           </div>
         `;
       } else {
@@ -1842,7 +2576,72 @@ function renderAssessmentsView() {
   });
 
   html += `</div>`;
+
+  // Merge classroom-specific custom quizzes
+  const classData = activeStudentClassData[currentCourseId];
+  if (classData && classData.customQuizzes && classData.customQuizzes.length > 0) {
+    let hasCustomScheduled = false;
+    let customHtml = `
+      <div style="margin-top: 30px;">
+        <h3 style="font-family:'Outfit',sans-serif; font-size:16px; margin-bottom:12px; border-bottom:1px dashed var(--border-color); padding-bottom:8px; text-align:left;">📋 Custom Classroom Exams</h3>
+        <div class="module-list">
+    `;
+
+    classData.customQuizzes.forEach(cq => {
+      const isSched = classData.scheduledQuizzes && classData.scheduledQuizzes.includes(cq.id);
+      if (!isSched) return;
+
+      hasCustomScheduled = true;
+      let quizSectionHTML = '';
+      
+      const savedScore = localStorage.getItem(`quiz_score_${currentUser.email}_${cq.id}`);
+      const savedMax = localStorage.getItem(`quiz_max_${currentUser.email}_${cq.id}`);
+      
+      if (savedScore !== null) {
+        quizSectionHTML = `
+          <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+            <span style="font-size: 13px; font-weight: 600; color: var(--correct);">✅ Completed Quiz Grade: ${savedScore}/${savedMax}</span>
+          </div>
+        `;
+      } else {
+        quizSectionHTML = `
+          <button class="restart-btn" style="margin-top: 10px; width: 100%; padding: 12px; margin-bottom: 0;" onclick="startCustomQuizRunner('${cq.id}')">
+            ✍️ Start Custom Quiz
+          </button>
+        `;
+      }
+
+      let timeLimitStr = '';
+      if (cq.timeLimitSeconds) {
+        timeLimitStr = `${Math.round(cq.timeLimitSeconds / 60)} mins`;
+      } else {
+        const hasQuestionTimers = cq.questions.some(q => q.timeLimitSeconds);
+        if (hasQuestionTimers) {
+          timeLimitStr = '⚡ Timed Questions (Auto-Advances / Cannot Move Back)';
+        } else {
+          timeLimitStr = 'Untimed';
+        }
+      }
+
+      customHtml += `
+        <div class="module-card" id="assessment-card-${cq.id}" style="flex-direction: column; align-items: stretch; gap: 10px;">
+          <div class="module-info" style="text-align:left;">
+            <span class="module-title" style="font-weight:700;">${cq.title}</span>
+            <span class="module-desc">Questions: ${cq.questions.length} | Time Limit: ${timeLimitStr}</span>
+          </div>
+          ${quizSectionHTML}
+        </div>
+      `;
+    });
+
+    customHtml += `</div></div>`;
+    if (hasCustomScheduled) {
+      html += customHtml;
+    }
+  }
+
   viewport.innerHTML = html;
+  renderChemistrySymbols(viewport);
 }
 
 function openAssignmentForm(modId, formUrl) {
@@ -1877,6 +2676,15 @@ function startQuizRunner(moduleId) {
   if (savedScore !== null) {
     alert("You have already completed this quiz. Retakes are not allowed.");
     return;
+  }
+
+  // Progressive gating check
+  if (currentUserRole === 'student') {
+    const isLocked = !currentUser.completedMaterials || !currentUser.completedMaterials.includes(moduleId);
+    if (isLocked) {
+      alert("This quiz is locked. Please complete the corresponding module lecture notes first.");
+      return;
+    }
   }
 
   activeQuizModule = targetModule;
@@ -1922,17 +2730,97 @@ function updateQuizTimerUI() {
   document.getElementById('slide-mode-label').innerText = `Quiz Mode — ${timerStr}`;
 }
 
+function startQuestionTimer(limit) {
+  clearInterval(questionTimerInterval);
+  questionSecondsLeft = limit;
+  
+  updateQuestionTimerDetailsUI();
+  
+  questionTimerInterval = setInterval(() => {
+    questionSecondsLeft--;
+    if (questionSecondsLeft <= 0) {
+      clearInterval(questionTimerInterval);
+      handleQuestionTimeout();
+    } else {
+      updateQuestionTimerDetailsUI();
+    }
+  }, 1000);
+}
+
+function updateQuestionTimerDetailsUI() {
+  const label = document.getElementById('slide-mode-label');
+  if (label) {
+    label.innerText = `Quiz Mode — Question Timer: ${questionSecondsLeft}s ⚠️`;
+  }
+  const qTimerBadge = document.getElementById('question-timer-badge');
+  if (qTimerBadge) {
+    qTimerBadge.innerText = `${questionSecondsLeft}s`;
+    if (questionSecondsLeft <= 3) {
+      qTimerBadge.style.background = 'var(--incorrect)';
+    } else {
+      qTimerBadge.style.background = 'rgba(255,255,255,0.1)';
+    }
+  }
+}
+
+function handleQuestionTimeout() {
+  playSFX(false);
+  const question = activeQuizData.questions[currentQuestionIndex];
+  
+  // Log answer as incorrect/unanswered
+  logAnswer(null, "Timed Out (Unanswered)", false);
+  
+  // If MCQ or TF, show correct answers briefly, then advance
+  const btns = document.querySelectorAll('.choice-btn');
+  btns.forEach(btn => btn.disabled = true);
+  
+  if (question.type === 'mc') {
+    if (btns[question.answer]) {
+      btns[question.answer].classList.add('correct');
+    }
+  } else if (question.type === 'tf') {
+    const correctBtnIdx = question.answer ? 0 : 1;
+    if (btns[correctBtnIdx]) {
+      btns[correctBtnIdx].classList.add('correct');
+    }
+  } else if (question.type === 'id') {
+    const inputEl = document.getElementById('identification-answer-field');
+    if (inputEl) {
+      inputEl.disabled = true;
+      inputEl.value = `Timed Out! (Correct: ${question.answer})`;
+      inputEl.style.color = 'var(--incorrect)';
+    }
+  }
+  
+  setTimeout(() => {
+    advanceQuiz();
+  }, 1500);
+}
+
 function renderQuizQuestion() {
   const viewport = document.getElementById('viewport-body');
   const question = activeQuizData.questions[currentQuestionIndex];
+  
+  // Clear any active question-level timer
+  clearInterval(questionTimerInterval);
   
   // Update Header progress
   const pct = Math.round((currentQuestionIndex / activeQuizData.questions.length) * 100);
   document.getElementById('progress-bar').style.width = `${pct}%`;
   document.getElementById('slide-num-label').innerText = `Question ${currentQuestionIndex + 1} of ${activeQuizData.questions.length}`;
 
+  let timerBadgeHTML = '';
+  if (question.timeLimitSeconds) {
+    timerBadgeHTML = `
+      <div id="question-timer-badge" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 13px; font-family: monospace; transition: background 0.3s ease;">
+        ${question.timeLimitSeconds}s
+      </div>
+    `;
+  }
+
   let contentHTML = `
-    <div class="question-container">
+    <div class="question-container" style="position: relative;">
+      ${timerBadgeHTML}
       <h2>${activeQuizData.title}</h2>
       <p class="question-text">${currentQuestionIndex + 1}. ${question.question}</p>
   `;
@@ -1968,9 +2856,17 @@ function renderQuizQuestion() {
 
   contentHTML += `</div>`;
   viewport.innerHTML = contentHTML;
+  renderChemistrySymbols(viewport);
+  updatePeriodicTableButtonVisibility();
+
+  // Start question timer if configured
+  if (question.timeLimitSeconds) {
+    startQuestionTimer(question.timeLimitSeconds);
+  }
 }
 
 function selectQuizChoice(choiceIndex) {
+  clearInterval(questionTimerInterval);
   const question = activeQuizData.questions[currentQuestionIndex];
   const isCorrect = choiceIndex === question.answer;
 
@@ -1979,6 +2875,7 @@ function selectQuizChoice(choiceIndex) {
 }
 
 function selectQuizTF(tfValue) {
+  clearInterval(questionTimerInterval);
   const question = activeQuizData.questions[currentQuestionIndex];
   const isCorrect = tfValue === question.answer;
 
@@ -1996,6 +2893,7 @@ function submitQuizIdentification() {
     return;
   }
 
+  clearInterval(questionTimerInterval);
   const question = activeQuizData.questions[currentQuestionIndex];
   const isCorrect = textVal.toLowerCase() === question.answer.toLowerCase();
 
@@ -2066,6 +2964,7 @@ function advanceQuiz() {
 
 function submitQuizResults() {
   clearInterval(quizTimerInterval);
+  clearInterval(questionTimerInterval);
   playSFX(true);
 
   const dateStr = new Date().toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
@@ -2130,6 +3029,8 @@ function renderQuizSummary() {
       ${reviewHTML}
     </div>
   `;
+  renderChemistrySymbols(viewport);
+  updatePeriodicTableButtonVisibility();
 }
 
 function retakeQuiz(moduleId) {
@@ -2163,8 +3064,9 @@ function renderStudentProgressView() {
   );
 
   enrolledCourses.forEach(course => {
-    const cQuizzes = course.modules.filter(m => m.quiz).length;
-    const cPassedQuizzes = course.modules.filter(m => 
+    const classData = activeStudentClassData[course.id];
+    let cQuizzes = course.modules.filter(m => m.quiz).length;
+    let cPassedQuizzes = course.modules.filter(m => 
       localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`) !== null
     ).length;
 
@@ -2172,6 +3074,19 @@ function renderStudentProgressView() {
     const cPassedAssignments = course.modules.filter(m => 
       localStorage.getItem(`assignment_submitted_${currentUser.email}_${m.id}`) === 'true'
     ).length;
+
+    // Add scheduled custom quizzes to this course's counts
+    if (classData && classData.customQuizzes) {
+      classData.customQuizzes.forEach(cq => {
+        const isSched = classData.scheduledQuizzes && classData.scheduledQuizzes.includes(cq.id);
+        if (isSched) {
+          cQuizzes++;
+          if (localStorage.getItem(`quiz_score_${currentUser.email}_${cq.id}`) !== null) {
+            cPassedQuizzes++;
+          }
+        }
+      });
+    }
 
     totalQuizzes += cQuizzes;
     passedQuizzes += cPassedQuizzes;
@@ -2198,6 +3113,9 @@ function renderStudentProgressView() {
   // Compile quiz records history table
   let quizTableRows = '';
   enrolledCourses.forEach(course => {
+    const classData = activeStudentClassData[course.id];
+    
+    // Manifest Quizzes
     course.modules.forEach(m => {
       if (m.quiz) {
         const score = localStorage.getItem(`quiz_score_${currentUser.email}_${m.id}`);
@@ -2226,6 +3144,37 @@ function renderStudentProgressView() {
         `;
       }
     });
+
+    // Custom Quizzes
+    if (classData && classData.customQuizzes) {
+      classData.customQuizzes.forEach(cq => {
+        const isSched = classData.scheduledQuizzes && classData.scheduledQuizzes.includes(cq.id);
+        if (!isSched) return;
+
+        const score = localStorage.getItem(`quiz_score_${currentUser.email}_${cq.id}`);
+        const max = localStorage.getItem(`quiz_max_${currentUser.email}_${cq.id}`);
+        const date = localStorage.getItem(`quiz_date_${currentUser.email}_${cq.id}`) || 'Not Taken';
+
+        let status = '❌ Pending';
+        let scoreDisplay = '-';
+        if (score !== null) {
+          scoreDisplay = `${score}/${max}`;
+          const pass = (parseInt(score) / parseInt(max)) >= 0.6;
+          status = pass ? '🟢 Passed' : '🟡 Needs Practice';
+        }
+
+        quizTableRows += `
+          <tr>
+            <td style="font-weight:600; padding:10px; border-bottom:1px solid var(--border-card);">${course.name}</td>
+            <td style="padding:10px; border-bottom:1px solid var(--border-card);">Exam</td>
+            <td style="padding:10px; border-bottom:1px solid var(--border-card);">${cq.title}</td>
+            <td style="padding:10px; border-bottom:1px solid var(--border-card); text-align:center;">${scoreDisplay}</td>
+            <td style="padding:10px; border-bottom:1px solid var(--border-card); text-align:center;">${status}</td>
+            <td style="padding:10px; border-bottom:1px solid var(--border-card); text-align:center; color:var(--text-muted);">${date}</td>
+          </tr>
+        `;
+      });
+    }
   });
 
   if (quizTableRows === '') {
@@ -2292,36 +3241,21 @@ function logRecordToSheets(modId, taskTitle, score, maxScore, mode) {
     score: score,
     maxScore: maxScore,
     mode: mode,
-    timestamp: new Date().toISOString()
+    override: false,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
   };
 
-  console.log("Mock Score Submission Payload:", payload);
+  console.log("Submitting Score to Firestore:", payload);
 
-  // If Sheets endpoint URL is not configured, we queue it locally and show a alert
-  if (!REMOTE_SHEETS_SCRIPT_URL) {
-    queueOfflineScore(payload);
-    return;
-  }
-
-  // Attempt real HTTPS POST request to Google Apps Script
-  // Web App script expects parameters in standard JSON request body
-  fetch(REMOTE_SHEETS_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'cors',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload)
-  })
-  .then(res => {
-    // Standard Apps Script return redirection or text
-    if (!res.ok) throw new Error("HTTP connection failed");
-    console.log("Sheets API log successful");
-  })
-  .catch(err => {
-    console.error("Sheets log failed, caching locally:", err);
-    queueOfflineScore(payload);
-  });
+  firestore.collection("scores").add(payload)
+    .then((docRef) => {
+      console.log("Score logged in Firestore successfully with ID:", docRef.id);
+    })
+    .catch((err) => {
+      console.error("Firestore logging failed, saving locally:", err);
+      payload.timestamp = new Date().toISOString();
+      queueOfflineScore(payload);
+    });
 }
 
 function queueOfflineScore(payload) {
@@ -2334,30 +3268,24 @@ function queueOfflineScore(payload) {
 }
 
 function syncOfflineScores() {
-  if (!REMOTE_SHEETS_SCRIPT_URL) return;
-  
   const offlineQueue = JSON.parse(localStorage.getItem('doc_lms_offline_scores') || '[]');
   if (offlineQueue.length === 0) return;
 
-  console.log("Syncing offline scores queue...");
+  console.log("Syncing offline scores queue to Firestore...");
   
-  const promises = offlineQueue.map(payload => {
-    return fetch(REMOTE_SHEETS_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(res => {
-      if (!res.ok) throw new Error();
-      return payload; // Success
-    });
+  const promises = offlineQueue.map((payload, idx) => {
+    payload.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+    return firestore.collection("scores").add(payload)
+      .then(() => {
+        return idx;
+      });
   });
 
   Promise.allSettled(promises).then(results => {
     const successIndices = [];
-    results.forEach((r, idx) => {
+    results.forEach(r => {
       if (r.status === 'fulfilled') {
-        successIndices.push(idx);
+        successIndices.push(r.value);
       }
     });
 
@@ -2862,13 +3790,23 @@ function checkWeeklyUpdates() {
 
 function signOutStudent() {
   playSFX(true);
-  const confirmOut = confirm("Are you sure you want to sign out? Your profile details and score history will be saved on this device.");
+  const confirmOut = confirm("Are you sure you want to sign out? Your profile details and score history will be saved.");
   if (!confirmOut) return;
 
-  localStorage.removeItem('student_user_session');
-  currentUser = null;
-  closeSettings();
-  loadUserSession();
+
+  auth.signOut().then(() => {
+    localStorage.removeItem('student_user_session');
+    currentUser = null;
+    closeSettings();
+    loadUserSession();
+  }).catch((err) => {
+    console.error("Firebase signout error:", err);
+    // Force local clear anyway
+    localStorage.removeItem('student_user_session');
+    currentUser = null;
+    closeSettings();
+    loadUserSession();
+  });
 }
 
 function confirmClearAllProgress() {
@@ -2997,3 +3935,3184 @@ function closeSidebar() {
     overlay.classList.remove('open');
   }
 }
+
+
+
+
+// ==========================================================================
+// INSTRUCTOR PORTAL MODALS & UTILITIES
+// ==========================================================================
+function openClassRequestModal() {
+  playSFX(true);
+  const select = document.getElementById('request-course-id');
+  if (select && manifestData && manifestData.courses) {
+    select.innerHTML = manifestData.courses.map(c => `
+      <option value="${c.id}">${c.name}</option>
+    `).join('');
+  }
+  const modal = document.getElementById('class-request-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function uploadRequestSyllabus(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+  const file = files[0];
+
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    alert("Please upload a valid PDF file.");
+    event.target.value = '';
+    return;
+  }
+
+  const statusSpan = document.getElementById('request-syllabus-status');
+  if (statusSpan) statusSpan.textContent = 'Uploading... 🔄';
+
+  const storageRef = storage.ref();
+  const fileRef = storageRef.child('syllabi/' + Date.now() + '_' + file.name);
+
+  fileRef.put(file)
+    .then(snapshot => snapshot.ref.getDownloadURL())
+    .then(url => {
+      uploadedSyllabusUrl = url;
+      if (statusSpan) statusSpan.textContent = 'Syllabus uploaded! ✅';
+      const submitBtn = document.getElementById('class-request-submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+      }
+    })
+    .catch(err => {
+      console.error("Error uploading syllabus:", err);
+      if (statusSpan) statusSpan.textContent = 'Upload failed ❌';
+      alert("Failed to upload syllabus: " + err.message);
+    });
+}
+
+function closeClassRequestModal() {
+  const modal = document.getElementById('class-request-modal');
+  if (modal) modal.style.display = 'none';
+  
+  // Reset syllabus upload state
+  uploadedSyllabusUrl = "";
+  const fileInput = document.getElementById('request-syllabus-file');
+  if (fileInput) fileInput.value = '';
+  const statusSpan = document.getElementById('request-syllabus-status');
+  if (statusSpan) statusSpan.textContent = 'No file selected';
+  const submitBtn = document.getElementById('class-request-submit-btn');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.5';
+    submitBtn.style.cursor = 'not-allowed';
+  }
+}
+
+function submitClassRequest(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  
+  const courseSelect = document.getElementById('request-course-id');
+  const sectionInput = document.getElementById('request-section');
+  const yearInput = document.getElementById('request-year');
+  if (!courseSelect || !sectionInput || !yearInput) return;
+
+  const courseId = courseSelect.value;
+  const section = sectionInput.value.trim();
+  const year = yearInput.value.trim();
+  const activeCourse = manifestData.courses.find(c => c.id === courseId);
+  const courseName = activeCourse ? activeCourse.name : courseId.toUpperCase();
+  
+  const classData = {
+    courseId: courseId,
+    courseName: courseName,
+    section: section,
+    year: year,
+    teacherEmail: currentUser.email,
+    teacherName: currentUser.name || currentUser.email,
+    status: 'pending',
+    students: [],
+    labGroups: [],
+    syllabusUrl: uploadedSyllabusUrl || "",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  
+  firestore.collection('classes').add(classData)
+    .then(() => {
+      alert("Class creation request submitted successfully!");
+      closeClassRequestModal();
+      sectionInput.value = '';
+      yearInput.value = '2026-2027';
+      renderTeacherClassesView();
+    })
+    .catch(err => {
+      console.error("Error submitting class request:", err);
+      alert("Error submitting request: " + err.message);
+    });
+}
+
+// Student Roster Enrollment Modal Logic
+let currentEnrollClassId = null;
+
+function openEnrollmentModal(classId) {
+  if (!classId) {
+    alert("Please select a classroom first.");
+    return;
+  }
+  playSFX(true);
+  currentEnrollClassId = classId;
+  const textarea = document.getElementById('enroll-emails-textarea');
+  if (textarea) textarea.value = '';
+  const fileInput = document.getElementById('roster-file-upload');
+  if (fileInput) fileInput.value = '';
+  const modal = document.getElementById('student-enrollment-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeEnrollmentModal() {
+  const modal = document.getElementById('student-enrollment-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function handleRosterFileUpload(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const foundEmails = text.match(emailRegex) || [];
+    const validEmails = foundEmails.filter(email => email.trim().toLowerCase().endsWith('@msugensan.edu.ph'));
+    
+    const textarea = document.getElementById('enroll-emails-textarea');
+    if (textarea) {
+      textarea.value = validEmails.join('\n');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function submitEnrollmentRoster() {
+  if (!currentEnrollClassId) return;
+  const textarea = document.getElementById('enroll-emails-textarea');
+  if (!textarea) return;
+  
+  const lines = textarea.value.split('\n');
+  const emails = lines
+    .map(line => line.trim().toLowerCase())
+    .filter(line => line.length > 0 && line.endsWith('@msugensan.edu.ph'));
+  
+  if (emails.length === 0) {
+    alert("No valid @msugensan.edu.ph emails found to enroll.");
+    return;
+  }
+  
+  firestore.collection('classes').doc(currentEnrollClassId).update({
+    students: firebase.firestore.FieldValue.arrayUnion(...emails)
+  })
+  .then(() => {
+    alert(`Successfully enrolled ${emails.length} student(s) into class roster.`);
+    closeEnrollmentModal();
+    
+    if (currentMode === 'teacher-classes') {
+      renderTeacherClassesView();
+    } else if (currentMode === 'teacher-gradebook') {
+      loadGradebookData(currentEnrollClassId);
+    }
+  })
+  .catch(err => {
+    console.error("Error enrolling students:", err);
+    alert("Failed to enroll students: " + err.message);
+  });
+}
+
+window.openClassRequestModal = openClassRequestModal;
+window.closeClassRequestModal = closeClassRequestModal;
+window.submitClassRequest = submitClassRequest;
+window.uploadRequestSyllabus = uploadRequestSyllabus;
+window.openEnrollmentModal = openEnrollmentModal;
+window.closeEnrollmentModal = closeEnrollmentModal;
+window.handleRosterFileUpload = handleRosterFileUpload;
+window.submitEnrollmentRoster = submitEnrollmentRoster;
+
+
+// ==========================================================================
+// INSTRUCTOR DASHBOARD VIEW (MY CLASSES)
+// ==========================================================================
+let teacherSelectedClassId = null;
+
+function goToClassGradebook(classId) {
+  teacherSelectedClassId = classId;
+  setMode('teacher-gradebook');
+}
+function goToClassGroups(classId) {
+  teacherSelectedClassId = classId;
+  setMode('teacher-groups');
+}
+window.goToClassGradebook = goToClassGradebook;
+window.goToClassGroups = goToClassGroups;
+
+function renderTeacherClassesView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+      <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0; text-align: left;">🏫 My Classrooms</h2>
+      <button class="settings-btn-primary" onclick="openClassRequestModal()" style="width: auto; margin: 0; padding: 10px 18px; font-size: 13px;">➕ Request New Class</button>
+    </div>
+    <div class="empty-playlist-msg" id="teacher-classes-loading">Loading classrooms from database...</div>
+    <div class="class-grid" id="teacher-classes-grid" style="display: none;"></div>
+  `;
+
+  const loadingEl = document.getElementById('teacher-classes-loading');
+  const gridEl = document.getElementById('teacher-classes-grid');
+  if (!gridEl) return;
+
+  function renderClassesHtml(classesList) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    gridEl.style.display = 'grid';
+
+    if (classesList.length === 0) {
+      gridEl.innerHTML = `
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-card); border-radius: 16px; border: 1px dashed var(--border-card);">
+          <p style="font-size: 15px; margin: 0 0 12px 0;">You haven't requested any classes yet.</p>
+          <button class="settings-btn-primary" onclick="openClassRequestModal()" style="width: auto; margin: 0; padding: 8px 16px; font-size: 12.5px;">Request Your First Class</button>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    classesList.forEach(classData => {
+      const classId = classData.id;
+      const studentCount = classData.students ? classData.students.length : 0;
+      const status = classData.status || 'pending';
+      const statusClass = status === 'approved' ? 'approved' : 'pending';
+      const statusText = status.toUpperCase();
+
+      html += `
+        <div class="class-card" style="cursor: pointer;" onclick="viewClassroomDetails('${classId}')">
+          <div class="class-card-header">
+            <div class="class-code">${classData.courseName}</div>
+            <span class="class-section">${classData.section}</span>
+          </div>
+          <div style="font-size: 12.5px; color: var(--text-muted); margin-top: -4px;">
+            Academic Year: ${classData.year}
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <span class="class-status-badge ${statusClass}">${statusText}</span>
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">${studentCount} Enrolled Students</span>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 12px;">
+            ${status === 'approved' ? `
+              <button class="settings-btn-primary" onclick="event.stopPropagation(); openEnrollmentModal('${classId}')" style="width: 100%; margin: 0; padding: 8px; font-size: 12px; background: var(--active-subject-color, #0ea5e9);">👥 Enroll Students</button>
+              <div style="display: flex; gap: 8px;">
+                <button class="settings-btn-primary" onclick="event.stopPropagation(); goToClassGradebook('${classId}')" style="flex: 1; margin: 0; padding: 8px; font-size: 11.5px; background: #3b82f6;">📊 Gradebook</button>
+                <button class="settings-btn-primary" onclick="event.stopPropagation(); goToClassGroups('${classId}')" style="flex: 1; margin: 0; padding: 8px; font-size: 11.5px; background: #10b981;">👥 Lab Groups</button>
+              </div>
+            ` : `
+              <p style="font-size: 11px; font-style: italic; color: var(--text-muted); margin: 4px 0; text-align: center;">Waiting for Admin approval before enrollment.</p>
+            `}
+          </div>
+        </div>
+      `;
+    });
+    gridEl.innerHTML = html;
+  }
+
+  firestore.collection('classes')
+    .where('teacherEmail', '==', currentUser.email)
+    .get()
+    .then(querySnapshot => {
+      let classesList = [];
+      querySnapshot.forEach(doc => {
+        classesList.push({ id: doc.id, ...doc.data() });
+      });
+
+      const hasSample = classesList.some(c => c.id === 'sample_class_49c');
+      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      
+      if (!hasSample && isTeacherRamon) {
+        classesList.push(GLOBAL_SAMPLE_CLASS);
+      }
+
+      renderClassesHtml(classesList);
+    })
+    .catch(err => {
+      console.error("Error loading classes:", err);
+      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (isTeacherRamon) {
+        console.log("Offline fallback: rendering local sample class.");
+        renderClassesHtml([GLOBAL_SAMPLE_CLASS]);
+      } else if (loadingEl) {
+        loadingEl.innerHTML = `<span style="color: var(--incorrect);">⚠️ Error loading classes: ${err.message}</span>`;
+      }
+    });
+}
+window.renderTeacherClassesView = renderTeacherClassesView;
+
+
+// ==========================================================================
+// INSTRUCTOR DASHBOARD VIEW (GRADEBOOKS & CELL OVERRIDES)
+// ==========================================================================
+let gradebookClassData = null;
+let gradebookStudentsList = {};
+
+function renderTeacherGradebookView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0;">📊 Class Gradebooks</h2>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+      <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Select Class:</span>
+      <select id="gradebook-class-select" onchange="loadGradebookData(this.value)" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px; min-width: 200px;">
+        <option value="">-- Select Class --</option>
+      </select>
+      <button class="settings-btn-primary" onclick="exportGradebookToCSV()" id="gradebook-export-btn" style="width: auto; margin: 0; padding: 10px 16px; font-size: 12.5px; display: none; background: #475569;">📤 Export to CSV</button>
+      <button class="settings-btn-primary" onclick="openEnrollmentModal(document.getElementById('gradebook-class-select').value)" id="gradebook-enroll-btn" style="width: auto; margin: 0; padding: 10px 16px; font-size: 12.5px; display: none;">👥 Enroll Students</button>
+    </div>
+    <div id="gradebook-view-container">
+      <div class="empty-playlist-msg">Please select a class from the dropdown above to view records.</div>
+    </div>
+  `;
+
+  // Fetch approved classes
+  firestore.collection('classes')
+    .where('teacherEmail', '==', currentUser.email)
+    .where('status', '==', 'approved')
+    .get()
+    .then(querySnapshot => {
+      const select = document.getElementById('gradebook-class-select');
+      if (!select) return;
+
+      if (querySnapshot.empty) {
+        select.innerHTML = `<option value="">No approved classes found</option>`;
+        return;
+      }
+
+      let options = `<option value="">-- Select Class --</option>`;
+      querySnapshot.forEach(doc => {
+        const classData = doc.data();
+        options += `<option value="${doc.id}">${classData.courseName} (${classData.section})</option>`;
+      });
+      select.innerHTML = options;
+
+      // Check if we pre-selected a class
+      if (teacherSelectedClassId) {
+        select.value = teacherSelectedClassId;
+        const enrollBtn = document.getElementById('gradebook-enroll-btn');
+        if (enrollBtn) enrollBtn.style.display = 'inline-block';
+        const exportBtn = document.getElementById('gradebook-export-btn');
+        if (exportBtn) exportBtn.style.display = 'inline-block';
+        loadGradebookData(teacherSelectedClassId);
+      }
+    })
+    .catch(err => {
+      console.error("Error fetching classes for gradebook select:", err);
+    });
+}
+
+function loadGradebookData(classId) {
+  const container = document.getElementById('gradebook-view-container');
+  if (!container) return;
+
+  const enrollBtn = document.getElementById('gradebook-enroll-btn');
+  if (enrollBtn) {
+    enrollBtn.style.display = classId ? 'inline-block' : 'none';
+  }
+
+  const exportBtn = document.getElementById('gradebook-export-btn');
+  if (exportBtn) {
+    exportBtn.style.display = classId ? 'inline-block' : 'none';
+  }
+
+  if (!classId) {
+    container.innerHTML = `<div class="empty-playlist-msg">Please select a class from the dropdown above to view records.</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="empty-playlist-msg">Loading class roster and scores...</div>`;
+  currentEnrollClassId = classId;
+
+  // Helper function to render gradebook from loaded data
+  function renderGradebookViewWithData(classData, studentProfiles, allScores) {
+    // Extract assessment columns from manifest
+    const course = manifestData.courses.find(c => c.id === classData.courseId);
+    const columns = [];
+    if (course && course.modules) {
+      course.modules.forEach(m => {
+        if (m.quiz) {
+          columns.push({
+            moduleId: m.id,
+            taskTitle: m.quiz.title || `${m.title} Quiz`,
+            maxScore: (m.quiz.questions && m.quiz.questions.length) ? m.quiz.questions.length : 10,
+            mode: 'quiz'
+          });
+        }
+        if (m.assignment) {
+          columns.push({
+            moduleId: m.id,
+            taskTitle: m.assignment.title || `${m.title} Task`,
+            maxScore: m.assignment.maxScore || 100,
+            mode: 'assignment'
+          });
+        }
+      });
+    }
+    // Add custom quizzes to columns
+    if (classData.customQuizzes && classData.customQuizzes.length > 0) {
+      classData.customQuizzes.forEach(cq => {
+        columns.push({
+          moduleId: cq.id,
+          taskTitle: cq.title,
+          maxScore: cq.questions.length,
+          mode: 'quiz'
+        });
+      });
+    }
+
+    // Calculate class statistics
+    const studentPercentages = [];
+    classData.students.forEach(studentEmail => {
+      const normEmail = studentEmail.toLowerCase().trim();
+      let studentObtained = 0;
+      let studentTotalPossible = 0;
+      
+      columns.forEach(col => {
+        const localMatch = getLocalStudentScore(normEmail, col.moduleId, col.mode, col.maxScore);
+
+        const matches = allScores.filter(s => 
+          s.email.toLowerCase().trim() === normEmail &&
+          s.moduleId === col.moduleId &&
+          s.taskTitle === col.taskTitle &&
+          s.mode === col.mode
+        );
+
+        let finalScore = 0; // Default to 0 for cumulative calculation
+        if (matches.length > 0) {
+          const overrideScore = matches.find(s => s.override === true);
+          if (overrideScore) {
+            finalScore = overrideScore.score;
+          } else {
+            const firestoreMax = Math.max(...matches.map(s => s.score));
+            if (localMatch) {
+              finalScore = Math.max(firestoreMax, localMatch.score);
+            } else {
+              finalScore = firestoreMax;
+            }
+          }
+        } else if (localMatch) {
+          finalScore = localMatch.score;
+        }
+        studentObtained += finalScore;
+        studentTotalPossible += col.maxScore;
+      });
+      
+      const pct = studentTotalPossible > 0 ? (studentObtained / studentTotalPossible) * 100 : 0;
+      studentPercentages.push(pct);
+    });
+
+    const mean = studentPercentages.length > 0 
+      ? (studentPercentages.reduce((a, b) => a + b, 0) / studentPercentages.length).toFixed(1) 
+      : "0.0";
+      
+    let median = "0.0";
+    if (studentPercentages.length > 0) {
+      const sorted = [...studentPercentages].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      median = sorted.length % 2 !== 0 ? sorted[mid].toFixed(1) : ((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1);
+    }
+    
+    const passCount = studentPercentages.filter(p => p >= 60).length;
+    const passRate = studentPercentages.length > 0 
+      ? ((passCount / studentPercentages.length) * 100).toFixed(0) 
+      : "0";
+      
+    const highest = studentPercentages.length > 0 ? Math.max(...studentPercentages).toFixed(1) : "0.0";
+    const lowest = studentPercentages.length > 0 ? Math.min(...studentPercentages).toFixed(1) : "0.0";
+
+    let statsHTML = `
+      <div class="gradebook-stats-banner" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 20px; text-align: left;">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 16px; border-radius: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Class Mean (Avg)</div>
+          <div style="font-size: 24px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 4px; color: var(--accent);">${mean}%</div>
+        </div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 16px; border-radius: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Median Score</div>
+          <div style="font-size: 24px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 4px; color: var(--text-main);">${median}%</div>
+        </div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 16px; border-radius: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Pass Rate (>=60%)</div>
+          <div style="font-size: 24px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 4px; color: #10b981;">${passRate}%</div>
+        </div>
+        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 16px; border-radius: 12px;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Highest / Lowest</div>
+          <div style="font-size: 18px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 8px; color: var(--text-main);">${highest}% / ${lowest}%</div>
+        </div>
+      </div>
+    `;
+
+    // Render Gradebook Table
+    let tableHTML = `
+      <div class="gradebook-container">
+        <table class="gradebook-table">
+          <thead>
+            <tr>
+              <th class="sticky-col">Student Name & ID</th>
+              <th>Email</th>
+    `;
+
+    columns.forEach(col => {
+      tableHTML += `<th>${col.taskTitle}<br><span style="font-size:9.5px; opacity:0.6;">Max: ${col.maxScore}</span></th>`;
+    });
+
+    tableHTML += `
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    classData.students.forEach(studentEmail => {
+      const normEmail = studentEmail.toLowerCase().trim();
+      const profile = studentProfiles[normEmail] || { name: studentEmail.split('@')[0], studentId: 'Not Onboarded' };
+      
+      tableHTML += `
+        <tr>
+          <td class="sticky-col">
+            <div style="font-weight: 700;">${escapeHtml(profile.name)}</div>
+            <div style="font-size: 10px; color: var(--text-muted);">${escapeHtml(profile.studentId)}</div>
+          </td>
+          <td style="text-align: left; font-family: monospace;">${studentEmail}</td>
+      `;
+
+      columns.forEach(col => {
+        const localMatch = getLocalStudentScore(normEmail, col.moduleId, col.mode, col.maxScore);
+
+        // Find score
+        const matches = allScores.filter(s => 
+          s.email.toLowerCase().trim() === normEmail &&
+          s.moduleId === col.moduleId &&
+          s.taskTitle === col.taskTitle &&
+          s.mode === col.mode
+        );
+
+        let finalScore = null;
+        let isOverridden = false;
+        
+        if (matches.length > 0) {
+          // Check if there is an override
+          const overrideScore = matches.find(s => s.override === true);
+          if (overrideScore) {
+            finalScore = overrideScore.score;
+            isOverridden = true;
+          } else {
+            // Take highest score
+            const firestoreMax = Math.max(...matches.map(s => s.score));
+            if (localMatch) {
+              if (localMatch.override) {
+                finalScore = localMatch.score;
+                isOverridden = true;
+              } else {
+                finalScore = Math.max(firestoreMax, localMatch.score);
+              }
+            } else {
+              finalScore = firestoreMax;
+            }
+          }
+        } else if (localMatch) {
+          finalScore = localMatch.score;
+          isOverridden = localMatch.override;
+        }
+
+        const cellClass = finalScore === null ? 'gradebook-cell-empty' : 'gradebook-cell-interactive';
+        const cellText = finalScore === null ? '-' : `${finalScore}/${col.maxScore}`;
+        const overrideLabel = isOverridden ? `<span class="grade-override-flag">✏️</span>` : '';
+        const escName = escapeHtml(escapeJsString(profile.name));
+        const escTask = escapeHtml(escapeJsString(col.taskTitle));
+
+        tableHTML += `
+          <td class="${cellClass}" onclick="openScoreEditorModal('${studentEmail}', '${escName}', '${col.moduleId}', '${escTask}', ${col.maxScore}, '${col.mode}', ${finalScore})">
+            ${cellText}${overrideLabel}
+          </td>
+        `;
+      });
+
+      tableHTML += `</tr>`;
+    });
+
+    tableHTML += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.innerHTML = statsHTML + tableHTML;
+  }
+
+  // Get class details
+  firestore.collection('classes').doc(classId).get()
+    .then(classDoc => {
+      if (!classDoc.exists) {
+        if (classId === 'sample_class_49c') {
+          // Fall back to GLOBAL_SAMPLE_CLASS
+          const classData = GLOBAL_SAMPLE_CLASS;
+          gradebookClassData = classData;
+          const studentProfiles = {};
+          classData.students.forEach(email => {
+            studentProfiles[email.toLowerCase().trim()] = { name: email.split('@')[0], studentId: 'Sample ID' };
+          });
+          gradebookStudentsList = studentProfiles;
+          renderGradebookViewWithData(classData, studentProfiles, []);
+        } else {
+          container.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Classroom not found.</div>`;
+        }
+        return;
+      }
+
+      const classData = classDoc.data();
+      gradebookClassData = classData;
+
+      if (!classData.students || classData.students.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-card); border-radius: 16px;">
+            <p style="font-size: 14px; margin: 0 0 12px 0;">No students enrolled in this classroom yet.</p>
+            <button class="settings-btn-primary" onclick="openEnrollmentModal('${classId}')" style="width: auto; margin: 0; padding: 8px 16px; font-size: 12.5px;">👥 Enroll Students Roster</button>
+          </div>
+        `;
+        return;
+      }
+
+      // Fetch all student profiles to map names/IDs
+      firestore.collection('students').get()
+        .then(studentsSnapshot => {
+          const studentProfiles = {};
+          studentsSnapshot.forEach(doc => {
+            studentProfiles[doc.id.toLowerCase().trim()] = doc.data();
+          });
+          gradebookStudentsList = studentProfiles;
+
+          // Fetch all scores for this course
+          firestore.collection('scores')
+            .where('courseId', '==', classData.courseId)
+            .get()
+            .then(scoresSnapshot => {
+              const allScores = [];
+              scoresSnapshot.forEach(doc => {
+                allScores.push(doc.data());
+              });
+              renderGradebookViewWithData(classData, studentProfiles, allScores);
+            })
+            .catch(err => {
+              console.error("Error loading scores:", err);
+              // Fallback to offline local storage rendering
+              renderGradebookViewWithData(classData, studentProfiles, []);
+            });
+        })
+        .catch(err => {
+          console.error("Error loading students:", err);
+          // Fallback to email names mapping
+          const studentProfiles = {};
+          classData.students.forEach(email => {
+            studentProfiles[email.toLowerCase().trim()] = { name: email.split('@')[0], studentId: 'Not Onboarded' };
+          });
+          gradebookStudentsList = studentProfiles;
+          renderGradebookViewWithData(classData, studentProfiles, []);
+        });
+    })
+    .catch(err => {
+      console.error("Error fetching class details:", err);
+      if (classId === 'sample_class_49c') {
+        const classData = GLOBAL_SAMPLE_CLASS;
+        gradebookClassData = classData;
+        const studentProfiles = {};
+        classData.students.forEach(email => {
+          studentProfiles[email.toLowerCase().trim()] = { name: email.split('@')[0], studentId: 'Sample ID' };
+        });
+        gradebookStudentsList = studentProfiles;
+        renderGradebookViewWithData(classData, studentProfiles, []);
+      } else {
+        container.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Error loading classroom: ${err.message}</div>`;
+      }
+    });
+}
+
+// Score Override modal logic
+let currentOverrideData = null;
+
+function openScoreEditorModal(studentEmail, studentName, moduleId, taskTitle, maxScore, mode, currentScore) {
+  playSFX(true);
+  currentOverrideData = {
+    email: studentEmail,
+    name: studentName,
+    moduleId: moduleId,
+    taskTitle: taskTitle,
+    maxScore: maxScore,
+    mode: mode
+  };
+
+  const nameEl = document.getElementById('editor-student-name');
+  const emailEl = document.getElementById('editor-student-email');
+  const taskEl = document.getElementById('editor-task-info');
+  const maxEl = document.getElementById('editor-max-score');
+  const scoreInput = document.getElementById('editor-score-input');
+
+  if (nameEl) nameEl.innerText = studentName || studentEmail;
+  if (emailEl) emailEl.innerText = studentEmail;
+  if (taskEl) taskEl.innerText = `Task: ${taskTitle} (${mode.toUpperCase()})`;
+  if (maxEl) maxEl.innerText = maxScore;
+  
+  if (scoreInput) {
+    scoreInput.max = maxScore;
+    scoreInput.value = (currentScore !== null && currentScore !== undefined) ? currentScore : '';
+  }
+
+  const modal = document.getElementById('score-editor-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeScoreEditorModal() {
+  const modal = document.getElementById('score-editor-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function submitScoreOverride() {
+  if (!currentOverrideData) return;
+  const scoreInput = document.getElementById('editor-score-input');
+  if (!scoreInput) return;
+  
+  const scoreVal = parseInt(scoreInput.value, 10);
+  if (isNaN(scoreVal)) {
+    alert("Please enter a valid number for the score.");
+    return;
+  }
+  
+  if (scoreVal < 0 || scoreVal > currentOverrideData.maxScore) {
+    alert(`Score must be between 0 and ${currentOverrideData.maxScore}.`);
+    return;
+  }
+
+  const { email, moduleId, taskTitle, maxScore, mode } = currentOverrideData;
+  const studentProfile = gradebookStudentsList[email.toLowerCase().trim()] || {};
+  const studentId = studentProfile.studentId || "Not Onboarded";
+  const yearLevel = studentProfile.year || (gradebookClassData ? gradebookClassData.year : "1");
+  const section = gradebookClassData ? gradebookClassData.section : "";
+  const courseId = gradebookClassData ? gradebookClassData.courseId : "";
+
+  // Save locally first so it updates immediately in the UI
+  localStorage.setItem(`override_score_${email.toLowerCase().trim()}_${moduleId}`, scoreVal);
+
+  // Query if an existing score doc matches to update, or make a new one
+  firestore.collection('scores')
+    .where('email', '==', email)
+    .where('moduleId', '==', moduleId)
+    .where('taskTitle', '==', taskTitle)
+    .where('mode', '==', mode)
+    .get()
+    .then(querySnapshot => {
+      const batch = firestore.batch();
+      const scorePayload = {
+        email: email,
+        studentId: studentId,
+        section: section,
+        yearLevel: yearLevel,
+        courseId: courseId,
+        moduleId: moduleId,
+        taskTitle: taskTitle,
+        score: scoreVal,
+        maxScore: maxScore,
+        mode: mode,
+        override: true,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      if (!querySnapshot.empty) {
+        querySnapshot.forEach(doc => {
+          batch.update(doc.ref, {
+            score: scoreVal,
+            override: true,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+      } else {
+        const newRef = firestore.collection('scores').doc();
+        batch.set(newRef, scorePayload);
+      }
+
+      return batch.commit();
+    })
+    .then(() => {
+      alert("Grade override saved successfully!");
+      closeScoreEditorModal();
+      if (currentEnrollClassId) {
+        loadGradebookData(currentEnrollClassId);
+      } else if (teacherSelectedClassId) {
+        loadGradebookData(teacherSelectedClassId);
+      }
+    })
+    .catch(err => {
+      console.warn("Firestore save override failed, saved locally (offline mode):", err);
+      alert("Grade override saved locally (Offline mode).");
+      closeScoreEditorModal();
+      if (currentEnrollClassId) {
+        loadGradebookData(currentEnrollClassId);
+      } else if (teacherSelectedClassId) {
+        loadGradebookData(teacherSelectedClassId);
+      }
+    });
+}
+
+window.renderTeacherGradebookView = renderTeacherGradebookView;
+window.loadGradebookData = loadGradebookData;
+window.openScoreEditorModal = openScoreEditorModal;
+window.closeScoreEditorModal = closeScoreEditorModal;
+window.submitScoreOverride = submitScoreOverride;
+
+
+// ==========================================================================
+// INSTRUCTOR DASHBOARD VIEW (LAB GROUPS ASSIGNMENT)
+// ==========================================================================
+let activeGroupsClassId = null;
+let activeGroupsClassData = null;
+
+function renderTeacherGroupsView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0;">👥 Laboratory Groups</h2>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+      <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Select Class:</span>
+      <select id="groups-class-select" onchange="loadGroupsData(this.value)" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px; min-width: 200px;">
+        <option value="">-- Select Class --</option>
+      </select>
+      <button class="settings-btn-primary" onclick="createLabGroup()" id="groups-add-btn" style="width: auto; margin: 0; padding: 10px 16px; font-size: 12.5px; display: none;">➕ Create Group</button>
+    </div>
+    <div id="groups-view-container">
+      <div class="empty-playlist-msg">Please select a class from the dropdown above to view groups.</div>
+    </div>
+  `;
+
+  // Fetch approved classes
+  firestore.collection('classes')
+    .where('teacherEmail', '==', currentUser.email)
+    .where('status', '==', 'approved')
+    .get()
+    .then(querySnapshot => {
+      const select = document.getElementById('groups-class-select');
+      if (!select) return;
+
+      let classesList = [];
+      querySnapshot.forEach(doc => {
+        classesList.push({ id: doc.id, ...doc.data() });
+      });
+
+      const hasSample = classesList.some(c => c.id === 'sample_class_49c');
+      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (!hasSample && isTeacherRamon) {
+        classesList.push(GLOBAL_SAMPLE_CLASS);
+      }
+
+      if (classesList.length === 0) {
+        select.innerHTML = `<option value="">No approved classes found</option>`;
+        return;
+      }
+
+      let options = `<option value="">-- Select Class --</option>`;
+      classesList.forEach(c => {
+        options += `<option value="${c.id}">${c.courseName} (${c.section})</option>`;
+      });
+      select.innerHTML = options;
+
+      if (teacherSelectedClassId) {
+        select.value = teacherSelectedClassId;
+        const addBtn = document.getElementById('groups-add-btn');
+        if (addBtn) addBtn.style.display = 'inline-block';
+        loadGroupsData(teacherSelectedClassId);
+      }
+    })
+    .catch(err => {
+      console.error("Error fetching classes for groups select:", err);
+      const select = document.getElementById('groups-class-select');
+      if (!select) return;
+      const isTeacherRamon = currentUser.email.toLowerCase().trim() === atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=");
+      if (isTeacherRamon) {
+        let options = `<option value="">-- Select Class --</option>`;
+        options += `<option value="${GLOBAL_SAMPLE_CLASS.id}">${GLOBAL_SAMPLE_CLASS.courseName} (${GLOBAL_SAMPLE_CLASS.section})</option>`;
+        select.innerHTML = options;
+        if (teacherSelectedClassId) {
+          select.value = teacherSelectedClassId;
+          const addBtn = document.getElementById('groups-add-btn');
+          if (addBtn) addBtn.style.display = 'inline-block';
+          loadGroupsData(teacherSelectedClassId);
+        }
+      } else {
+        select.innerHTML = `<option value="">Error loading classes: ${err.message}</option>`;
+      }
+    });
+}
+
+function loadGroupsData(classId) {
+  activeGroupsClassId = classId;
+  const addBtn = document.getElementById('groups-add-btn');
+  if (addBtn) {
+    addBtn.style.display = classId ? 'inline-block' : 'none';
+  }
+
+  const container = document.getElementById('groups-view-container');
+  if (!container) return;
+
+  if (!classId) {
+    container.innerHTML = `<div class="empty-playlist-msg">Please select a class from the dropdown above to view groups.</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="empty-playlist-msg">Loading laboratory groups...</div>`;
+
+  if (classId === 'sample_class_49c') {
+    const classData = JSON.parse(JSON.stringify(GLOBAL_SAMPLE_CLASS));
+    activeGroupsClassData = classData;
+    renderLabGroupsListHtml(classData, container);
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).get()
+    .then(doc => {
+      if (!doc.exists) {
+        container.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Classroom not found.</div>`;
+        return;
+      }
+
+      const classData = doc.data();
+      activeGroupsClassData = classData;
+      renderLabGroupsListHtml(classData, container);
+    })
+    .catch(err => {
+      console.error("Error loading lab groups from Firestore:", err);
+      if (classId === 'sample_class_49c') {
+        const classData = JSON.parse(JSON.stringify(GLOBAL_SAMPLE_CLASS));
+        activeGroupsClassData = classData;
+        renderLabGroupsListHtml(classData, container);
+      } else {
+        container.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Error loading groups: ${err.message}</div>`;
+      }
+    });
+}
+
+function renderLabGroupsListHtml(classData, container) {
+  if (!classData.students || classData.students.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-card); border-radius: 16px;">
+        <p style="font-size: 14px; margin: 0 0 12px 0;">No students enrolled in this classroom yet. Please enroll students first.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const groups = classData.labGroups || [];
+
+  // Determine unassigned students
+  const assignedEmails = new Set();
+  groups.forEach(g => {
+    if (g.members) g.members.forEach(m => assignedEmails.add(m.toLowerCase().trim()));
+  });
+
+  const unassignedStudents = classData.students.filter(email => !assignedEmails.has(email.toLowerCase().trim()));
+
+  if (groups.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-card); border-radius: 16px; border: 1px dashed var(--border-card);">
+        <p style="font-size: 15px; margin: 0 0 12px 0;">No laboratory groups created yet.</p>
+        <button class="settings-btn-primary" onclick="createLabGroup()" style="width: auto; margin: 0; padding: 8px 16px; font-size: 12.5px;">Create First Group</button>
+      </div>
+    `;
+    return;
+  }
+
+  // Render groups view
+  let html = `
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <!-- Unassigned Students Panel -->
+      ${unassignedStudents.length > 0 ? `
+        <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 16px; border-radius: 12px; margin-bottom: 8px; text-align: left;">
+          <h4 style="margin:0 0 8px 0; font-size: 13.5px; color: #f59e0b; font-weight:700;">⚠️ Unassigned Students (${unassignedStudents.length})</h4>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            ${unassignedStudents.map(email => `<span style="font-size:11px; padding:4px 8px; border-radius:6px; background:var(--bg-card); border:1px solid var(--border-card); font-family:monospace;">${email}</span>`).join('')}
+          </div>
+        </div>
+      ` : `
+        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 12px; border-radius: 12px; margin-bottom: 8px; text-align: center; font-size: 12.5px; color: #10b981; font-weight:600;">
+          🎉 All students have been assigned to lab groups!
+        </div>
+      `}
+
+      <div class="lab-groups-container">
+  `;
+
+  groups.forEach((g, idx) => {
+    html += `
+      <div class="lab-group-card">
+        <div class="lab-group-header">
+          <h3 class="lab-group-title">🧪 ${g.name}</h3>
+          <button onclick="deleteLabGroup('${g.id}')" style="background:none; border:none; color:var(--incorrect); font-size:12px; font-weight:700; cursor:pointer;">❌ Delete Group</button>
+        </div>
+        
+        <div style="margin-bottom: 12px; text-align: left;">
+          <label style="font-size: 11px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">Experiment Folder/Link</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="link-input-${g.id}" value="${g.experimentLink || ''}" placeholder="e.g. Google Drive folder link" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12px;">
+            <button class="settings-btn-primary" onclick="saveLabGroupLink('${g.id}')" style="width:auto; margin:0; padding:8px 12px; font-size:11px; background: #3b82f6;">Save Link</button>
+          </div>
+          ${g.experimentLink ? `<a href="${g.experimentLink}" target="_blank" style="font-size:11px; color:var(--active-subject-color, #0ea5e9); display:inline-block; margin-top:4px; font-weight:600;">🔗 Open Link External</a>` : ''}
+        </div>
+        
+        <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom: 8px; text-align: left;">Members (${g.members ? g.members.length : 0})</div>
+        <div class="lab-group-members" style="margin-bottom:12px;">
+          ${(g.members && g.members.length > 0) ? g.members.map(m => `
+            <div class="lab-member-row">
+              <span style="font-family:monospace; font-size:12.5px;">${m}</span>
+              <button class="btn-remove-member" onclick="removeStudentFromLabGroup('${g.id}', '${m}')">&times;</button>
+            </div>
+          `).join('') : `<div style="font-size:11.5px; font-style:italic; color:var(--text-muted); padding:4px 8px; text-align: left;">No members assigned yet.</div>`}
+        </div>
+
+        ${unassignedStudents.length > 0 ? `
+          <div style="display:flex; gap:8px; align-items:center; border-top:1px dashed var(--border-card); padding-top:12px;">
+            <select id="assign-select-${g.id}" style="flex:1; padding:8px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12px;">
+              <option value="">-- Assign Student --</option>
+              ${unassignedStudents.map(email => `<option value="${email}">${email}</option>`).join('')}
+            </select>
+            <button class="settings-btn-primary" onclick="addStudentToLabGroup('${g.id}')" style="width:auto; margin:0; padding:8px 12px; font-size:11.5px; background:var(--active-subject-color, #0ea5e9);">➕ Add</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  html += `
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function createLabGroup() {
+  if (!activeGroupsClassId || !activeGroupsClassData) return;
+  const groups = activeGroupsClassData.labGroups || [];
+  const nextGroupNum = groups.length + 1;
+  const newGroup = {
+    id: 'group_' + Date.now(),
+    name: `Lab Group ${nextGroupNum}`,
+    members: [],
+    experimentLink: ''
+  };
+
+  groups.push(newGroup);
+
+  if (activeGroupsClassId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.labGroups = groups;
+  }
+
+  firestore.collection('classes').doc(activeGroupsClassId).update({
+    labGroups: groups
+  })
+  .then(() => {
+    loadGroupsData(activeGroupsClassId);
+  })
+  .catch(err => {
+    console.error("Error creating group in Firestore:", err);
+    if (activeGroupsClassId === 'sample_class_49c') {
+      loadGroupsData(activeGroupsClassId);
+    } else {
+      alert("Failed to create group: " + err.message);
+    }
+  });
+}
+
+function deleteLabGroup(groupId) {
+  if (!activeGroupsClassId || !activeGroupsClassData) return;
+  const confirmDelete = confirm("Are you sure you want to delete this lab group? Members will be unassigned.");
+  if (!confirmDelete) return;
+
+  const groups = (activeGroupsClassData.labGroups || []).filter(g => g.id !== groupId);
+
+  if (activeGroupsClassId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.labGroups = groups;
+  }
+
+  firestore.collection('classes').doc(activeGroupsClassId).update({
+    labGroups: groups
+  })
+  .then(() => {
+    loadGroupsData(activeGroupsClassId);
+  })
+  .catch(err => {
+    console.error("Error deleting group in Firestore:", err);
+    if (activeGroupsClassId === 'sample_class_49c') {
+      loadGroupsData(activeGroupsClassId);
+    } else {
+      alert("Failed to delete group: " + err.message);
+    }
+  });
+}
+
+function saveLabGroupLink(groupId) {
+  if (!activeGroupsClassId || !activeGroupsClassData) return;
+  const linkInput = document.getElementById(`link-input-${groupId}`);
+  if (!linkInput) return;
+
+  const linkVal = linkInput.value.trim();
+  const groups = activeGroupsClassData.labGroups || [];
+  const group = groups.find(g => g.id === groupId);
+  if (group) {
+    group.experimentLink = linkVal;
+  }
+
+  if (activeGroupsClassId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.labGroups = groups;
+  }
+
+  firestore.collection('classes').doc(activeGroupsClassId).update({
+    labGroups: groups
+  })
+  .then(() => {
+    alert("Experiment link saved successfully!");
+    loadGroupsData(activeGroupsClassId);
+  })
+  .catch(err => {
+    console.error("Error saving group link in Firestore:", err);
+    if (activeGroupsClassId === 'sample_class_49c') {
+      alert("Experiment link saved successfully (Local Offline Mode)!");
+      loadGroupsData(activeGroupsClassId);
+    } else {
+      alert("Failed to save link: " + err.message);
+    }
+  });
+}
+
+function addStudentToLabGroup(groupId) {
+  if (!activeGroupsClassId || !activeGroupsClassData) return;
+  const select = document.getElementById(`assign-select-${groupId}`);
+  if (!select) return;
+
+  const studentEmail = select.value;
+  if (!studentEmail) {
+    alert("Please select a student to assign.");
+    return;
+  }
+
+  const groups = activeGroupsClassData.labGroups || [];
+  const group = groups.find(g => g.id === groupId);
+  if (group) {
+    if (!group.members) group.members = [];
+    if (!group.members.includes(studentEmail)) {
+      group.members.push(studentEmail);
+    }
+  }
+
+  if (activeGroupsClassId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.labGroups = groups;
+  }
+
+  firestore.collection('classes').doc(activeGroupsClassId).update({
+    labGroups: groups
+  })
+  .then(() => {
+    loadGroupsData(activeGroupsClassId);
+  })
+  .catch(err => {
+    console.error("Error adding student to group in Firestore:", err);
+    if (activeGroupsClassId === 'sample_class_49c') {
+      loadGroupsData(activeGroupsClassId);
+    } else {
+      alert("Failed to assign student: " + err.message);
+    }
+  });
+}
+
+function removeStudentFromLabGroup(groupId, studentEmail) {
+  if (!activeGroupsClassId || !activeGroupsClassData) return;
+
+  const groups = activeGroupsClassData.labGroups || [];
+  const group = groups.find(g => g.id === groupId);
+  if (group && group.members) {
+    group.members = group.members.filter(m => m.toLowerCase().trim() !== studentEmail.toLowerCase().trim());
+  }
+
+  if (activeGroupsClassId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.labGroups = groups;
+  }
+
+  firestore.collection('classes').doc(activeGroupsClassId).update({
+    labGroups: groups
+  })
+  .then(() => {
+    loadGroupsData(activeGroupsClassId);
+  })
+  .catch(err => {
+    console.error("Error removing student from group in Firestore:", err);
+    if (activeGroupsClassId === 'sample_class_49c') {
+      loadGroupsData(activeGroupsClassId);
+    } else {
+      alert("Failed to remove student: " + err.message);
+    }
+  });
+}
+
+window.renderTeacherGroupsView = renderTeacherGroupsView;
+window.loadGroupsData = loadGroupsData;
+window.createLabGroup = createLabGroup;
+window.deleteLabGroup = deleteLabGroup;
+window.saveLabGroupLink = saveLabGroupLink;
+window.addStudentToLabGroup = addStudentToLabGroup;
+window.removeStudentFromLabGroup = removeStudentFromLabGroup;
+
+// ==========================================================================
+// ADMIN DASHBOARD VIEW (CLASS REQUESTS & USER ROLES DIRECTORY)
+// ==========================================================================
+function renderAdminRequestsView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <div id="admin-requests-container" style="text-align: left;">
+      <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0; text-align: left;">🔔 Pending Class Requests</h2>
+      
+      <!-- Bulk Operations Controls -->
+      <div id="admin-bulk-controls" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; background:var(--bg-card); border:1px solid var(--border-card); padding:12px 16px; border-radius:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="select-all-pending" onchange="toggleSelectAllPending(this.checked)" style="width:16px; height:16px; cursor:pointer;">
+          <label for="select-all-pending" style="font-size:12.5px; font-weight:700; cursor:pointer; font-family:'Outfit',sans-serif; color:var(--text-main);">Select All</label>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="settings-btn-primary" onclick="bulkApproveRequests(false)" style="width:auto; margin:0; padding:8px 12px; font-size:12px; background:#10b981;">Approve Selected ✅</button>
+          <button class="settings-btn-primary" onclick="bulkDenyRequests(false)" style="width:auto; margin:0; padding:8px 12px; font-size:12px; background:var(--incorrect);">Deny Selected ❌</button>
+          <button class="settings-btn-primary" onclick="bulkApproveRequests(true)" style="width:auto; margin:0; padding:8px 12px; font-size:12px; background:#047857;">Approve All 🏆</button>
+          <button class="settings-btn-primary" onclick="bulkDenyRequests(true)" style="width:auto; margin:0; padding:8px 12px; font-size:12px; background:#b91c1c;">Deny All 🚨</button>
+        </div>
+      </div>
+
+      <div class="empty-playlist-msg" id="admin-requests-loading">Loading requested classes...</div>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom: 32px;" id="admin-requests-list"></div>
+      
+      <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0; text-align: left; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span>❌ Denied Class Requests</span>
+        <button class="settings-btn-primary" id="clear-all-denied-btn" onclick="clearAllDeniedRequests()" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:var(--incorrect);">Clear All Denied 🗑️</button>
+      </h2>
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom: 32px;" id="admin-denied-list"></div>
+
+      <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0; text-align: left;">🏛️ Active Classroom Catalog</h2>
+      <div style="display:flex; flex-direction:column; gap:12px;" id="admin-catalog-list"></div>
+    </div>
+  `;
+
+  firestore.collection('classes')
+    .orderBy('createdAt', 'desc')
+    .get()
+    .then(querySnapshot => {
+      const loadingEl = document.getElementById('admin-requests-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+
+      const listEl = document.getElementById('admin-requests-list');
+      const deniedEl = document.getElementById('admin-denied-list');
+      const catalogEl = document.getElementById('admin-catalog-list');
+      if (!listEl || !deniedEl || !catalogEl) return;
+
+      if (querySnapshot.empty) {
+        listEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No class creation requests found.</div>`;
+        deniedEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No denied class creation requests.</div>`;
+        catalogEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No active classrooms in the catalog.</div>`;
+        return;
+      }
+
+      let pendingHtml = '';
+      let deniedHtml = '';
+      let activeHtml = '';
+      let pendingCount = 0;
+      let deniedCount = 0;
+      let activeCount = 0;
+
+      querySnapshot.forEach(doc => {
+        const classData = doc.data();
+        const classId = doc.id;
+        const status = classData.status || 'pending';
+        const studentCount = classData.students ? classData.students.length : 0;
+
+        if (status === 'pending') {
+          pendingCount++;
+          pendingHtml += `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; text-align: left;">
+              <div style="display:flex; align-items:center; gap:12px; flex:1; min-width:240px;">
+                <input type="checkbox" class="pending-request-checkbox" data-class-id="${classId}" style="width:18px; height:18px; cursor:pointer;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-family:'Outfit',sans-serif; font-weight:800; font-size:16px; color:var(--text-main);">${classData.courseName}</span>
+                    <span style="font-size:10px; font-weight:700; color:white; background:var(--active-subject-color,#0ea5e9); padding:2px 6px; border-radius:4px;">Sec ${classData.section}</span>
+                    <span class="class-status-badge pending">PENDING</span>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text-muted);">
+                    Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                  </div>
+                  <div style="font-size:11.5px; color:var(--text-muted);">
+                    Academic Year: ${classData.year}
+                  </div>
+                </div>
+              </div>
+              
+              <div style="display:flex; gap:8px;">
+                <button class="settings-btn-primary" onclick="approveClassRequest('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:#10b981;">Approve ✅</button>
+                <button class="settings-btn-primary" onclick="denyClassRequest('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:var(--incorrect);">Deny ❌</button>
+              </div>
+            </div>
+          `;
+        } else if (status === 'denied') {
+          deniedCount++;
+          deniedHtml += `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; text-align: left;">
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-family:'Outfit',sans-serif; font-weight:800; font-size:16px; color:var(--text-main);">${classData.courseName}</span>
+                  <span style="font-size:10px; font-weight:700; color:white; background:var(--active-subject-color,#0ea5e9); padding:2px 6px; border-radius:4px;">Sec ${classData.section}</span>
+                  <span class="class-status-badge pending" style="background:#ef4444;">DENIED</span>
+                </div>
+                <div style="font-size:12.5px; color:var(--text-muted);">
+                  Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                </div>
+                <div style="font-size:11.5px; color:var(--text-muted);">
+                  Academic Year: ${classData.year}
+                </div>
+              </div>
+              
+              <div style="display:flex; gap:8px;">
+                <button class="settings-btn-primary" onclick="approveClassRequest('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:#10b981;">Approve ✅</button>
+                <button class="settings-btn-primary" onclick="deleteClassRequest('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:var(--incorrect);">Delete permanently 🗑️</button>
+              </div>
+            </div>
+          `;
+        } else {
+          activeCount++;
+          activeHtml += `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; text-align: left;">
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-family:'Outfit',sans-serif; font-weight:800; font-size:16px; color:var(--text-main);">${classData.courseName}</span>
+                  <span style="font-size:10px; font-weight:700; color:white; background:var(--active-subject-color,#0ea5e9); padding:2px 6px; border-radius:4px;">Sec ${classData.section}</span>
+                  <span class="class-status-badge approved">APPROVED</span>
+                </div>
+                <div style="font-size:12.5px; color:var(--text-muted);">
+                  Instructor: <strong>${classData.teacherName}</strong> (${classData.teacherEmail})
+                </div>
+                <div style="font-size:11.5px; color:var(--text-muted);">
+                  Students Enrolled: <strong>${studentCount}</strong> | Academic Year: ${classData.year}
+                </div>
+              </div>
+              
+              <div style="display:flex; gap:8px;">
+                <button class="settings-btn-primary" onclick="deleteClassRequest('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:rgba(239,68,68,0.1); color:var(--incorrect); border:1px solid var(--incorrect);">Archive / Delete 📁</button>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      if (pendingCount === 0) {
+        listEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No pending class creation requests.</div>`;
+      } else {
+        listEl.innerHTML = pendingHtml;
+      }
+
+      if (deniedCount === 0) {
+        deniedEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No denied class creation requests.</div>`;
+      } else {
+        deniedEl.innerHTML = deniedHtml;
+      }
+
+      if (activeCount === 0) {
+        catalogEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; font-size: 13px;">No active classrooms in the catalog.</div>`;
+      } else {
+        catalogEl.innerHTML = activeHtml;
+      }
+
+      const clearBtn = document.getElementById('clear-all-denied-btn');
+      if (clearBtn) {
+        if (deniedCount === 0) {
+          clearBtn.disabled = true;
+          clearBtn.style.opacity = '0.5';
+          clearBtn.style.cursor = 'not-allowed';
+        } else {
+          clearBtn.disabled = false;
+          clearBtn.style.opacity = '1';
+          clearBtn.style.cursor = 'pointer';
+        }
+      }
+    })
+    .catch(err => {
+      console.error("Error loading admin class requests:", err);
+      const loadingEl = document.getElementById('admin-requests-loading');
+      if (loadingEl) {
+        loadingEl.innerHTML = `<span style="color:var(--incorrect);">⚠️ Error loading requests: ${err.message}</span>`;
+      }
+    });
+}
+
+function approveClassRequest(classId) {
+  firestore.collection('classes').doc(classId).update({
+    status: 'approved'
+  })
+  .then(() => {
+    alert("Classroom request approved successfully!");
+    renderAdminRequestsView();
+  })
+  .catch(err => {
+    console.error("Error approving class:", err);
+    alert("Failed to approve: " + err.message);
+  });
+}
+
+function denyClassRequest(classId) {
+  if (!confirm("Are you sure you want to deny this class request?")) return;
+
+  firestore.collection('classes').doc(classId).update({
+    status: 'denied'
+  })
+  .then(() => {
+    alert("Classroom request denied.");
+    renderAdminRequestsView();
+  })
+  .catch(err => {
+    console.error("Error denying class request:", err);
+    alert("Failed to deny: " + err.message);
+  });
+}
+
+function deleteClassRequest(classId) {
+  const confirmDelete = confirm("Are you sure you want to permanently delete this class record?");
+  if (!confirmDelete) return;
+
+  firestore.collection('classes').doc(classId).delete()
+  .then(() => {
+    alert("Classroom record deleted successfully.");
+    renderAdminRequestsView();
+  })
+  .catch(err => {
+    console.error("Error deleting class:", err);
+    alert("Failed to delete record: " + err.message);
+  });
+}
+
+function toggleSelectAllPending(checked) {
+  const checkboxes = document.querySelectorAll('.pending-request-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+function bulkApproveRequests(allPending) {
+  let targetIds = [];
+  if (allPending) {
+    const checkboxes = document.querySelectorAll('.pending-request-checkbox');
+    checkboxes.forEach(cb => targetIds.push(cb.getAttribute('data-class-id')));
+  } else {
+    const checkboxes = document.querySelectorAll('.pending-request-checkbox:checked');
+    checkboxes.forEach(cb => targetIds.push(cb.getAttribute('data-class-id')));
+  }
+
+  if (targetIds.length === 0) {
+    alert("No pending requests selected.");
+    return;
+  }
+
+  if (!confirm(`Are you sure you want to approve ${targetIds.length} class request(s)?`)) return;
+
+  const batch = firestore.batch();
+  targetIds.forEach(id => {
+    const docRef = firestore.collection('classes').doc(id);
+    batch.update(docRef, { status: 'approved' });
+  });
+
+  batch.commit()
+    .then(() => {
+      alert(`Successfully approved ${targetIds.length} class request(s)!`);
+      renderAdminRequestsView();
+    })
+    .catch(err => {
+      console.error("Error bulk approving classes:", err);
+      alert("Failed to bulk approve: " + err.message);
+    });
+}
+
+function bulkDenyRequests(allPending) {
+  let targetIds = [];
+  if (allPending) {
+    const checkboxes = document.querySelectorAll('.pending-request-checkbox');
+    checkboxes.forEach(cb => targetIds.push(cb.getAttribute('data-class-id')));
+  } else {
+    const checkboxes = document.querySelectorAll('.pending-request-checkbox:checked');
+    checkboxes.forEach(cb => targetIds.push(cb.getAttribute('data-class-id')));
+  }
+
+  if (targetIds.length === 0) {
+    alert("No pending requests selected.");
+    return;
+  }
+
+  if (!confirm(`Are you sure you want to deny ${targetIds.length} class request(s)?`)) return;
+
+  const batch = firestore.batch();
+  targetIds.forEach(id => {
+    const docRef = firestore.collection('classes').doc(id);
+    batch.update(docRef, { status: 'denied' });
+  });
+
+  batch.commit()
+    .then(() => {
+      alert(`Successfully denied ${targetIds.length} class request(s)!`);
+      renderAdminRequestsView();
+    })
+    .catch(err => {
+      console.error("Error bulk denying classes:", err);
+      alert("Failed to bulk deny: " + err.message);
+    });
+}
+
+function clearAllDeniedRequests() {
+  if (!confirm("Are you sure you want to permanently clear/delete all denied class requests?")) return;
+
+  firestore.collection('classes')
+    .where('status', '==', 'denied')
+    .get()
+    .then(querySnapshot => {
+      if (querySnapshot.empty) {
+        alert("No denied requests to clear.");
+        return;
+      }
+
+      const batch = firestore.batch();
+      querySnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      return batch.commit().then(() => {
+        alert(`Successfully cleared ${querySnapshot.size} denied request(s)!`);
+        renderAdminRequestsView();
+      });
+    })
+    .catch(err => {
+      console.error("Error clearing denied requests:", err);
+      alert("Failed to clear denied requests: " + err.message);
+    });
+}
+
+window.renderAdminRequestsView = renderAdminRequestsView;
+window.approveClassRequest = approveClassRequest;
+window.denyClassRequest = denyClassRequest;
+window.deleteClassRequest = deleteClassRequest;
+window.toggleSelectAllPending = toggleSelectAllPending;
+window.bulkApproveRequests = bulkApproveRequests;
+window.bulkDenyRequests = bulkDenyRequests;
+window.clearAllDeniedRequests = clearAllDeniedRequests;
+
+
+function renderAdminUsersView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0 0 16px 0; text-align: left;">👥 User Directory</h2>
+    <div class="empty-playlist-msg" id="admin-users-loading">Loading users list...</div>
+    
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:16px; margin-bottom:16px; text-align: left;">
+      <h4 style="margin:0 0 8px 0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">➕ Promote User by Email</h4>
+      <div style="display:flex; gap:8px; flex-wrap: wrap;">
+        <input type="email" id="promote-email-input" placeholder="student.email@msugensan.edu.ph" style="flex:2; min-width: 200px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+        <select id="promote-role-select" style="flex:1; min-width: 120px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+          <option value="teacher">Teacher</option>
+          <option value="admin">Admin</option>
+          <option value="student">Student</option>
+        </select>
+        <button class="settings-btn-primary" onclick="promoteUserEmail()" style="width:auto; margin:0; padding:10px 18px; font-size:13px;">Assign Role</button>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto; border:1px solid var(--border-card); border-radius:12px; background:var(--bg-card); -webkit-overflow-scrolling:touch;">
+      <table class="gradebook-table" style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:12px;">Name</th>
+            <th style="text-align:left; padding:12px;">Email</th>
+            <th style="padding:12px;">ID Number</th>
+            <th style="padding:12px;">Year</th>
+            <th style="padding:12px;">Role</th>
+            <th style="padding:12px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="admin-users-table-body"></tbody>
+      </table>
+    </div>
+  `;
+
+  firestore.collection('students')
+    .get()
+    .then(querySnapshot => {
+      const loadingEl = document.getElementById('admin-users-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+
+      const tbody = document.getElementById('admin-users-table-body');
+      if (!tbody) return;
+
+      if (querySnapshot.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:var(--text-muted);">No onboarded student records found.</td></tr>`;
+        return;
+      }
+
+      let html = '';
+      querySnapshot.forEach(doc => {
+        const userData = doc.data();
+        const email = doc.id;
+        const assignedRole = userData.role || determineUserRole(email);
+        const isSelf = email.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
+
+        html += `
+          <tr>
+            <td style="text-align:left; padding:12px; font-weight:700;">${userData.name || email.split('@')[0]}</td>
+            <td style="text-align:left; padding:12px; font-family:monospace;">${email}</td>
+            <td style="padding:12px;">${userData.studentId || '-'}</td>
+            <td style="padding:12px;">${userData.year || '-'}</td>
+            <td style="padding:12px;">
+              <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:2px 6px; border-radius:4px; 
+                background: ${assignedRole === 'admin' ? 'rgba(16,185,129,0.1)' : assignedRole === 'teacher' ? 'rgba(59,130,246,0.1)' : 'rgba(107,114,128,0.1)'};
+                color: ${assignedRole === 'admin' ? '#10b981' : assignedRole === 'teacher' ? '#3b82f6' : 'var(--text-muted)'};">
+                ${assignedRole}
+              </span>
+            </td>
+            <td style="padding:12px;">
+              ${isSelf ? `<span style="font-size:11px; color:var(--text-muted); font-style:italic;">Active Session</span>` : `
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button onclick="updateUserRoleDatabase('${email}', 'teacher')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #3b82f6; background:transparent; color:#3b82f6; cursor:pointer;">Promote Teacher</button>
+                  <button onclick="updateUserRoleDatabase('${email}', 'student')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid var(--border-card); background:transparent; color:var(--text-muted); cursor:pointer;">Demote Student</button>
+                </div>
+              `}
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Error loading users list:", err);
+      const loadingEl = document.getElementById('admin-users-loading');
+      if (loadingEl) {
+        loadingEl.innerHTML = `<span style="color:var(--incorrect);">⚠️ Error loading users: ${err.message}</span>`;
+      }
+    });
+}
+
+function updateUserRoleDatabase(email, role) {
+  const confirmAction = confirm(`Are you sure you want to change the role of ${email} to ${role.toUpperCase()}?`);
+  if (!confirmAction) return;
+
+  firestore.collection('students').doc(email).get()
+    .then(doc => {
+      if (doc.exists) {
+        return firestore.collection('students').doc(email).update({
+          role: role
+        });
+      } else {
+        return firestore.collection('students').doc(email).set({
+          name: email.split('@')[0],
+          email: email,
+          studentId: "Placeholder",
+          subjects: [],
+          year: "1",
+          avatar: "icon.png",
+          role: role
+        });
+      }
+    })
+    .then(() => {
+      alert(`Successfully assigned role ${role.toUpperCase()} to ${email}`);
+      renderAdminUsersView();
+    })
+    .catch(err => {
+      console.error("Error updating user role:", err);
+      alert("Failed to update user role: " + err.message);
+    });
+}
+
+function promoteUserEmail() {
+  const emailInput = document.getElementById('promote-email-input');
+  const roleSelect = document.getElementById('promote-role-select');
+  if (!emailInput || !roleSelect) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const role = roleSelect.value;
+
+  if (!email || !email.endsWith('@msugensan.edu.ph')) {
+    alert("Please enter a valid student/faculty email ending with @msugensan.edu.ph");
+    return;
+  }
+
+  updateUserRoleDatabase(email, role);
+  emailInput.value = '';
+}
+
+window.renderAdminUsersView = renderAdminUsersView;
+window.updateUserRoleDatabase = updateUserRoleDatabase;
+window.promoteUserEmail = promoteUserEmail;
+
+
+// ==========================================================================
+// INSTRUCTOR DASHBOARD VIEW (CLASSROOM DETAIL MANAGEMENT)
+// ==========================================================================
+let activeDetailsTab = 'announcements';
+
+function viewClassroomDetails(classId) {
+  teacherSelectedClassId = classId;
+  activeDetailsTab = 'announcements';
+  setMode('teacher-class-details');
+}
+window.viewClassroomDetails = viewClassroomDetails;
+
+function setClassDetailsTab(tabName) {
+  activeDetailsTab = tabName;
+  renderTeacherClassDetailsView();
+}
+window.setClassDetailsTab = setClassDetailsTab;
+
+function renderTeacherClassDetailsView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser || !teacherSelectedClassId) return;
+
+  viewport.innerHTML = `<div class="empty-playlist-msg">Loading classroom details...</div>`;
+
+  const isSampleClass = teacherSelectedClassId === 'sample_class_49c';
+
+  function renderDetailsWithData(classData, classId) {
+    const studentCount = classData.students ? classData.students.length : 0;
+
+    // Find matched course from manifest
+    const course = manifestData.courses.find(c => c.id === classData.courseId);
+
+    let tabContent = '';
+    if (activeDetailsTab === 'announcements') {
+      const anns = classData.announcements || [];
+      const sortedAnns = [...anns].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      tabContent = `
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; margin-bottom:20px; text-align:left;">
+          <h3 style="margin:0 0 14px 0; font-size:15px; font-family:'Outfit',sans-serif;">📢 Post New Announcement</h3>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <input type="text" id="ann-title" placeholder="Announcement Title" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+            <textarea id="ann-content" placeholder="Type your announcement content here..." style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; height:80px; resize:vertical; font-family:inherit;"></textarea>
+            <button class="settings-btn-primary" onclick="postClassAnnouncement('${classId}')" style="width:auto; align-self:flex-start; margin:0; padding:10px 18px; font-size:12.5px;">📢 Publish Announcement</button>
+          </div>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${sortedAnns.length > 0 ? sortedAnns.map(ann => `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:flex-start; gap:16px; text-align:left;">
+              <div style="flex:1;">
+                <h4 style="margin:0 0 4px 0; font-size:14px; font-weight:700;">${ann.title}</h4>
+                <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Posted on: ${new Date(ann.createdAt).toLocaleDateString()} ${new Date(ann.createdAt).toLocaleTimeString()}</div>
+                <p style="margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.4;">${ann.content}</p>
+              </div>
+              <button onclick="deleteClassAnnouncement('${classId}', '${ann.id}')" style="background:none; border:none; color:var(--incorrect); cursor:pointer; font-size:12px; font-weight:700; padding:4px;">❌ Delete</button>
+            </div>
+          `).join('') : `<div class="empty-playlist-msg" style="padding:20px;">No announcements posted yet.</div>`}
+        </div>
+      `;
+    } else if (activeDetailsTab === 'materials') {
+      const mats = classData.customMaterials || [];
+      
+      tabContent = `
+        <!-- Section Syllabus URL Override -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; margin-bottom:20px; text-align:left;">
+          <h3 style="margin:0 0 14px 0; font-size:15px; font-family:'Outfit',sans-serif;">📋 Section Syllabus PDF URL</h3>
+          <p style="font-size:11.5px; color:var(--text-muted); margin-top:-8px; margin-bottom:12px;">Provide a direct PDF link or Google Drive viewable URL for this specific section. If set, this overrides the default course syllabus for your students.</p>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <input type="url" id="class-syllabus-url" value="${classData.syllabusUrl || ''}" placeholder="Syllabus URL (e.g., https://drive.google.com/file/d/.../view)" style="flex:1; min-width:240px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+            <button class="settings-btn-primary" onclick="updateClassSyllabusUrl('${classId}')" style="width:auto; margin:0; padding:10px 18px; font-size:12.5px;">💾 Save Syllabus Link</button>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; margin-bottom:20px; text-align:left;">
+          <h3 style="margin:0 0 14px 0; font-size:15px; font-family:'Outfit',sans-serif;">📎 Share Study Resource Link</h3>
+          <p style="font-size:11.5px; color:var(--text-muted); margin-top:-8px; margin-bottom:12px;">Share additional reading PDFs or links to external worksheets for this specific section.</p>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <input type="text" id="mat-name" placeholder="Resource Name (e.g. Inorganic Chemistry Handout)" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+            <input type="url" id="mat-url" placeholder="Resource URL (e.g. Google Drive or GitHub link)" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
+            <button class="settings-btn-primary" onclick="postClassMaterial('${classId}')" style="width:auto; align-self:flex-start; margin:0; padding:10px 18px; font-size:12.5px;">📎 Add Resource Link</button>
+          </div>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${mats.length > 0 ? mats.map(mat => `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:16px; display:flex; justify-content:space-between; align-items:center; gap:16px; text-align:left;">
+              <div style="flex:1;">
+                <h4 style="margin:0 0 2px 0; font-size:14px; font-weight:700;">${mat.name}</h4>
+                <a href="${mat.url}" target="_blank" style="font-size:12px; color:var(--active-subject-color, #0ea5e9); font-family:monospace; word-break:break-all;">${mat.url}</a>
+              </div>
+              <button onclick="deleteClassMaterial('${classId}', '${mat.id}')" style="background:none; border:none; color:var(--incorrect); cursor:pointer; font-size:12px; font-weight:700; padding:4px;">❌ Delete</button>
+            </div>
+          `).join('') : `<div class="empty-playlist-msg" style="padding:20px;">No additional study resources uploaded yet.</div>`}
+        </div>
+      `;
+    } else if (activeDetailsTab === 'scheduler') {
+      if (!course || !course.modules || course.modules.length === 0) {
+        tabContent = `<div class="empty-playlist-msg">No quiz modules found in course manifest.</div>`;
+      } else {
+        const scheduledQuizzes = classData.scheduledQuizzes || [];
+        const scheduledAssignments = classData.scheduledAssignments || [];
+        const customQuizzes = classData.customQuizzes || [];
+
+        let customQuizzesHTML = '';
+        if (customQuizzes.length > 0) {
+          customQuizzesHTML = `
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; text-align:left; margin-bottom: 20px;">
+              <h3 style="margin:0 0 6px 0; font-size:15px; font-family:'Outfit',sans-serif;">📋 Custom Classroom Exams</h3>
+              <p style="font-size:12px; color:var(--text-muted); margin:0 0 16px 0; line-height:1.5;">Manage scheduling and removal of custom exams uploaded via DOCX files.</p>
+              
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                ${customQuizzes.map(cq => {
+                  const isQuizActive = scheduledQuizzes.includes(cq.id);
+                  return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-card); padding-bottom:12px;">
+                      <div style="display:flex; flex-direction:column; gap:2px; flex: 1;">
+                        <span style="font-weight:700; font-size:13.5px; color:var(--text-main);">${cq.title}</span>
+                        <span style="font-size:11.5px; color:var(--text-muted);">Questions: ${cq.questions.length} | Time: ${Math.round(cq.timeLimitSeconds / 60)} mins</span>
+                      </div>
+                      <div style="display:flex; gap:15px; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" onchange="updateModuleSchedule('${classId}', '${cq.id}', 'quiz', this.checked)" ${isQuizActive ? 'checked' : ''} style="accent-color:var(--active-subject-color, #0ea5e9);">
+                          Schedule Exam
+                        </label>
+                        <button onclick="deleteCustomQuiz('${classId}', '${cq.id}')" style="background:none; border:none; color:var(--incorrect); font-weight:700; font-size:12px; cursor:pointer; padding:4px 8px;">❌ Delete</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        tabContent = `
+          <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; text-align:left; margin-bottom: 20px;">
+            <h3 style="margin:0 0 6px 0; font-size:15px; font-family:'Outfit',sans-serif;">✍️ Assessment Scheduler</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin:0 0 16px 0; line-height:1.5;">Check quizzes or performance assignments to schedule them for students. Unchecked items remain hidden from the student's dashboard.</p>
+            
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              ${course.modules.map((m, idx) => {
+                const hasQuiz = !!m.quiz;
+                const hasAssign = !!m.assignment;
+                const isQuizActive = scheduledQuizzes.includes(m.id);
+                const isAssignActive = scheduledAssignments.includes(m.id);
+                
+                return `
+                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-card); padding-bottom:12px;">
+                    <div style="display:flex; flex-direction:column; gap:2px; flex: 1;">
+                      <span style="font-weight:700; font-size:13.5px; color:var(--text-main);">${m.title}</span>
+                      <span style="font-size:11.5px; color:var(--text-muted);">${m.desc || 'No description available'}</span>
+                    </div>
+                    <div style="display:flex; gap:20px; align-items:center;">
+                      ${hasQuiz ? `
+                        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" onchange="updateModuleSchedule('${classId}', '${m.id}', 'quiz', this.checked)" ${isQuizActive ? 'checked' : ''} style="accent-color:var(--active-subject-color, #0ea5e9);">
+                          Quiz Active
+                        </label>
+                      ` : ''}
+                      ${hasAssign ? `
+                        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" onchange="updateModuleSchedule('${classId}', '${m.id}', 'assignment', this.checked)" ${isAssignActive ? 'checked' : ''} style="accent-color:#f59e0b;">
+                          Task Active
+                        </label>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          ${customQuizzesHTML}
+
+          <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; text-align:left; margin-bottom:20px;">
+            <h3 style="margin:0 0 6px 0; font-size:15px; font-family:'Outfit',sans-serif;">📋 Custom Exam Importer</h3>
+            <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 12px 0;">Import class-specific quizzes using Microsoft Word (.docx), Plain Text (.txt), or Markdown (.md) files. Ensure questions are numbered and specify answers and points.</p>
+            
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <input type="file" id="docx-exam-file-input" accept=".docx,.txt,.md" style="display:none;" onchange="handleDocxExamFileSelect(event)">
+              <button class="settings-btn-primary" onclick="document.getElementById('docx-exam-file-input').click()" style="width:auto; margin:0; padding:10px 16px; font-size:12.5px; background:#0ea5e9;">📥 Choose Exam File (.docx, .txt, .md)</button>
+              <button class="settings-btn-primary" onclick="downloadDocxTemplate()" style="width:auto; margin:0; padding:10px 16px; font-size:12.5px; background:#475569;">📝 Download Text Template</button>
+            </div>
+          </div>
+        `;
+      }
+    } else if (activeDetailsTab === 'roster') {
+      const students = classData.students || [];
+      
+      tabContent = `
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:20px; text-align:left;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <h3 style="margin:0; font-size:15px; font-family:'Outfit',sans-serif;">👥 Student Classroom Roster (${students.length})</h3>
+            <button class="settings-btn-primary" onclick="openEnrollmentModal('${classId}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px;">➕ Enroll Students</button>
+          </div>
+          
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${students.length > 0 ? students.map(email => `
+              <div style="background:var(--bg-body); border:1px solid var(--border-card); border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-family:monospace; font-size:13px; color:var(--text-main);">${email}</span>
+                <button onclick="removeStudentFromClass('${classId}', '${email}')" style="background:none; border:none; color:var(--incorrect); font-weight:700; font-size:14px; cursor:pointer; padding:2px 8px;">❌</button>
+              </div>
+            `).join('') : `<div style="font-size:12px; font-style:italic; color:var(--text-muted); text-align:center; padding:12px;">No students enrolled yet. Click Enroll Students to build your class list.</div>`}
+          </div>
+        </div>
+      `;
+    }
+
+    viewport.innerHTML = `
+      <div style="display: flex; gap:12px; align-items: center; margin-bottom: 20px; text-align:left;">
+        <button class="settings-btn-primary" style="width:auto; margin:0; padding:8px 16px; font-size:12px; background:transparent; border:1px solid var(--border-card); color:var(--text-main);" onclick="setMode('teacher-classes')">← Back</button>
+        <span style="font-size:12.5px; color:var(--text-muted);">Classrooms / Details</span>
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <!-- Classroom Card Header -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:20px; padding:24px; text-align:left; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:20px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <h1 style="margin:0; font-family:'Outfit',sans-serif; font-size:22px; font-weight:800;">${classData.courseName}</h1>
+              <span class="class-section">${classData.section}</span>
+            </div>
+            <p style="margin:0; font-size:13.5px; color:var(--text-muted);">
+              Academic Year: <strong>${classData.year}</strong> | Status: <strong>${classData.status.toUpperCase()}</strong> | Students: <strong>${studentCount}</strong>
+            </p>
+          </div>
+          
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="settings-btn-primary" onclick="goToClassGradebook('${classId}')" style="width:auto; margin:0; padding:10px 18px; font-size:12.5px; background:#3b82f6;">📊 Class Gradebook</button>
+            <button class="settings-btn-primary" onclick="goToClassGroups('${classId}')" style="width:auto; margin:0; padding:10px 18px; font-size:12.5px; background:#10b981;">👥 Lab Groups</button>
+          </div>
+        </div>
+        
+        <!-- Detail Navigation Tabs -->
+        <div style="display:flex; border-bottom:1px solid var(--border-card); gap:16px; margin-bottom:-8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px;">
+          <button onclick="setClassDetailsTab('announcements')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'announcements' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'announcements' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">📢 Announcements</button>
+          <button onclick="setClassDetailsTab('materials')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'materials' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'materials' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">📚 Resources</button>
+          <button onclick="setClassDetailsTab('scheduler')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'scheduler' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'scheduler' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">✍️ Scheduler</button>
+          <button onclick="setClassDetailsTab('roster')" style="background:none; border:none; padding:8px 12px; font-size:13.5px; font-weight:700; cursor:pointer; color: ${activeDetailsTab === 'roster' ? 'var(--active-subject-color, #0ea5e9)' : 'var(--text-muted)'}; border-bottom: 2px solid ${activeDetailsTab === 'roster' ? 'var(--active-subject-color, #0ea5e9)' : 'transparent'};">👥 Roster (${studentCount})</button>
+        </div>
+        
+        <!-- Tab content area -->
+        <div id="class-details-tab-content">
+          ${tabContent}
+        </div>
+      </div>
+    `;
+    renderChemistrySymbols(viewport);
+  }
+
+  firestore.collection('classes').doc(teacherSelectedClassId).get()
+    .then(classDoc => {
+      if (!classDoc.exists) {
+        if (isSampleClass) {
+          console.log("Firestore resolved empty, but this is the sample class - falling back.");
+          renderDetailsWithData(GLOBAL_SAMPLE_CLASS, 'sample_class_49c');
+        } else {
+          viewport.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Classroom not found.</div>`;
+        }
+        return;
+      }
+      renderDetailsWithData(classDoc.data(), classDoc.id);
+    })
+    .catch(err => {
+      console.error("Error loading classroom details view:", err);
+      if (isSampleClass) {
+        console.log("Offline fallback: Using local copy for sample class details.");
+        renderDetailsWithData(GLOBAL_SAMPLE_CLASS, 'sample_class_49c');
+      } else {
+        viewport.innerHTML = `<div class="empty-playlist-msg" style="color:var(--incorrect);">Error loading details: ${err.message}</div>`;
+      }
+    });
+}
+
+function updateModuleSchedule(classId, moduleId, type, checked) {
+  const field = type === 'quiz' ? 'scheduledQuizzes' : 'scheduledAssignments';
+
+  if (classId === 'sample_class_49c') {
+    if (!GLOBAL_SAMPLE_CLASS[field]) {
+      GLOBAL_SAMPLE_CLASS[field] = [];
+    }
+    if (checked) {
+      if (!GLOBAL_SAMPLE_CLASS[field].includes(moduleId)) {
+        GLOBAL_SAMPLE_CLASS[field].push(moduleId);
+      }
+    } else {
+      GLOBAL_SAMPLE_CLASS[field] = GLOBAL_SAMPLE_CLASS[field].filter(id => id !== moduleId);
+    }
+    firestore.collection('classes').doc(classId).update({
+      [field]: checked ? firebase.firestore.FieldValue.arrayUnion(moduleId) : firebase.firestore.FieldValue.arrayRemove(moduleId)
+    }).catch(err => console.warn("Firestore update failed for sample class schedule:", err));
+    console.log(`Updated scheduling for ${moduleId} ${type}: ${checked} (local)`);
+    return;
+  }
+
+  const op = checked ? 
+    firebase.firestore.FieldValue.arrayUnion(moduleId) : 
+    firebase.firestore.FieldValue.arrayRemove(moduleId);
+  
+  firestore.collection('classes').doc(classId).update({
+    [field]: op
+  })
+  .then(() => {
+    console.log(`Updated scheduling for ${moduleId} ${type}: ${checked}`);
+  })
+  .catch(err => {
+    console.error("Failed to update module scheduling:", err);
+    alert("Failed to update schedule: " + err.message);
+  });
+}
+
+function postClassAnnouncement(classId) {
+  const titleInput = document.getElementById('ann-title');
+  const contentInput = document.getElementById('ann-content');
+  if (!titleInput || !contentInput) return;
+
+  const title = titleInput.value.trim();
+  const content = contentInput.value.trim();
+
+  if (!title || !content) {
+    alert("Please fill in both the announcement title and body.");
+    return;
+  }
+
+  const announcement = {
+    id: 'ann_' + Date.now(),
+    title: title,
+    content: content,
+    createdAt: new Date().toISOString()
+  };
+
+  if (classId === 'sample_class_49c') {
+    if (!GLOBAL_SAMPLE_CLASS.announcements) {
+      GLOBAL_SAMPLE_CLASS.announcements = [];
+    }
+    GLOBAL_SAMPLE_CLASS.announcements.push(announcement);
+    firestore.collection('classes').doc(classId).update({
+      announcements: firebase.firestore.FieldValue.arrayUnion(announcement)
+    }).catch(err => console.warn("Firestore update failed for sample class announcement:", err));
+
+    titleInput.value = '';
+    contentInput.value = '';
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).update({
+    announcements: firebase.firestore.FieldValue.arrayUnion(announcement)
+  })
+  .then(() => {
+    titleInput.value = '';
+    contentInput.value = '';
+    renderTeacherClassDetailsView();
+  })
+  .catch(err => {
+    console.error("Error posting announcement:", err);
+    alert("Failed to post announcement: " + err.message);
+  });
+}
+
+function deleteClassAnnouncement(classId, annId) {
+  const confirmDelete = confirm("Are you sure you want to delete this announcement?");
+  if (!confirmDelete) return;
+
+  if (classId === 'sample_class_49c') {
+    const anns = GLOBAL_SAMPLE_CLASS.announcements || [];
+    GLOBAL_SAMPLE_CLASS.announcements = anns.filter(a => a.id !== annId);
+    firestore.collection('classes').doc(classId).update({
+      announcements: GLOBAL_SAMPLE_CLASS.announcements
+    }).catch(err => console.warn("Firestore update failed for sample class announcement delete:", err));
+
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).get()
+    .then(doc => {
+      if (!doc.exists) return;
+      const classData = doc.data();
+      const anns = (classData.announcements || []).filter(a => a.id !== annId);
+      return firestore.collection('classes').doc(classId).update({
+        announcements: anns
+      });
+    })
+    .then(() => {
+      renderTeacherClassDetailsView();
+    })
+    .catch(err => {
+      console.error("Error deleting announcement:", err);
+      alert("Failed to delete announcement: " + err.message);
+    });
+}
+
+function postClassMaterial(classId) {
+  const nameInput = document.getElementById('mat-name');
+  const urlInput = document.getElementById('mat-url');
+  if (!nameInput || !urlInput) return;
+
+  const name = nameInput.value.trim();
+  const url = urlInput.value.trim();
+
+  if (!name || !url) {
+    alert("Please provide both a name and a link for the study resource.");
+    return;
+  }
+
+  const material = {
+    id: 'mat_' + Date.now(),
+    name: name,
+    url: url,
+    createdAt: new Date().toISOString()
+  };
+
+  if (classId === 'sample_class_49c') {
+    if (!GLOBAL_SAMPLE_CLASS.customMaterials) {
+      GLOBAL_SAMPLE_CLASS.customMaterials = [];
+    }
+    GLOBAL_SAMPLE_CLASS.customMaterials.push(material);
+    firestore.collection('classes').doc(classId).update({
+      customMaterials: firebase.firestore.FieldValue.arrayUnion(material)
+    }).catch(err => console.warn("Firestore update failed for sample class material:", err));
+
+    nameInput.value = '';
+    urlInput.value = '';
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).update({
+    customMaterials: firebase.firestore.FieldValue.arrayUnion(material)
+  })
+  .then(() => {
+    nameInput.value = '';
+    urlInput.value = '';
+    renderTeacherClassDetailsView();
+  })
+  .catch(err => {
+    console.error("Error posting study material:", err);
+    alert("Failed to add resource: " + err.message);
+  });
+}
+
+function deleteClassMaterial(classId, matId) {
+  const confirmDelete = confirm("Are you sure you want to delete this study resource?");
+  if (!confirmDelete) return;
+
+  if (classId === 'sample_class_49c') {
+    const mats = GLOBAL_SAMPLE_CLASS.customMaterials || [];
+    GLOBAL_SAMPLE_CLASS.customMaterials = mats.filter(m => m.id !== matId);
+    firestore.collection('classes').doc(classId).update({
+      customMaterials: GLOBAL_SAMPLE_CLASS.customMaterials
+    }).catch(err => console.warn("Firestore update failed for sample class material delete:", err));
+
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).get()
+    .then(doc => {
+      if (!doc.exists) return;
+      const classData = doc.data();
+      const mats = (classData.customMaterials || []).filter(m => m.id !== matId);
+      return firestore.collection('classes').doc(classId).update({
+        customMaterials: mats
+      });
+    })
+    .then(() => {
+      renderTeacherClassDetailsView();
+    })
+    .catch(err => {
+      console.error("Error deleting study material:", err);
+      alert("Failed to delete resource: " + err.message);
+    });
+}
+
+function removeStudentFromClass(classId, studentEmail) {
+  const confirmRemove = confirm(`Are you sure you want to remove ${studentEmail} from this classroom roster?`);
+  if (!confirmRemove) return;
+
+  if (classId === 'sample_class_49c') {
+    const students = GLOBAL_SAMPLE_CLASS.students || [];
+    GLOBAL_SAMPLE_CLASS.students = students.filter(email => email !== studentEmail);
+    firestore.collection('classes').doc(classId).update({
+      students: firebase.firestore.FieldValue.arrayRemove(studentEmail)
+    }).catch(err => console.warn("Firestore update failed for sample class student remove:", err));
+
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).update({
+    students: firebase.firestore.FieldValue.arrayRemove(studentEmail)
+  })
+  .then(() => {
+    renderTeacherClassDetailsView();
+  })
+  .catch(err => {
+    console.error("Error removing student from roster:", err);
+    alert("Failed to remove student: " + err.message);
+  });
+}
+
+function updateClassSyllabusUrl(classId) {
+  const urlInput = document.getElementById('class-syllabus-url');
+  if (!urlInput) return;
+  const url = urlInput.value.trim();
+  
+  if (classId === 'sample_class_49c') {
+    GLOBAL_SAMPLE_CLASS.syllabusUrl = url;
+    firestore.collection('classes').doc(classId).update({
+      syllabusUrl: url
+    }).catch(err => console.warn("Firestore update failed for sample class syllabus update:", err));
+
+    alert("Classroom syllabus URL updated successfully!");
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).update({
+    syllabusUrl: url
+  })
+  .then(() => {
+    alert("Classroom syllabus URL updated successfully!");
+    renderTeacherClassDetailsView();
+  })
+  .catch(err => {
+    console.error("Failed to update class syllabus URL:", err);
+    alert("Failed to update: " + err.message);
+  });
+}
+
+function exportGradebookToCSV() {
+  const classId = currentEnrollClassId;
+  if (!classId || !gradebookClassData) {
+    alert("Please select a classroom first.");
+    return;
+  }
+
+  playSFX(true);
+
+  // Helper to compile the CSV with loaded data
+  function generateCSV(classData, studentProfiles, allScores) {
+    // Build assessment columns from manifest
+    const course = manifestData.courses.find(c => c.id === classData.courseId);
+    const columns = [];
+    if (course && course.modules) {
+      course.modules.forEach(m => {
+        if (m.quiz) {
+          columns.push({
+            moduleId: m.id,
+            taskTitle: m.quiz.title || `${m.title} Quiz`,
+            maxScore: (m.quiz.questions && m.quiz.questions.length) ? m.quiz.questions.length : 10,
+            mode: 'quiz'
+          });
+        }
+        if (m.assignment) {
+          columns.push({
+            moduleId: m.id,
+            taskTitle: m.assignment.title || `${m.title} Task`,
+            maxScore: m.assignment.maxScore || 100,
+            mode: 'assignment'
+          });
+        }
+      });
+    }
+    // Add custom quizzes to columns
+    if (classData.customQuizzes && classData.customQuizzes.length > 0) {
+      classData.customQuizzes.forEach(cq => {
+        columns.push({
+          moduleId: cq.id,
+          taskTitle: cq.title,
+          maxScore: cq.questions.length,
+          mode: 'quiz'
+        });
+      });
+    }
+
+    // Build CSV Content
+    let csvRows = [];
+    
+    // Header Row
+    let headers = ["Student Name", "Student ID", "Email"];
+    columns.forEach(col => {
+      headers.push(`"${col.taskTitle.replace(/"/g, '""')} (Max: ${col.maxScore})"`);
+    });
+    csvRows.push(headers.join(","));
+
+    // Student Rows
+    classData.students.forEach(studentEmail => {
+      const normEmail = studentEmail.toLowerCase().trim();
+      const profile = studentProfiles[normEmail] || { name: studentEmail.split('@')[0], studentId: 'Not Onboarded' };
+      
+      let row = [
+        `"${profile.name.replace(/"/g, '""')}"`,
+        `"${profile.studentId.replace(/"/g, '""')}"`,
+        `"${studentEmail}"`
+      ];
+
+      columns.forEach(col => {
+        const localMatch = getLocalStudentScore(normEmail, col.moduleId, col.mode, col.maxScore);
+
+        const matches = allScores.filter(s => 
+          s.email.toLowerCase().trim() === normEmail &&
+          s.moduleId === col.moduleId &&
+          s.taskTitle === col.taskTitle &&
+          s.mode === col.mode
+        );
+
+        let finalScore = "";
+        if (matches.length > 0) {
+          const overrideScore = matches.find(s => s.override === true);
+          if (overrideScore) {
+            finalScore = overrideScore.score;
+          } else {
+            const firestoreMax = Math.max(...matches.map(s => s.score));
+            if (localMatch) {
+              if (localMatch.override) {
+                finalScore = localMatch.score;
+              } else {
+                finalScore = Math.max(firestoreMax, localMatch.score);
+              }
+            } else {
+              finalScore = firestoreMax;
+            }
+          }
+        } else if (localMatch) {
+          finalScore = localMatch.score;
+        }
+        row.push(finalScore);
+      });
+
+      csvRows.push(row.join(","));
+    });
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${classData.courseName.replace(/\s+/g, '_')}_${classData.section}_Gradebook.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log("CSV Gradebook Exported successfully.");
+  }
+
+  if (classId === 'sample_class_49c') {
+    const classData = GLOBAL_SAMPLE_CLASS;
+    const studentProfiles = {};
+    classData.students.forEach(email => {
+      studentProfiles[email.toLowerCase().trim()] = { name: email.split('@')[0], studentId: 'Sample ID' };
+    });
+    generateCSV(classData, studentProfiles, []);
+    return;
+  }
+
+  // Re-fetch everything to ensure we have the absolute latest scores
+  Promise.all([
+    firestore.collection('classes').doc(classId).get(),
+    firestore.collection('students').get(),
+    firestore.collection('scores').where('courseId', '==', gradebookClassData.courseId).get()
+  ]).then(([classDoc, studentsSnapshot, scoresSnapshot]) => {
+    if (!classDoc.exists) return;
+    const classData = classDoc.data();
+    
+    const studentProfiles = {};
+    studentsSnapshot.forEach(doc => {
+      studentProfiles[doc.id.toLowerCase().trim()] = doc.data();
+    });
+
+    const allScores = [];
+    scoresSnapshot.forEach(doc => {
+      allScores.push(doc.data());
+    });
+
+    generateCSV(classData, studentProfiles, allScores);
+  }).catch(err => {
+    console.error("CSV Export failed via Firestore, falling back to loaded stats:", err);
+    // Use whatever is currently loaded in memory as a fallback
+    generateCSV(gradebookClassData, gradebookStudentsList, []);
+  });
+}
+
+window.renderTeacherClassDetailsView = renderTeacherClassDetailsView;
+window.updateModuleSchedule = updateModuleSchedule;
+window.postClassAnnouncement = postClassAnnouncement;
+window.deleteClassAnnouncement = deleteClassAnnouncement;
+window.postClassMaterial = postClassMaterial;
+window.deleteClassMaterial = deleteClassMaterial;
+window.removeStudentFromClass = removeStudentFromClass;
+window.updateClassSyllabusUrl = updateClassSyllabusUrl;
+window.exportGradebookToCSV = exportGradebookToCSV;
+
+// ==========================================================================
+// 🔬 PHASE 2: CHEMISTRY RENDERING, PERIODIC TABLE & DOCX EXAM IMPORTER
+// ==========================================================================
+
+const periodicTableElements = [
+  { number: 1, symbol: "H", name: "Hydrogen", weight: 1.008, config: "1s1", category: "pt-nonmetal", period: 1, group: 1, info: "Most abundant chemical substance in the Universe. Highly flammable diatomic gas." },
+  { number: 2, symbol: "He", name: "Helium", weight: 4.0026, config: "1s2", category: "pt-noblegas", period: 1, group: 18, info: "Colorless, odorless, tasteless, non-toxic, inert, monatomic gas. First of the noble gases." },
+  { number: 3, symbol: "Li", name: "Lithium", weight: 6.94, config: "[He] 2s1", category: "pt-alkalimetal", period: 2, group: 1, info: "Soft, silvery-white alkali metal. Least dense of all solid elements." },
+  { number: 4, symbol: "Be", name: "Beryllium", weight: 9.0122, config: "[He] 2s2", category: "pt-alkalineearth", period: 2, group: 2, info: "Relatively rare element in the universe. Strong, lightweight alkaline earth metal." },
+  { number: 5, symbol: "B", name: "Boron", weight: 10.81, config: "[He] 2s2 2p1", category: "pt-metalloid", period: 2, group: 13, info: "Low-abundance metalloid. Commonly used in fiberglass and ceramics." },
+  { number: 6, symbol: "C", name: "Carbon", weight: 12.011, config: "[He] 2s2 2p2", category: "pt-nonmetal", period: 2, group: 14, info: "Tetravalent nonmetal. Tetravalent bonding makes it the chemical basis for all organic life." },
+  { number: 7, symbol: "N", name: "Nitrogen", weight: 14.007, config: "[He] 2s2 2p3", category: "pt-nonmetal", period: 2, group: 15, info: "Form of diatomic gas making up about 78% of Earth's atmosphere." },
+  { number: 8, symbol: "O", name: "Oxygen", weight: 15.999, config: "[He] 2s2 2p4", category: "pt-nonmetal", period: 2, group: 16, info: "Highly reactive nonmetal and oxidizing agent. Essential for cellular respiration in most living organisms." },
+  { number: 9, symbol: "F", name: "Fluorine", weight: 18.998, config: "[He] 2s2 2p5", category: "pt-nonmetal", period: 2, group: 17, info: "Extremely toxic, halogen element. The most electronegative and reactive of all elements." },
+  { number: 10, symbol: "Ne", name: "Neon", weight: 20.180, config: "[He] 2s2 2p6", category: "pt-noblegas", period: 2, group: 18, info: "Inert noble gas. Glows with a reddish-orange light when used in high-voltage electrical discharge signs." },
+  { number: 11, symbol: "Na", name: "Sodium", weight: 22.990, config: "[Ne] 3s1", category: "pt-alkalimetal", period: 3, group: 1, info: "Soft, silvery-white, highly reactive alkali metal. Found in abundance in table salt (NaCl)." },
+  { number: 12, symbol: "Mg", name: "Magnesium", weight: 24.305, config: "[Ne] 3s2", category: "pt-alkalineearth", period: 3, group: 2, info: "Shiny gray alkaline earth metal. Essential mineral for human body functions and plant chlorophyll." },
+  { number: 13, symbol: "Al", name: "Aluminum", weight: 26.982, config: "[Ne] 3s2 3p1", category: "pt-posttransition", period: 3, group: 13, info: "Low density post-transition metal. Widely used in packaging, transportation, and construction." },
+  { number: 14, symbol: "Si", name: "Silicon", weight: 28.085, config: "[Ne] 3s2 3p2", category: "pt-metalloid", period: 3, group: 14, info: "Hard, crystalline metalloid. The primary semiconductor material used in computer chips and electronics." },
+  { number: 15, symbol: "P", name: "Phosphorus", weight: 30.974, config: "[Ne] 3s2 3p3", category: "pt-nonmetal", period: 3, group: 15, info: "Highly reactive nonmetal. Found in two major forms: white phosphorus and red phosphorus." },
+  { number: 16, symbol: "S", name: "Sulfur", weight: 32.06, config: "[Ne] 3s2 3p4", category: "pt-nonmetal", period: 3, group: 16, info: "Abundant, multivalent nonmetal. Historically known as brimstone, smells like rotten eggs when compound." },
+  { number: 17, symbol: "Cl", name: "Chlorine", weight: 35.45, config: "[Ne] 3s2 3p5", category: "pt-nonmetal", period: 3, group: 17, info: "Yellowish-green halogen gas. Widely used as a disinfectant and water purifier." },
+  { number: 18, symbol: "Ar", name: "Argon", weight: 39.948, config: "[Ne] 3s2 3p6", category: "pt-noblegas", period: 3, group: 18, info: "Third-most abundant gas in the Earth's atmosphere. Commonly used as an inert shielding gas in welding." },
+  { number: 19, symbol: "K", name: "Potassium", weight: 39.098, config: "[Ar] 4s1", category: "pt-alkalimetal", period: 4, group: 1, info: "Silvery alkali metal. Reacts violently with water. Crucial electrolyte for cell function and nerve signaling." },
+  { number: 20, symbol: "Ca", name: "Calcium", weight: 40.078, config: "[Ar] 4s2", category: "pt-alkalineearth", period: 4, group: 2, info: "Essential alkaline earth metal. The primary structural element in bones and teeth." },
+  { number: 21, symbol: "Sc", name: "Scandium", weight: 44.956, config: "[Ar] 3d1 4s2", category: "pt-transitionmetal", period: 4, group: 3, info: "Silvery-white transition metal. Historically classified as a rare-earth element." },
+  { number: 22, symbol: "Ti", name: "Titanium", weight: 47.867, config: "[Ar] 3d2 4s2", category: "pt-transitionmetal", period: 4, group: 4, info: "Lustrous transition metal. High strength, low density, and high corrosion resistance." },
+  { number: 23, symbol: "V", name: "Vanadium", weight: 50.942, config: "[Ar] 3d3 4s2", category: "pt-transitionmetal", period: 4, group: 5, info: "Hard, silvery-gray transition metal. Primarily used as an additive to strengthen steel alloys." },
+  { number: 24, symbol: "Cr", name: "Chromium", weight: 51.996, config: "[Ar] 3d5 4s1", category: "pt-transitionmetal", period: 4, group: 6, info: "Steely-gray, lustrous transition metal. The main additive in stainless steel, providing high corrosion resistance." },
+  { number: 25, symbol: "Mn", name: "Manganese", weight: 54.938, config: "[Ar] 3d5 4s2", category: "pt-transitionmetal", period: 4, group: 7, info: "Hard, brittle transition metal. Essential in steel production and glass purification." },
+  { number: 26, symbol: "Fe", name: "Iron", weight: 55.845, config: "[Ar] 3d6 4s2", category: "pt-transitionmetal", period: 4, group: 8, info: "By mass, the most common element on Earth. The primary constituent of the Earth's core." },
+  { number: 27, symbol: "Co", name: "Cobalt", weight: 58.933, config: "[Ar] 3d7 4s2", category: "pt-transitionmetal", period: 4, group: 9, info: "Ferromagnetic transition metal. Used in lithium-ion batteries and magnetic alloys." },
+  { number: 28, symbol: "Ni", name: "Nickel", weight: 58.693, config: "[Ar] 3d8 4s2", category: "pt-transitionmetal", period: 4, group: 10, info: "Silvery-white, corrosion-resistant transition metal. Heavily used in stainless steel and coins." },
+  { number: 29, symbol: "Cu", name: "Copper", weight: 63.546, config: "[Ar] 3d10 4s1", category: "pt-transitionmetal", period: 4, group: 11, info: "Soft, malleable metal with extremely high electrical and thermal conductivity. Essential in wiring." },
+  { number: 30, symbol: "Zn", name: "Zinc", weight: 65.38, config: "[Ar] 3d10 4s2", category: "pt-transitionmetal", period: 4, group: 12, info: "Slightly brittle metal. Primarily used for galvanizing steel to prevent corrosion." },
+  { number: 31, symbol: "Ga", name: "Gallium", weight: 69.723, config: "[Ar] 3d10 4s2 4p1", category: "pt-posttransition", period: 4, group: 13, info: "Metal that melts in a person's hand (melting point: 29.76°C). Used in semiconductors (GaAs)." },
+  { number: 32, symbol: "Ge", name: "Germanium", weight: 72.63, config: "[Ar] 3d10 4s2 4p2", category: "pt-metalloid", period: 4, group: 14, info: "Lustrous, hard metalloid. Chemically similar to silicon; used in fiber optics and infrared optics." },
+  { number: 33, symbol: "As", name: "Arsenic", weight: 74.922, config: "[Ar] 3d10 4s2 4p3", category: "pt-metalloid", period: 4, group: 15, info: "Metalloid famous for its extreme toxicity when inhaled or consumed in compounds." },
+  { number: 34, symbol: "Se", name: "Selenium", weight: 78.971, config: "[Ar] 3d10 4s2 4p4", category: "pt-nonmetal", period: 4, group: 16, info: "Rare metalloid/non-metal. Exhibits photoconductivity; used in solar cells and photocopiers." },
+  { number: 35, symbol: "Br", name: "Bromine", weight: 79.904, config: "[Ar] 3d10 4s2 4p5", category: "pt-nonmetal", period: 4, group: 17, info: "The only nonmetallic element that is a liquid at standard temperature and pressure. Pungent red liquid." },
+  { number: 36, symbol: "Kr", name: "Krypton", weight: 83.798, config: "[Ar] 3d10 4s2 4p6", category: "pt-noblegas", period: 4, group: 18, info: "Monatomic noble gas. Used in high-speed photographic flashes and fluorescent lighting." },
+  { number: 37, symbol: "Rb", name: "Rubidium", weight: 85.468, config: "[Kr] 5s1", category: "pt-alkalimetal", period: 5, group: 1, info: "Soft, highly reactive alkali metal. Silvery-white appearance, reacts violently with water." },
+  { number: 38, symbol: "Sr", name: "Strontium", weight: 87.62, config: "[Kr] 5s2", category: "pt-alkalineearth", period: 5, group: 2, info: "Highly chemically reactive alkaline earth metal. Silvery metal that turns yellow when exposed to air." },
+  { number: 39, symbol: "Y", name: "Yttrium", weight: 88.906, config: "[Kr] 4d1 5s2", category: "pt-transitionmetal", period: 5, group: 3, info: "Silvery-metallic transition metal. Often used in LEDs, phosphors, and superconductors." },
+  { number: 40, symbol: "Zr", name: "Zirconium", weight: 91.224, config: "[Kr] 4d2 5s2", category: "pt-transitionmetal", period: 5, group: 4, info: "Lustrous, greyish-white, strong transition metal. Highly resistant to corrosion; used in nuclear reactors." },
+  { number: 41, symbol: "Nb", name: "Niobium", weight: 92.906, config: "[Kr] 4d4 5s1", category: "pt-transitionmetal", period: 5, group: 5, info: "Light grey, crystalline, ductile transition metal. Superconducting at low temperatures." },
+  { number: 42, symbol: "Mo", name: "Molybdenum", weight: 95.95, config: "[Kr] 4d5 5s1", category: "pt-transitionmetal", period: 5, group: 6, info: "Silvery-grey metal. High melting point; used in high-strength steel alloys." },
+  { number: 43, symbol: "Tc", name: "Technetium", weight: 98, config: "[Kr] 4d5 5s2", category: "pt-transitionmetal", period: 5, group: 7, info: "Radioactive transition metal. First artificially produced element; used in medical imaging." },
+  { number: 44, symbol: "Ru", name: "Ruthenium", weight: 101.07, config: "[Kr] 4d7 5s1", category: "pt-transitionmetal", period: 5, group: 8, info: "Rare transition metal of the platinum group. Highly resistant to chemical attack." },
+  { number: 45, symbol: "Rh", name: "Rhodium", weight: 102.91, config: "[Kr] 4d8 5s1", category: "pt-transitionmetal", period: 5, group: 9, info: "Rare, silvery-white transition metal. Extremely reflective and used in catalysts." },
+  { number: 46, symbol: "Pd", name: "Palladium", weight: 106.42, config: "[Kr] 4d10", category: "pt-transitionmetal", period: 5, group: 10, info: "Rare, lustrous silvery-white transition metal. Can absorb up to 900 times its volume of hydrogen." },
+  { number: 47, symbol: "Ag", name: "Silver", weight: 107.87, config: "[Kr] 4d10 5s1", category: "pt-transitionmetal", period: 5, group: 11, info: "Transition metal. Boasts the highest electrical and thermal conductivity of any metal." },
+  { number: 48, symbol: "Cd", name: "Cadmium", weight: 112.41, config: "[Kr] 4d10 5s2", category: "pt-transitionmetal", period: 5, group: 12, info: "Soft, bluish-white metal. Used in electroplating and nickel-cadmium batteries." },
+  { number: 49, symbol: "In", name: "Indium", weight: 114.82, config: "[Kr] 4d10 5s2 5p1", category: "pt-posttransition", period: 5, group: 13, info: "Very soft, malleable post-transition metal. Widely used in LCD touchscreens (ITO)." },
+  { number: 50, symbol: "Sn", name: "Tin", weight: 118.71, config: "[Kr] 4d10 5s2 5p2", category: "pt-posttransition", period: 5, group: 14, info: "Silvery-white post-transition metal. Combines with copper to form bronze; resists corrosion." },
+  { number: 51, symbol: "Sb", name: "Antimony", weight: 121.76, config: "[Kr] 4d10 5s2 5p3", category: "pt-metalloid", period: 5, group: 15, info: "Lustrous gray metalloid. Used as a flame retardant and in lead-acid batteries." },
+  { number: 52, symbol: "Te", name: "Tellurium", weight: 127.6, config: "[Kr] 4d10 5s2 5p4", category: "pt-metalloid", period: 5, group: 16, info: "Brittle, mildly toxic, rare silver-white metalloid. Used in solar panels and alloy manufacturing." },
+  { number: 53, symbol: "I", name: "Iodine", weight: 126.9, config: "[Kr] 4d10 5s2 5p5", category: "pt-nonmetal", period: 5, group: 17, info: "Lustrous purple-black nonmetal (halogen). Essential nutrient for thyroid hormone synthesis." },
+  { number: 54, symbol: "Xe", name: "Xenon", weight: 131.29, config: "[Kr] 4d10 5s2 5p6", category: "pt-noblegas", period: 5, group: 18, info: "Extremely heavy noble gas. Emits a blue glow in discharge lamps; used in flashbulbs and lasers." },
+  { number: 55, symbol: "Cs", name: "Cesium", weight: 132.91, config: "[Xe] 6s1", category: "pt-alkalimetal", period: 6, group: 1, info: "Soft, highly reactive alkali metal. Used in atomic clocks defining the standard second." },
+  { number: 56, symbol: "Ba", name: "Barium", weight: 137.33, config: "[Xe] 6s2", category: "pt-alkalineearth", period: 6, group: 2, info: "Soft, silvery alkaline earth metal. Used in spark plugs, vacuums, and barium swallow medical tests." },
+  { number: 57, symbol: "La", name: "Lanthanum", weight: 138.91, config: "[Xe] 5d1 6s2", category: "pt-lanthanide", period: 9, group: 4, info: "Silvery-white lanthanide. First of the rare-earth elements; used in high-refractive glass lenses." },
+  { number: 58, symbol: "Ce", name: "Cerium", weight: 140.12, config: "[Xe] 4f1 5d1 6s2", category: "pt-lanthanide", period: 9, group: 5, info: "Soft, ductile silvery lanthanide metal. The most abundant of the rare-earth elements." },
+  { number: 59, symbol: "Pr", name: "Praseodymium", weight: 140.91, config: "[Xe] 4f3 6s2", category: "pt-lanthanide", period: 9, group: 6, info: "Soft, ductile, malleable lanthanide. Used in strong magnets and yellow glass goggles." },
+  { number: 60, symbol: "Nd", name: "Neodymium", weight: 144.24, config: "[Xe] 4f4 6s2", category: "pt-lanthanide", period: 9, group: 7, info: "Silvery lanthanide metal. Widely used in high-strength permanent magnets (NdFeB)." },
+  { number: 61, symbol: "Pm", name: "Promethium", weight: 145, config: "[Xe] 4f5 6s2", category: "pt-lanthanide", period: 9, group: 8, info: "Extremely rare, radioactive synthetic lanthanide. Used in nuclear batteries and thickness gauges." },
+  { number: 62, symbol: "Sm", name: "Samarium", weight: 150.36, config: "[Xe] 4f6 6s2", category: "pt-lanthanide", period: 9, group: 9, info: "Moderately hard, silvery lanthanide. Used in Samarium-Cobalt high-temperature magnets." },
+  { number: 63, symbol: "Eu", name: "Europium", weight: 151.96, config: "[Xe] 4f7 6s2", category: "pt-lanthanide", period: 9, group: 10, info: "The most reactive of the rare-earth elements. Used in red phosphors for TV and CRT screens." },
+  { number: 64, symbol: "Gd", name: "Gadolinium", weight: 157.25, config: "[Xe] 4f7 5d1 6s2", category: "pt-lanthanide", period: 9, group: 11, info: "Silvery-white lanthanide. Unique magnetic properties; widely used as an MRI contrast agent." },
+  { number: 65, symbol: "Tb", name: "Terbium", weight: 158.93, config: "[Xe] 4f9 6s2", category: "pt-lanthanide", period: 9, group: 12, info: "Silvery-grey lanthanide. Malleable and ductile; used in green phosphors and magneto-optical discs." },
+  { number: 66, symbol: "Dy", name: "Dysprosium", weight: 162.5, config: "[Xe] 4f10 6s2", category: "pt-lanthanide", period: 9, group: 13, info: "Silvery-lustrous lanthanide. High magnetic susceptibility; used in control rods of nuclear reactors." },
+  { number: 67, symbol: "Ho", name: "Holmium", weight: 164.93, config: "[Xe] 4f11 6s2", category: "pt-lanthanide", period: 9, group: 14, info: "Soft, malleable lanthanide. Possesses the highest magnetic strength of any element." },
+  { number: 68, symbol: "Er", name: "Erbium", weight: 167.26, config: "[Xe] 4f12 6s2", category: "pt-lanthanide", period: 9, group: 15, info: "Silvery-white lanthanide. Used in fiber-optic amplifiers (EDFA) and medical lasers." },
+  { number: 69, symbol: "Tm", name: "Thulium", weight: 168.93, config: "[Xe] 4f13 6s2", category: "pt-lanthanide", period: 9, group: 16, info: "The second rarest lanthanide metal. Easy to machine, used in portable X-ray devices." },
+  { number: 70, symbol: "Yb", name: "Ytterbium", weight: 173.05, config: "[Xe] 4f14 6s2", category: "pt-lanthanide", period: 9, group: 17, info: "Soft, malleable lanthanide. Used in steel stress monitors, atomic clocks, and lasers." },
+  { number: 71, symbol: "Lu", name: "Lutetium", weight: 174.97, config: "[Xe] 4f14 5d1 6s2", category: "pt-lanthanide", period: 9, group: 18, info: "The hardest and most dense lanthanide. Used in positron emission tomography (PET) scans." },
+  { number: 72, symbol: "Hf", name: "Hafnium", weight: 178.49, config: "[Xe] 4f14 5d2 6s2", category: "pt-transitionmetal", period: 6, group: 4, info: "Lustrous, silvery-grey transition metal. Used in nuclear reactor control rods and microprocessors." },
+  { number: 73, symbol: "Ta", name: "Tantalum", weight: 180.95, config: "[Xe] 4f14 5d3 6s2", category: "pt-transitionmetal", period: 6, group: 5, info: "Highly corrosion-resistant transition metal. Heavily used in electronic capacitors and implants." },
+  { number: 74, symbol: "W", name: "Tungsten", weight: 183.84, config: "[Xe] 4f14 5d4 6s2", category: "pt-transitionmetal", period: 6, group: 6, info: "Strong metal with the highest melting point of all elements (3422°C). Used in filaments." },
+  { number: 75, symbol: "Re", name: "Rhenium", weight: 186.21, config: "[Xe] 4f14 5d5 6s2", category: "pt-transitionmetal", period: 6, group: 7, info: "Extremely rare, dense transition metal. Used in high-temperature superalloys for jet engines." },
+  { number: 76, symbol: "Os", name: "Osmium", weight: 190.23, config: "[Xe] 4f14 5d6 6s2", category: "pt-transitionmetal", period: 6, group: 8, info: "The densest naturally occurring element. Hard, brittle, and highly reflective." },
+  { number: 77, symbol: "Ir", name: "Iridium", weight: 192.22, config: "[Xe] 4f14 5d7 6s2", category: "pt-transitionmetal", period: 6, group: 9, info: "Extremely corrosion-resistant metal. Found in high concentrations in asteroid impact clay." },
+  { number: 78, symbol: "Pt", name: "Platinum", weight: 195.08, config: "[Xe] 4f14 5d9 6s1", category: "pt-transitionmetal", period: 6, group: 10, info: "Highly unreactive, precious transition metal. Widely used in jewelry, catalysts, and medicine." },
+  { number: 79, symbol: "Au", name: "Gold", weight: 196.97, config: "[Xe] 4f14 5d10 6s1", category: "pt-transitionmetal", period: 6, group: 11, info: "Highly malleable and ductile precious metal. Resistant to most acids; widely used as currency and jewelry." },
+  { number: 80, symbol: "Hg", name: "Mercury", weight: 200.59, config: "[Xe] 4f14 5d10 6s2", category: "pt-transitionmetal", period: 6, group: 12, info: "The only metallic element that is liquid at standard temperature and pressure. Extremely toxic." },
+  { number: 81, symbol: "Tl", name: "Thallium", weight: 204.38, config: "[Xe] 4f14 5d10 6s2 6p1", category: "pt-posttransition", period: 6, group: 13, info: "Soft, highly toxic post-transition metal. Formerly used in rodenticides and insecticides." },
+  { number: 82, symbol: "Pb", name: "Lead", weight: 207.2, config: "[Xe] 4f14 5d10 6s2 6p2", category: "pt-posttransition", period: 6, group: 14, info: "Heavy, soft, malleable post-transition metal. Used in batteries, radiation shielding, and weights." },
+  { number: 83, symbol: "Bi", name: "Bismuth", weight: 208.98, config: "[Xe] 4f14 5d10 6s2 6p3", category: "pt-posttransition", period: 6, group: 15, info: "High-density brittle metal. Exhibits low toxicity; famously used in stomach remedies (Pepto-Bismol)." },
+  { number: 84, symbol: "Po", name: "Polonium", weight: 209, config: "[Xe] 4f14 5d10 6s2 6p4", category: "pt-metalloid", period: 6, group: 16, info: "Highly radioactive and toxic metalloid. Discovered by Marie Curie; used as a static eliminator." },
+  { number: 85, symbol: "At", name: "Astatine", weight: 210, config: "[Xe] 4f14 5d10 6s2 6p5", category: "pt-metalloid", period: 6, group: 17, info: "The rarest naturally occurring element on Earth. Highly radioactive; decays extremely quickly." },
+  { number: 86, symbol: "Rn", name: "Radon", weight: 222, config: "[Xe] 4f14 5d10 6s2 6p6", category: "pt-noblegas", period: 6, group: 18, info: "Radioactive noble gas. Accumulates in basements; a major cause of lung cancer worldwide." },
+  { number: 87, symbol: "Fr", name: "Francium", weight: 223, config: "[Rn] 7s1", category: "pt-alkalimetal", period: 7, group: 1, info: "Highly radioactive alkali metal. Second rarest element in the Earth's crust." },
+  { number: 88, symbol: "Ra", name: "Radium", weight: 226, config: "[Rn] 7s2", category: "pt-alkalineearth", period: 7, group: 2, info: "Highly radioactive alkaline earth metal. Formerly used in luminous watch dials." },
+  { number: 89, symbol: "Ac", name: "Actinium", weight: 227, config: "[Rn] 6d1 7s2", category: "pt-actinide", period: 10, group: 4, info: "Highly radioactive actinide element. Glows with a pale blue light in the dark." },
+  { number: 90, symbol: "Th", name: "Thorium", weight: 232.04, config: "[Rn] 6d2 7s2", category: "pt-actinide", period: 10, group: 5, info: "Radioactive actinide metal. Considered a potential safer alternative fuel to uranium in reactors." },
+  { number: 91, symbol: "Pa", name: "Protactinium", weight: 231.04, config: "[Rn] 5f2 6d1 7s2", category: "pt-actinide", period: 10, group: 6, info: "Dense, radioactive actinide. Highly toxic and bioaccumulative." },
+  { number: 92, symbol: "U", name: "Uranium", weight: 238.03, config: "[Rn] 5f3 6d1 7s2", category: "pt-actinide", period: 10, group: 7, info: "Highly dense radioactive metal. Fissionable isotopes make it key for nuclear power and weapons." },
+  { number: 93, symbol: "Np", name: "Neptunium", weight: 237, config: "[Rn] 5f4 6d1 7s2", category: "pt-actinide", period: 10, group: 8, info: "Radioactive synthetic element. First transuranium element synthesized in a laboratory." },
+  { number: 94, symbol: "Pu", name: "Plutonium", weight: 244, config: "[Rn] 5f6 7s2", category: "pt-actinide", period: 10, group: 9, info: "Synthetic radioactive element. Crucial for nuclear weapons and deep space probes." },
+  { number: 95, symbol: "Am", name: "Americium", weight: 243, config: "[Rn] 5f7 7s2", category: "pt-actinide", period: 10, group: 10, info: "Radioactive synthetic element. Commonly used in household ionization smoke detectors." },
+  { number: 96, symbol: "Cm", name: "Curium", weight: 247, config: "[Rn] 5f7 6d1 7s2", category: "pt-actinide", period: 10, group: 11, info: "Synthetic radioactive element. Extremely radioactive; glows spontaneously from its own decay heat." },
+  { number: 97, symbol: "Bk", name: "Berkelium", weight: 247, config: "[Rn] 5f9 7s2", category: "pt-actinide", period: 10, group: 12, info: "Radioactive synthetic metal. Produced in minute quantities for scientific research." },
+  { number: 98, symbol: "Cf", name: "Californium", weight: 251, config: "[Rn] 5f10 7s2", category: "pt-actinide", period: 10, group: 13, info: "Extremely strong neutron emitter. Used to start nuclear reactors and synthesize heavier elements." },
+  { number: 99, symbol: "Es", name: "Einsteinium", weight: 252, config: "[Rn] 5f11 7s2", category: "pt-actinide", period: 10, group: 14, info: "Highly radioactive synthetic element. Discovered in debris of the first thermonuclear bomb test." },
+  { number: 100, symbol: "Fm", name: "Fermium", weight: 257, config: "[Rn] 5f12 7s2", category: "pt-actinide", period: 10, group: 15, info: "Radioactive synthetic element. The heaviest element that can be formed by neutron bombardment." },
+  { number: 101, symbol: "Md", name: "Mendelevium", weight: 258, config: "[Rn] 5f13 7s2", category: "pt-actinide", period: 10, group: 16, info: "Synthetic element named after Mendeleev. Highly radioactive; only produced in particle accelerators." },
+  { number: 102, symbol: "No", name: "Nobelium", weight: 259, config: "[Rn] 5f14 7s2", category: "pt-actinide", period: 10, group: 17, info: "Highly radioactive synthetic metal. Named after Alfred Nobel." },
+  { number: 103, symbol: "Lr", name: "Lawrencium", weight: 262, config: "[Rn] 5f14 6d1 7s2", category: "pt-actinide", period: 10, group: 18, info: "Highly radioactive synthetic element. Synthesized by bombarding californium." },
+  { number: 104, symbol: "Rf", name: "Rutherfordium", weight: 267, config: "[Rn] 5f14 6d2 7s2", category: "pt-transitionmetal", period: 7, group: 4, info: "Extremely radioactive synthetic element. First of the transactinides; very short half-life." },
+  { number: 105, symbol: "Db", name: "Dubnium", weight: 268, config: "[Rn] 5f14 6d3 7s2", category: "pt-transitionmetal", period: 7, group: 5, info: "Radioactive synthetic element. Highly unstable; only a few atoms ever produced." },
+  { number: 106, symbol: "Sg", name: "Seaborgium", weight: 269, config: "[Rn] 5f14 6d4 7s2", category: "pt-transitionmetal", period: 7, group: 6, info: "Synthetic transition metal. Named after Glenn Seaborg; decays via alpha emission." },
+  { number: 107, symbol: "Bh", name: "Bohrium", weight: 270, config: "[Rn] 5f14 6d5 7s2", category: "pt-transitionmetal", period: 7, group: 7, info: "Synthetic radioactive element. Extremely short half-life (a few seconds)." },
+  { number: 108, symbol: "Hs", name: "Hassium", weight: 269, config: "[Rn] 5f14 6d6 7s2", category: "pt-transitionmetal", period: 7, group: 8, info: "Radioactive synthetic transition metal. Named after the German state of Hesse." },
+  { number: 109, symbol: "Mt", name: "Meitnerium", weight: 278, config: "[Rn] 5f14 6d7 7s2", category: "pt-transitionmetal", period: 7, group: 9, info: "Synthetic element named after Lise Meitner. Extremely unstable transuranium element." },
+  { number: 110, symbol: "Ds", name: "Darmstadtium", weight: 281, config: "[Rn] 5f14 6d9 7s1", category: "pt-transitionmetal", period: 7, group: 10, info: "Synthetic element named after Darmstadt. Decays in milliseconds." },
+  { number: 111, symbol: "Rg", name: "Roentgenium", weight: 282, config: "[Rn] 5f14 6d10 7s1", category: "pt-transitionmetal", period: 7, group: 11, info: "Synthetic element named after Wilhelm Röntgen. Highly unstable radioactive transuranide." },
+  { number: 112, symbol: "Cn", name: "Copernicium", weight: 285, config: "[Rn] 5f14 6d10 7s2", category: "pt-transitionmetal", period: 7, group: 12, info: "Highly radioactive synthetic transition metal. Named after Nicolaus Copernicus." },
+  { number: 113, symbol: "Nh", name: "Nihonium", weight: 286, config: "[Rn] 5f14 6d10 7s2 7p1", category: "pt-posttransition", period: 7, group: 13, info: "Synthetic element discovered by Japanese researchers. Decays extremely quickly." },
+  { number: 114, symbol: "Fl", name: "Flerovium", weight: 289, config: "[Rn] 5f14 6d10 7s2 7p2", category: "pt-posttransition", period: 7, group: 14, info: "Extremely radioactive synthetic element. Named after Flerov Laboratory." },
+  { number: 115, symbol: "Mc", name: "Moscovium", weight: 290, config: "[Rn] 5f14 6d10 7s2 7p3", category: "pt-posttransition", period: 7, group: 15, info: "Synthetic element discovered by Dubna-Livermore collaboration. Highly unstable." },
+  { number: 116, symbol: "Lv", name: "Livermorium", weight: 293, config: "[Rn] 5f14 6d10 7s2 7p4", category: "pt-posttransition", period: 7, group: 16, info: "Radioactive synthetic post-transition metal. Named after Lawrence Livermore Lab." },
+  { number: 117, symbol: "Ts", name: "Tennessine", weight: 294, config: "[Rn] 5f14 6d10 7s2 7p5", category: "pt-metalloid", period: 7, group: 17, info: "Synthetic superheavy element. Second heaviest known element; decays in milliseconds." },
+  { number: 118, symbol: "Og", name: "Oganesson", weight: 294, config: "[Rn] 5f14 6d10 7s2 7p6", category: "pt-noblegas", period: 7, group: 18, info: "The heaviest element synthesized to date. Highly unstable transactinide element." }
+];
+
+// Walk DOM nodes safely to inject math wrapping for KaTeX auto-render
+function replaceCeInTextNodes(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    let text = node.textContent;
+    let newText = text;
+    try {
+      newText = text.replace(/(?<!\$)\\ce\{([^\}]+)\}(?!\$)/g, '$\\ce{$1}$');
+    } catch (e) {
+      newText = text.replace(/\\ce\{([^\}]+)\}/g, (match) => {
+        return '$' + match + '$';
+      });
+    }
+    if (newText !== text) {
+      node.textContent = newText;
+    }
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const tag = node.tagName.toLowerCase();
+    if (tag !== 'script' && tag !== 'style' && tag !== 'textarea' && tag !== 'input' && tag !== 'code') {
+      for (let child of node.childNodes) {
+        replaceCeInTextNodes(child);
+      }
+    }
+  }
+}
+
+function renderChemistrySymbols(element) {
+  if (!element) return;
+  
+  replaceCeInTextNodes(element);
+
+  if (typeof renderMathInElement === 'function') {
+    renderMathInElement(element, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true }
+      ],
+      throwOnError: false
+    });
+  }
+}
+
+// Interactive Periodic Table Grid populator
+function buildPeriodicTableGrid() {
+  const container = document.getElementById('periodic-table-grid');
+  if (!container) return;
+
+  container.innerHTML = '';
+  
+  // 10 periods (1-7 standard, 8 is spacer, 9 is Lanthanides, 10 is Actinides)
+  for (let p = 1; p <= 10; p++) {
+    if (p === 8) {
+      container.insertAdjacentHTML('beforeend', `<div style="grid-column: span 18; height: 12px; visibility: hidden;"></div>`);
+      continue;
+    }
+    for (let g = 1; g <= 18; g++) {
+      if (p === 6 && g === 3) {
+        const itemHTML = `
+          <button class="pt-element pt-lanthanide" style="opacity: 0.85;" onclick="showGroupDetails('lanthanides')">
+            <span class="pt-element-num">57-71</span>
+            <span class="pt-element-sym">La-Lu</span>
+            <span class="pt-element-name">Lanthanides</span>
+          </button>
+        `;
+        container.insertAdjacentHTML('beforeend', itemHTML);
+      } else if (p === 7 && g === 3) {
+        const itemHTML = `
+          <button class="pt-element pt-actinide" style="opacity: 0.85;" onclick="showGroupDetails('actinides')">
+            <span class="pt-element-num">89-103</span>
+            <span class="pt-element-sym">Ac-Lr</span>
+            <span class="pt-element-name">Actinides</span>
+          </button>
+        `;
+        container.insertAdjacentHTML('beforeend', itemHTML);
+      } else {
+        const element = periodicTableElements.find(el => el.period === p && el.group === g);
+        if (element) {
+          const itemHTML = `
+            <button class="pt-element ${element.category}" onclick="showElementDetails(${element.number})">
+              <span class="pt-element-num">${element.number}</span>
+              <span class="pt-element-sym">${element.symbol}</span>
+              <span class="pt-element-name">${element.name}</span>
+            </button>
+          `;
+          container.insertAdjacentHTML('beforeend', itemHTML);
+        } else {
+          container.insertAdjacentHTML('beforeend', `<div class="pt-spacer"></div>`);
+        }
+      }
+    }
+  }
+}
+
+function showGroupDetails(group) {
+  const detailBox = document.getElementById('pt-element-details');
+  const symbolEl = document.getElementById('pt-detail-symbol');
+  const nameEl = document.getElementById('pt-detail-name');
+  const numberEl = document.getElementById('pt-detail-number');
+  const weightEl = document.getElementById('pt-detail-weight');
+  const configEl = document.getElementById('pt-detail-config');
+  const infoEl = document.getElementById('pt-detail-info');
+
+  if (!detailBox) return;
+
+  symbolEl.className = '';
+  if (group === 'lanthanides') {
+    symbolEl.classList.add('pt-lanthanide');
+    symbolEl.innerText = 'La-Lu';
+    nameEl.innerText = 'Lanthanides';
+    numberEl.innerText = 'Atomic Numbers: 57-71';
+    weightEl.innerText = '138.9 - 175.0';
+    configEl.innerText = '[Xe] 4f^n 5d^m 6s^2';
+    infoEl.innerHTML = 'The lanthanides or lanthanoid series of chemical elements comprises the 15 metallic chemical elements with atomic numbers 57 through 71. These elements, along with chemically similar yttrium and scandium, are often collectively known as the rare-earth elements.';
+  } else {
+    symbolEl.classList.add('pt-actinide');
+    symbolEl.innerText = 'Ac-Lr';
+    nameEl.innerText = 'Actinides';
+    numberEl.innerText = 'Atomic Numbers: 89-103';
+    weightEl.innerText = '227 - 262';
+    configEl.innerText = '[Rn] 5f^n 6d^m 7s^2';
+    infoEl.innerHTML = 'The actinide or actinoid series encompasses the 15 metallic chemical elements with atomic numbers 89 through 103. They are all radioactive, and most are synthetic (man-made), with uranium and thorium being the only ones found in significant quantities in nature.';
+  }
+
+  detailBox.style.display = 'block';
+  playSFX(true);
+}
+window.showGroupDetails = showGroupDetails;
+
+function showElementDetails(number) {
+  const element = periodicTableElements.find(el => el.number === number);
+  if (!element) return;
+
+  const detailBox = document.getElementById('pt-element-details');
+  const symbolEl = document.getElementById('pt-detail-symbol');
+  const nameEl = document.getElementById('pt-detail-name');
+  const numberEl = document.getElementById('pt-detail-number');
+  const weightEl = document.getElementById('pt-detail-weight');
+  const configEl = document.getElementById('pt-detail-config');
+  const infoEl = document.getElementById('pt-detail-info');
+
+  if (!detailBox) return;
+
+  symbolEl.className = '';
+  symbolEl.classList.add(element.category);
+  symbolEl.innerText = element.symbol;
+  nameEl.innerText = element.name;
+  numberEl.innerText = `Atomic Number: ${element.number} | Period: ${element.period} | Group: ${element.group}`;
+  weightEl.innerText = element.weight;
+  configEl.innerText = element.config;
+  infoEl.innerHTML = element.info;
+
+  detailBox.style.display = 'block';
+  playSFX(true);
+}
+
+function togglePeriodicTable() {
+  const modal = document.getElementById('periodic-table-modal');
+  if (!modal) return;
+  const isHidden = modal.style.display === 'none';
+  if (isHidden) {
+    buildPeriodicTableGrid();
+    modal.style.display = 'flex';
+    const detailBox = document.getElementById('pt-element-details');
+    if (detailBox) detailBox.style.display = 'none';
+    playSFX(true);
+  } else {
+    modal.style.display = 'none';
+    playSFX(false);
+  }
+}
+
+function updatePeriodicTableButtonVisibility() {
+  const ptBtn = document.getElementById('header-pt-btn');
+  if (!ptBtn) return;
+
+  const isQuizRunning = activeQuizData !== null;
+  const isEligibleMode = [
+    'notes', 'assessments', 'foundations', 'syllabus', 'references', 'guidelines',
+    'teacher-classes', 'teacher-gradebook', 'teacher-groups', 'teacher-class-details'
+  ].includes(currentMode);
+  
+  if (currentUser && (currentUserRole === 'student' || currentUserRole === 'teacher') && (isEligibleMode || isQuizRunning)) {
+    ptBtn.style.display = 'inline-block';
+  } else {
+    ptBtn.style.display = 'none';
+  }
+}
+
+// DOCX Exam Template Text-Based Parser
+function parseExamText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
+  let title = "Custom Classroom Exam";
+  let timeLimitSeconds = 600; // default 10 minutes
+  let questions = [];
+  let currentQuestion = null;
+  let runningQuestionTimeLimit = null;
+  let hasSeparatorBefore = false;
+
+  for (let line of lines) {
+    let cleanLine = line.replace(/[\*_]/g, '').trim();
+    if (cleanLine.startsWith('#')) {
+      cleanLine = cleanLine.replace(/^#+\s*/, '').trim();
+    }
+
+    if (cleanLine.startsWith('---')) {
+      hasSeparatorBefore = true;
+      continue;
+    }
+
+    if (cleanLine.toLowerCase().startsWith('title:') || cleanLine.toLowerCase().startsWith('exam title:')) {
+      title = cleanLine.substring(cleanLine.indexOf(':') + 1).trim();
+      continue;
+    }
+    if (cleanLine.toLowerCase().startsWith('time limit:') || cleanLine.toLowerCase().startsWith('duration:') || cleanLine.toLowerCase().startsWith('time:')) {
+      const valStr = cleanLine.substring(cleanLine.indexOf(':') + 1).trim().toLowerCase();
+      const numMatch = valStr.match(/\d+/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0]);
+        let seconds = num;
+        if (valStr.includes('hour') || valStr.includes('hr')) {
+          seconds = num * 3600;
+        } else if (valStr.includes('second') || valStr.includes('sec')) {
+          seconds = num;
+        } else {
+          seconds = num * 60;
+        }
+
+        if (valStr.includes('second') || valStr.includes('sec') || questions.length > 0 || hasSeparatorBefore) {
+          runningQuestionTimeLimit = seconds;
+        } else {
+          timeLimitSeconds = seconds;
+        }
+      }
+      continue;
+    }
+
+    const qMatch = cleanLine.match(/^(?:###\s*|[-\*\s]*)(\d+)[\.\)]\s*(.*)/);
+    if (qMatch) {
+      if (currentQuestion) {
+        questions.push(currentQuestion);
+      }
+      currentQuestion = {
+        question: qMatch[2].trim(),
+        choices: [],
+        type: 'mc',
+        answer: null,
+        points: 1,
+        timeLimitSeconds: runningQuestionTimeLimit
+      };
+      continue;
+    }
+
+    if (!currentQuestion) continue;
+
+    const optMatch = cleanLine.match(/^(?:[-\*\s]*)([A-D])[\.\)\-]\s*(.*)/i);
+    if (optMatch) {
+      currentQuestion.choices.push(optMatch[2].trim());
+      currentQuestion.type = 'mc';
+      continue;
+    }
+
+    if (cleanLine.toLowerCase().startsWith('answer:') || cleanLine.toLowerCase().startsWith('ans:')) {
+      currentQuestion.rawAnswer = cleanLine.substring(cleanLine.indexOf(':') + 1).trim();
+      continue;
+    }
+
+    if (cleanLine.toLowerCase().startsWith('points:') || cleanLine.toLowerCase().startsWith('pts:')) {
+      currentQuestion.points = parseInt(cleanLine.substring(cleanLine.indexOf(':') + 1).trim()) || 1;
+      continue;
+    }
+
+    if (currentQuestion.choices.length === 0 && !currentQuestion.rawAnswer) {
+      currentQuestion.question += ' ' + cleanLine;
+    }
+  }
+
+  if (currentQuestion) {
+    questions.push(currentQuestion);
+  }
+
+  questions = questions.map((q, idx) => {
+    const rawAns = (q.rawAnswer || '').trim();
+    delete q.rawAnswer;
+
+    if (q.choices.length > 0) {
+      q.type = 'mc';
+      let ansIndex = -1;
+      const letterMatch = rawAns.match(/^[A-D]/i);
+      if (letterMatch) {
+        ansIndex = letterMatch[0].toUpperCase().charCodeAt(0) - 65;
+      } else {
+        ansIndex = q.choices.findIndex(c => c.toLowerCase() === rawAns.toLowerCase());
+      }
+      q.answer = ansIndex >= 0 ? ansIndex : 0;
+    } else {
+      const isTF = q.question.toLowerCase().includes('(true/false)') || 
+                   rawAns.toLowerCase() === 'true' || 
+                   rawAns.toLowerCase() === 'false' ||
+                   rawAns.toLowerCase() === 't' || 
+                   rawAns.toLowerCase() === 'f';
+      if (isTF) {
+        q.type = 'tf';
+        q.answer = (rawAns.toLowerCase() === 'true' || rawAns.toLowerCase() === 't');
+      } else {
+        q.type = 'id';
+        q.answer = rawAns;
+      }
+    }
+    q.id = `q_${idx + 1}`;
+    return q;
+  });
+
+  const hasAnyQuestionTimer = questions.some(q => q.timeLimitSeconds !== null && q.timeLimitSeconds !== undefined);
+  return {
+    title,
+    timeLimitSeconds: hasAnyQuestionTimer ? null : timeLimitSeconds,
+    questions
+  };
+}
+
+let parsedCustomQuiz = null;
+
+function handleDocxExamFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const fileName = file.name.toLowerCase();
+  const reader = new FileReader();
+
+  if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+    reader.onload = function(e) {
+      const text = e.target.result;
+      processExamText(text);
+    };
+    reader.readAsText(file);
+  } else if (fileName.endsWith('.docx')) {
+    reader.onload = function(e) {
+      const arrayBuffer = e.target.result;
+      if (typeof mammoth === 'undefined') {
+        alert("Mammoth.js library is not loaded. Please verify internet connection.");
+        return;
+      }
+      mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+        .then(result => {
+          const text = result.value;
+          processExamText(text);
+        })
+        .catch(err => {
+          console.error("Mammoth extraction error:", err);
+          alert("Failed to parse DOCX file: " + err.message);
+        });
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    alert("Unsupported file format. Please upload a .docx, .txt, or .md file.");
+  }
+  event.target.value = '';
+}
+
+function processExamText(text) {
+  const quiz = parseExamText(text);
+  if (!quiz || quiz.questions.length === 0) {
+    alert("Could not parse any questions from the document. Please check the template formatting.");
+    return;
+  }
+
+  parsedCustomQuiz = quiz;
+  parsedCustomQuiz.id = 'custom_quiz_' + Date.now();
+
+  document.getElementById('pt-exam-title').innerText = quiz.title;
+  document.getElementById('pt-exam-limit').innerText = `${Math.round(quiz.timeLimitSeconds / 60)} mins`;
+  document.getElementById('pt-exam-qcount').innerText = quiz.questions.length;
+
+  const qListContainer = document.getElementById('exam-preview-questions-list');
+  qListContainer.innerHTML = '';
+
+  quiz.questions.forEach((q, idx) => {
+    let choicesHTML = '';
+    if (q.type === 'mc') {
+      choicesHTML = `<div style="margin-left: 15px; font-size:12.5px; color:var(--text-muted); display:flex; flex-direction:column; gap:4px; margin-top:4px;">
+        ${q.choices.map((c, cIdx) => `<div>${String.fromCharCode(65 + cIdx)}) ${escapeHtml(c)} ${cIdx === q.answer ? '✅' : ''}</div>`).join('')}
+      </div>`;
+    }
+
+    qListContainer.insertAdjacentHTML('beforeend', `
+      <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border-card); border-radius:10px; padding:12px; text-align:left;">
+        <div style="font-weight:700; font-size:13.5px; color:var(--text-main);">${idx + 1}. ${escapeHtml(q.question)}</div>
+        ${choicesHTML}
+        <div style="margin-top:8px; font-size:11.5px; color:var(--text-muted); display:flex; justify-content:space-between;">
+          <span>Answer: <strong>${q.type === 'mc' ? String.fromCharCode(65 + q.answer) : escapeHtml(q.answer.toString())}</strong></span>
+          <span>Points: <strong>${q.points}</strong></span>
+        </div>
+      </div>
+    `);
+  });
+
+  document.getElementById('exam-preview-modal').style.display = 'flex';
+  playSFX(true);
+}
+
+function publishImportedExam() {
+  if (!parsedCustomQuiz || !teacherSelectedClassId) return;
+
+  const classId = teacherSelectedClassId;
+
+  if (classId === 'sample_class_49c') {
+    if (!GLOBAL_SAMPLE_CLASS.customQuizzes) {
+      GLOBAL_SAMPLE_CLASS.customQuizzes = [];
+    }
+    GLOBAL_SAMPLE_CLASS.customQuizzes.push(parsedCustomQuiz);
+    firestore.collection('classes').doc(classId).update({
+      customQuizzes: firebase.firestore.FieldValue.arrayUnion(parsedCustomQuiz)
+    }).catch(err => console.warn("Firestore update failed for sample class customQuizzes:", err));
+
+    alert("Exam successfully imported and published to class roster!");
+    document.getElementById('exam-preview-modal').style.display = 'none';
+    parsedCustomQuiz = null;
+    playSFX(true);
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).update({
+    customQuizzes: firebase.firestore.FieldValue.arrayUnion(parsedCustomQuiz)
+  })
+  .then(() => {
+    alert("Exam successfully imported and published to class roster!");
+    document.getElementById('exam-preview-modal').style.display = 'none';
+    parsedCustomQuiz = null;
+    playSFX(true);
+    renderTeacherClassDetailsView();
+  })
+  .catch(err => {
+    console.error("Failed to publish custom exam:", err);
+    alert("Failed to publish custom exam: " + err.message);
+  });
+}
+
+function closeExamPreviewModal() {
+  document.getElementById('exam-preview-modal').style.display = 'none';
+  parsedCustomQuiz = null;
+  playSFX(false);
+}
+
+function deleteCustomQuiz(classId, quizId) {
+  if (!confirm("Are you sure you want to delete this custom exam? This will remove all records of this exam for students.")) return;
+
+  if (classId === 'sample_class_49c') {
+    const customQuizzes = GLOBAL_SAMPLE_CLASS.customQuizzes || [];
+    GLOBAL_SAMPLE_CLASS.customQuizzes = customQuizzes.filter(q => q.id !== quizId);
+
+    const scheduledQuizzes = GLOBAL_SAMPLE_CLASS.scheduledQuizzes || [];
+    GLOBAL_SAMPLE_CLASS.scheduledQuizzes = scheduledQuizzes.filter(id => id !== quizId);
+
+    firestore.collection('classes').doc(classId).update({
+      customQuizzes: GLOBAL_SAMPLE_CLASS.customQuizzes,
+      scheduledQuizzes: GLOBAL_SAMPLE_CLASS.scheduledQuizzes
+    }).catch(err => console.warn("Firestore delete failed for sample class:", err));
+
+    alert("Custom exam deleted successfully.");
+    renderTeacherClassDetailsView();
+    return;
+  }
+
+  firestore.collection('classes').doc(classId).get()
+    .then(doc => {
+      if (!doc.exists) return;
+      const classData = doc.data();
+      const customQuizzes = classData.customQuizzes || [];
+      const updatedQuizzes = customQuizzes.filter(q => q.id !== quizId);
+
+      const scheduledQuizzes = classData.scheduledQuizzes || [];
+      const updatedScheduled = scheduledQuizzes.filter(id => id !== quizId);
+
+      return firestore.collection('classes').doc(classId).update({
+        customQuizzes: updatedQuizzes,
+        scheduledQuizzes: updatedScheduled
+      });
+    })
+    .then(() => {
+      alert("Custom exam deleted successfully.");
+      renderTeacherClassDetailsView();
+    })
+    .catch(err => {
+      console.error("Error deleting custom quiz:", err);
+      alert("Failed to delete custom quiz: " + err.message);
+    });
+}
+
+function downloadDocxTemplate() {
+  const content = `Title: Inorganic Chemistry Quiz 1
+Time Limit: 15 minutes
+
+1. Which element has the chemical symbol "O"?
+A) Osmium
+B) Oxygen
+C) Gold
+D) Helium
+Answer: B
+Points: 2
+
+2. Water consists of hydrogen and oxygen. (True/False)
+Answer: True
+Points: 1
+
+3. What is the atomic symbol of Carbon?
+Answer: C
+Points: 2
+`;
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'exam_template.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Progressive Learning Paths student checklist
+function toggleMaterialCompleted(materialId, completed) {
+  if (!currentUser || currentUserRole !== 'student') return;
+
+  const email = currentUser.email;
+  const op = completed ?
+    firebase.firestore.FieldValue.arrayUnion(materialId) :
+    firebase.firestore.FieldValue.arrayRemove(materialId);
+
+  firestore.collection('students').doc(email).update({
+    completedMaterials: op
+  })
+  .then(() => {
+    console.log(`Updated material ${materialId} completion: ${completed}`);
+    if (!currentUser.completedMaterials) {
+      currentUser.completedMaterials = [];
+    }
+    if (completed) {
+      if (!currentUser.completedMaterials.includes(materialId)) {
+        currentUser.completedMaterials.push(materialId);
+      }
+    } else {
+      currentUser.completedMaterials = currentUser.completedMaterials.filter(id => id !== materialId);
+    }
+    localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+    localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+    
+    playSFX(completed);
+
+    if (activeMode === 'notes') {
+      renderLectureNotesView();
+    }
+  })
+  .catch(err => {
+    console.error("Failed to update material completion:", err);
+    alert("Failed to update status: " + err.message);
+  });
+}
+
+// Custom quiz runner trigger
+function startCustomQuizRunner(quizId) {
+  playSFX(true);
+  
+  const classData = activeStudentClassData[currentCourseId];
+  if (!classData || !classData.customQuizzes) return;
+
+  const targetQuiz = classData.customQuizzes.find(q => q.id === quizId);
+  if (!targetQuiz) return;
+
+  const savedScore = localStorage.getItem(`quiz_score_${currentUser.email}_${quizId}`);
+  if (savedScore !== null) {
+    alert("You have already completed this quiz. Retakes are not allowed.");
+    return;
+  }
+
+  activeQuizModule = { id: quizId, title: targetQuiz.title };
+  activeQuizData = targetQuiz;
+  currentQuestionIndex = 0;
+  quizScore = 0;
+  quizAnswers = [];
+  wrongAnswersLog = [];
+
+  document.getElementById('view-meta').style.display = 'flex';
+  document.getElementById('slide-mode-label').innerText = 'Classroom Quiz Mode';
+  document.getElementById('slide-num-label').innerText = `Question 1 of ${activeQuizData.questions.length}`;
+  document.getElementById('progress-bar').style.width = '0%';
+
+  if (activeQuizData.timeLimitSeconds) {
+    quizSecondsLeft = activeQuizData.timeLimitSeconds;
+    startQuizTimer();
+  }
+
+  renderQuizQuestion();
+}
+
+function seedSampleData() {
+  const seededKey = 'doc_hub_sample_seeded_v3';
+  if (localStorage.getItem(seededKey)) {
+    console.log("Sample classroom already seeded in this browser.");
+    return;
+  }
+
+  console.log("Seeding sample classroom data...");
+  firestore.collection('classes').doc('sample_class_49c').set(GLOBAL_SAMPLE_CLASS)
+    .then(() => {
+      localStorage.setItem(seededKey, 'true');
+      console.log("Sample classroom data check/seeding complete.");
+    })
+    .catch(err => {
+      console.error("Error seeding sample classroom data:", err);
+    });
+}
+
+// Auto-run database seed check
+setTimeout(() => {
+  if (typeof firestore !== 'undefined') {
+    seedSampleData();
+  }
+}, 2000);
+
+window.togglePeriodicTable = togglePeriodicTable;
+window.showElementDetails = showElementDetails;
+window.handleDocxExamFileSelect = handleDocxExamFileSelect;
+window.publishImportedExam = publishImportedExam;
+window.closeExamPreviewModal = closeExamPreviewModal;
+window.deleteCustomQuiz = deleteCustomQuiz;
+window.downloadDocxTemplate = downloadDocxTemplate;
+window.toggleMaterialCompleted = toggleMaterialCompleted;
+window.startCustomQuizRunner = startCustomQuizRunner;
+window.renderChemistrySymbols = renderChemistrySymbols;

@@ -1689,10 +1689,13 @@ body.light-mode .study-timer-widget {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   color: var(--text-main);
-  padding: 8px 16px;
+  padding: 0 16px;
+  height: 38px;
+  box-sizing: border-box;
   border-radius: 12px;
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
+  font-size: 13.5px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1710,10 +1713,12 @@ body.light-mode .study-timer-widget {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   color: var(--text-main);
-  padding: 8px 12px;
+  padding: 0 16px;
+  height: 38px;
+  box-sizing: border-box;
   border-radius: 12px;
   font-family: 'Outfit', sans-serif;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -1734,7 +1739,9 @@ body.light-mode .study-timer-widget {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   color: var(--text-main);
-  padding: 8px 12px;
+  padding: 0 12px;
+  height: 38px;
+  box-sizing: border-box;
   border-radius: 12px;
   font-family: 'Outfit', sans-serif;
   font-size: 14px;
@@ -4069,6 +4076,344 @@ body.light-mode select option {
     display: none;
   }
 }
+
+/* ==========================================================================
+   DEVELOPER DEBUG & ROLE-TESTING STYLES
+   ========================================================================== */
+.developer-debug-bar {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-card);
+  border-radius: 12px;
+  padding: 16px;
+}
+body.light-mode .developer-debug-bar {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.role-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  display: inline-block;
+  color: white;
+}
+.role-badge.admin { background: #10b981; }
+.role-badge.teacher { background: #3b82f6; }
+.role-badge.student { background: var(--active-subject-color, #0ea5e9); }
+
+/* ==========================================================================
+   INSTRUCTOR PORTAL & GRADEBOOK STYLES
+   ========================================================================== */
+
+/* Teacher dashboard classroom cards */
+.class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.class-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-align: left;
+}
+
+.class-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-color: var(--active-subject-color, #0ea5e9);
+}
+
+.class-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.class-code {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.class-section {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: white;
+  background: var(--active-subject-color, #0ea5e9);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.class-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-card);
+  padding-top: 10px;
+  margin-top: 6px;
+}
+
+.class-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.class-status-badge.approved { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.class-status-badge.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+/* Gradebook table overrides */
+.gradebook-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  background: var(--bg-card);
+  margin-top: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gradebook-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+
+.gradebook-table th,
+.gradebook-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-card);
+  border-right: 1px solid var(--border-card);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.gradebook-table th {
+  background: var(--bg-body);
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: 'Outfit', sans-serif;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Frozen columns for student names */
+.gradebook-table th.sticky-col,
+.gradebook-table td.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  text-align: left;
+  border-right: 2px solid var(--border-card);
+}
+.gradebook-table th.sticky-col {
+  background: var(--bg-body);
+}
+.gradebook-table td.sticky-col {
+  background: var(--bg-card);
+}
+
+.gradebook-table tr:hover td {
+  background: rgba(14, 165, 233, 0.03) !important;
+}
+
+.gradebook-cell-interactive {
+  cursor: pointer;
+  transition: background 0.2s;
+  font-weight: 600;
+}
+.gradebook-cell-interactive:hover {
+  background: rgba(14, 165, 233, 0.1) !important;
+  color: var(--active-subject-color, #0ea5e9);
+}
+
+.gradebook-cell-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.grade-override-flag {
+  color: #f59e0b;
+  font-size: 10px;
+  margin-left: 2px;
+  vertical-align: super;
+}
+
+/* Laboratory groups */
+.lab-groups-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.lab-group-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.lab-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed var(--border-card);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.lab-group-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.lab-group-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-member-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-body);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.btn-remove-member {
+  background: transparent;
+  border: none;
+  color: var(--incorrect);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.btn-remove-member:hover {
+  opacity: 0.8;
+}
+
+/* ==========================================================================
+   🔬 INTERACTIVE PERIODIC TABLE STYLING
+   ========================================================================== */
+.pt-element {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  font-family: 'Outfit', sans-serif;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.pt-element:hover {
+  transform: scale(1.12);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.pt-element-num {
+  font-size: 8px;
+  align-self: flex-start;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.pt-element-sym {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pt-element-name {
+  font-size: 7px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  opacity: 0.7;
+}
+
+/* Color Categories */
+.pt-nonmetal { background: #ef4444 !important; color: white !important; }
+.pt-noblegas { background: #f97316 !important; color: white !important; }
+.pt-alkalimetal { background: #eab308 !important; color: white !important; }
+.pt-alkalineearth { background: #a855f7 !important; color: white !important; }
+.pt-transitionmetal { background: #3b82f6 !important; color: white !important; }
+.pt-posttransition { background: #10b981 !important; color: white !important; }
+.pt-metalloid { background: #06b6d4 !important; color: white !important; }
+.pt-lanthanide { background: #6366f1 !important; color: white !important; }
+.pt-actinide { background: #ec4899 !important; color: white !important; }
+
+/* Empty Spacer */
+.pt-spacer {
+  visibility: hidden;
+}
+
+/* Floating Periodic Table Tool Trigger */
+.floating-pt-trigger {
+  background: var(--accent, #0d9488);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+}
+.floating-pt-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(13, 148, 136, 0.35);
+  opacity: 0.95;
+}
+
 
 
 

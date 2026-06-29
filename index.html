@@ -4,19 +4,109 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" id="theme-meta" content="#0f172a">
-  <title>Doc Learning Hub — Department of Chemistry</title>
+  <title>Doc Portal</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" id="main-stylesheet" href="index.css">
   
   <!-- Firebase SDK Compat -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+  <!-- Dynamic Version Bootstrapper Script -->
+  <script id="portal-bootstrapper">
+    (function() {
+      // Check for dev/force-root flag in URL to clear stales and reload root
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('dev') || urlParams.has('clear_cache')) {
+        localStorage.removeItem('doc_lms_admin_version_prefix');
+        localStorage.removeItem('doc_lms_user_version_prefix');
+        console.log("Bootstrapper: Forced root dev environment via query parameter.");
+      }
+
+      // 1. Read admin status and cached version prefix synchronously from localStorage
+      let isAdmin = false;
+      try {
+        const session = localStorage.getItem('student_user_session');
+        if (session) {
+          const user = JSON.parse(session);
+          isAdmin = user.role === 'admin' || (user.roles && user.roles.includes('admin'));
+        }
+      } catch (e) {
+        console.error("Bootstrapper localStorage parse error:", e);
+      }
+
+      // Retrieve cached version path prefix
+      const cacheKey = isAdmin ? 'doc_lms_admin_version_prefix' : 'doc_lms_user_version_prefix';
+      const versionPathPrefix = localStorage.getItem(cacheKey) || '';
+      window.versionPathPrefix = versionPathPrefix;
+
+      // 2. Synchronously update CSS link and inject app.js to block parser and execute before DOMContentLoaded
+      const mainCss = document.getElementById('main-stylesheet');
+      if (mainCss) {
+        mainCss.href = versionPathPrefix + 'index.css';
+      }
+
+      const script = document.createElement('script');
+      script.src = versionPathPrefix + 'app.js';
+      script.async = false; // Execute synchronously in DOM parsing order
+      document.head.appendChild(script);
+
+      // 3. Asynchronously query Firestore in background to sync any version changes
+      window.addEventListener('load', function() {
+        // Wait for Firebase library to load and initialize (it's initialized in app.js)
+        const checkFirebase = setInterval(() => {
+          if (typeof firebase !== 'undefined' && firebase.apps.length) {
+            clearInterval(checkFirebase);
+            
+            const db = firebase.firestore();
+            db.collection('system_settings').doc('config').get()
+              .then(doc => {
+                if (doc.exists) {
+                  const data = doc.data();
+                  const isTestingPhase = data.status === 'testing';
+                  const liveVer = data.liveVersion || '';
+                  const testingVer = data.testingVersion || '';
+
+                  let targetPrefix = '';
+                  if (isTestingPhase && isAdmin) {
+                    if (testingVer) targetPrefix = 'backups/' + testingVer + '/';
+                  } else {
+                    if (liveVer) targetPrefix = 'backups/' + liveVer + '/';
+                  }
+
+                  // If version prefix has changed in database, update local storage and reload
+                  // Guard: only reload once per target to prevent infinite refresh loops
+                  const reloadGuardKey = 'doc_lms_reload_guard';
+                  const lastReloadTarget = sessionStorage.getItem(reloadGuardKey);
+                  if (versionPathPrefix !== targetPrefix && lastReloadTarget !== targetPrefix) {
+                    localStorage.setItem(cacheKey, targetPrefix);
+                    sessionStorage.setItem(reloadGuardKey, targetPrefix);
+                    console.log("Bootstrapper: Version updated to " + targetPrefix + ". Reloading page...");
+                    window.location.reload();
+                  } else if (versionPathPrefix !== targetPrefix) {
+                    // Already reloaded for this target but still mismatched — update cache silently
+                    localStorage.setItem(cacheKey, targetPrefix);
+                    console.warn("Bootstrapper: Skipped reload to prevent loop. Cache updated silently.");
+                  }
+                }
+              })
+              .catch(err => {
+                console.error("Bootstrapper: Firestore config sync failed:", err);
+              });
+          }
+        }, 100);
+
+        // Safety timeout to clear interval
+        setTimeout(() => clearInterval(checkFirebase), 10000);
+      });
+    })();
+  </script>
 
   <!-- Google Identity Services (GIS) library -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -81,6 +171,7 @@
       
       <div class="action-toggles">
         <button class="floating-pt-trigger" id="header-pt-btn" onclick="togglePeriodicTable()" style="display: none; padding: 0 14px; height: 38px; box-sizing: border-box; font-size: 12.5px; margin-right: 4px; border-radius: 12px;" title="Open Periodic Table">🔬 Periodic Table</button>
+        <div id="system-phase-header-container" style="display: inline-flex; align-items: center; margin-right: 12px; border-right: 1px solid var(--border-card); padding-right: 12px; gap: 6px;"></div>
         <div id="role-switcher-container" style="display: inline-flex; gap: 6px; margin-right: 8px;"></div>
         <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">🌓</button>
         <button class="settings-toggle-btn" id="settings-btn" onclick="openSettings()" aria-label="Open Settings">⚙️ Settings</button>
@@ -92,7 +183,7 @@
     <div class="viewer-card" id="viewer-card">
       
       <!-- Progress Bar (Used by both Study and Quiz) -->
-      <div class="progress-container">
+      <div class="progress-container" id="progress-container" style="display: none;">
         <div class="progress-bar" id="progress-bar"></div>
       </div>
       
@@ -153,11 +244,11 @@
   <div class="onboarding-overlay" id="onboarding-overlay" style="display: none;">
     <div class="onboarding-card">
       <div class="onboarding-logo"><img src="chemistry_logo.png" alt="DoC Chemistry Logo" style="height: 100px; width: auto; object-fit: contain;"></div>
-      <h2>Department of Chemistry Learning Hub</h2>
+      <h2>Department of Chemistry Portal</h2>
       
       <!-- Stage 1: Real Google Sign-In -->
       <div id="onboarding-stage-1" class="onboarding-stage">
-        <p style="margin: 20px 0; font-size: 13px; color: var(--text-muted);">Please connect your academic Google account to access learning materials.</p>
+        <p style="margin: 20px 0; font-size: 13px; color: var(--text-muted);">Please connect your academic Google account (@msugensan.edu.ph) to access the website.</p>
         <div style="display: flex; justify-content: center; margin-top: 15px; margin-bottom: 20px;">
           <div id="g_id_onload"
                data-client_id="148696552118-v8h6fcnkmom6qcvj8v2ppjnkv1g2va5u.apps.googleusercontent.com"
@@ -425,7 +516,45 @@
     </div>
   </aside>
 
-  <!-- Load Core Script Logic -->
-  <script src="app.js"></script>
+  <!-- Custom Confirm Modal Container -->
+  <div id="custom-confirm-modal" class="custom-modal-overlay" style="display:none;">
+    <div class="custom-modal-card">
+      <div class="custom-modal-body">
+        <img src="chemistry_logo.png" alt="DoC Logo" class="custom-modal-logo">
+        <div class="custom-modal-message" id="custom-confirm-message"></div>
+      </div>
+      <div class="custom-modal-footer">
+        <button id="custom-confirm-cancel-btn" class="settings-btn-primary custom-modal-btn cancel">Cancel</button>
+        <button id="custom-confirm-ok-btn" class="settings-btn-primary custom-modal-btn ok">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert Modal Container -->
+  <div id="custom-alert-modal" class="custom-modal-overlay" style="display:none;">
+    <div class="custom-modal-card alert">
+      <div class="custom-modal-body">
+        <img src="chemistry_logo.png" alt="DoC Logo" class="custom-modal-logo">
+        <div class="custom-modal-message" id="custom-alert-message"></div>
+      </div>
+      <div class="custom-modal-footer">
+        <button id="custom-alert-ok-btn" class="settings-btn-primary custom-modal-btn ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Role Application Modal -->
+  <div id="role-app-modal" class="custom-modal-overlay" style="display:none; justify-content:center; align-items:center;">
+    <div class="custom-modal-card" style="max-width: 500px; width:90%; padding: 24px; text-align: left; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed var(--border-card); padding-bottom:12px; margin-bottom:16px;">
+        <h3 style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color:var(--accent); display:flex; align-items:center; gap:6px;">🏛️ Apply for Portal Access</h3>
+        <button onclick="closeRoleAppModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div id="role-app-modal-body">
+        <!-- Injected Form -->
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

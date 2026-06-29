@@ -1,0 +1,222 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isApprovedEmail() {
+      return request.auth.token.email.lower().endsWith('@msugensan.edu.ph');
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/students/$(request.auth.token.email)).data;
+    }
+
+    function isRole(role) {
+      return request.auth != null && 
+             isApprovedEmail() &&
+             (getUserData().role == role || 
+              ('roles' in getUserData() && role in getUserData().roles));
+    }
+
+    function isFaculty() {
+      return isRole('faculty');
+    }
+
+    function isAdmin() {
+      return isRole('admin') || request.auth.token.email.lower() == 'ramon.eduque@msugensan.edu.ph';
+    }
+
+    function isPcoUser() {
+      return request.auth != null && 
+             isApprovedEmail() &&
+             (getUserData().role == 'pco_head' || 
+              getUserData().role == 'pco_laboratory' || 
+              getUserData().role == 'pco_office' || 
+              getUserData().role == 'pco_college' ||
+              getUserData().role == 'pco_ppd' ||
+              getUserData().role == 'pco_gso' ||
+              getUserData().role == 'pco_sanitary' ||
+              ('roles' in getUserData() && 
+               (getUserData().roles.hasAny(['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary']))));
+    }
+
+    // Collection: /students
+    match /students/{email} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+                    request.auth.token.email.lower() == email.lower();
+      allow update: if request.auth != null && 
+                    request.auth.token.email.lower() == email.lower() &&
+                    request.resource.data.role == resource.data.role;
+      allow write: if isAdmin();
+    }
+
+    // Collection: /classes
+    match /classes/{classId} {
+      allow read: if request.auth != null;
+      allow create: if isAdmin() || isFaculty();
+      allow update: if isAdmin() || isFaculty() || isRole('laboratory');
+      allow delete: if isAdmin();
+    }
+
+    // Collection: /scores
+    match /scores/{scoreId} {
+      allow read: if request.auth != null && (
+        request.auth.token.email.lower() == resource.data.email.lower() ||
+        isFaculty() ||
+        isAdmin() ||
+        isRole('chairperson')
+      );
+      allow create: if request.auth != null && 
+                    request.resource.data.email.lower() == request.auth.token.email.lower() &&
+                    request.resource.data.override != true;
+      allow update: if isAdmin() || isFaculty();
+      allow delete: if isAdmin();
+    }
+
+    // Collection: /config
+    match /config/{configId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isRole('chairperson');
+    }
+
+    // Collection: /accountabilities
+    match /accountabilities/{itemId} {
+      allow read: if request.auth != null;
+      allow create: if isAdmin() || isRole('laboratory');
+      allow delete: if isAdmin() || isRole('laboratory');
+      allow update: if isAdmin() || isRole('laboratory') || (
+        request.auth != null &&
+        resource.data.studentEmail.lower() == request.auth.token.email.lower() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['petitionRemarks', 'petitionTimestamp'])
+      );
+    }
+
+    // Collection: /stockroom_announcements
+    match /stockroom_announcements/{annId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isRole('laboratory');
+    }
+
+    // Collection: /requisitions
+    match /requisitions/{reqId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if isAdmin() || isRole('laboratory');
+    }
+
+    // Collection: /notifications
+    match /notifications/{notifId} {
+      allow read: if request.auth != null && (
+        request.auth.token.email.lower() == resource.data.targetEmail.lower() ||
+        isAdmin() ||
+        isRole('laboratory') ||
+        isFaculty()
+      );
+      allow create: if request.auth != null && (isAdmin() || isRole('laboratory') || isFaculty());
+      allow update: if request.auth != null;
+      allow delete: if isAdmin() || isRole('laboratory');
+    }
+
+    // PCO / EMIS System Collections
+    match /pco_inventory/{docId} {
+      allow read: if request.auth != null && (isPcoUser() || isRole('laboratory') || isAdmin() || isRole('chairperson'));
+      allow write: if request.auth != null && (isAdmin() || isRole('laboratory') || isRole('pco_head') || isRole('pco_laboratory'));
+    }
+    match /pco_generators/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (isAdmin() || isRole('laboratory') || isRole('pco_head') || isRole('pco_laboratory') || isRole('pco_office'));
+    }
+    match /pco_solid_waste/{docId} {
+      allow read: if request.auth != null && (isPcoUser() || isAdmin() || isRole('chairperson'));
+      allow write: if request.auth != null && (isAdmin() || isRole('pco_head') || isRole('pco_laboratory') || isRole('pco_office'));
+    }
+    match /pco_wastewater/{docId} {
+      allow read: if request.auth != null && (isPcoUser() || isRole('laboratory') || isAdmin() || isRole('chairperson'));
+      allow write: if request.auth != null && (isAdmin() || isRole('laboratory') || isRole('pco_head') || isRole('pco_laboratory'));
+    }
+    match /pco_incidents/{docId} {
+      allow read: if request.auth != null && (isPcoUser() || isRole('laboratory') || isAdmin() || isRole('chairperson'));
+      allow create: if request.auth != null && (isPcoUser() || isRole('laboratory') || isAdmin());
+      allow update, delete: if request.auth != null && (isAdmin() || isRole('pco_head') || isRole('pco_office'));
+    }
+    match /pco_permits/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (isAdmin() || isRole('pco_head') || isRole('pco_office'));
+    }
+
+    // Role Applications Collection
+    match /role_applications/{appId} {
+      allow read: if request.auth != null && (isAdmin() || isRole('pco_head') || request.auth.token.email.lower() == resource.data.email.lower());
+      allow create: if request.auth != null && request.auth.token.email.lower() == request.resource.data.email.lower();
+      allow update, delete: if isAdmin();
+    }
+
+    // User Feedback & Bug Submissions Collection
+    match /feedback_submissions/{docId} {
+      allow read: if request.auth != null && (isAdmin() || request.auth.token.email.lower() == resource.data.email.lower());
+      allow create: if request.auth != null && request.auth.token.email.lower() == request.resource.data.email.lower();
+      allow update: if request.auth != null && (isAdmin() || request.auth.token.email.lower() == resource.data.email.lower());
+      allow delete: if isAdmin();
+    }
+
+    // Activity Logs Collection
+    match /activity_logs/{docId} {
+      allow read: if request.auth != null && (isAdmin() || isRole('chairperson'));
+      allow write: if isAdmin();
+    }
+
+    // Collection: /notices_tasks
+    match /notices_tasks/{taskId} {
+      allow read: if request.auth != null && (
+        request.auth.token.email.lower() == resource.data.recipientEmail.lower() ||
+        isAdmin() ||
+        isRole('laboratory') ||
+        isFaculty()
+      );
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null && (
+        isAdmin() ||
+        isRole('laboratory') ||
+        request.auth.token.email.lower() == resource.data.recipientEmail.lower()
+      );
+    }
+
+    // Backup Releases Collection
+    match /backup_releases/{versionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Collection: system_settings
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Collection: portal_roadmap
+    match /portal_roadmap/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Portal Announcements, News, Calendar Events
+    match /portal_content/{contentId} {
+      allow read: if true;
+      allow write: if isAdmin() || isRole('chairperson') || isFaculty();
+    }
+
+    // PCO Head approvals queue
+    match /pco_approvals/{approvalId} {
+      allow read: if request.auth != null && (isPcoUser() || isAdmin() || isRole('chairperson'));
+      allow write: if request.auth != null && (isPcoUser() || isAdmin());
+    }
+
+    // Collection: /approvals
+    match /approvals/{approvalId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (isFaculty() || isAdmin() || isRole('chairperson') || isRole('laboratory'));
+    }
+  }
+}

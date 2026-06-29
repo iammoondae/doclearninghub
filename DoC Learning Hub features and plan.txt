@@ -1,0 +1,562 @@
+DoC Learning Hub
+
+A recommended hierarchy is:
+
+1. System Overview
+2. User Roles
+3. Authentication
+4. Teacher Module
+5. Student Module
+6. Administrator Module
+7. Learning Materials Module
+8. Assessment & Examination Module
+9. Security & Academic Integrity
+10. Analytics & Reports
+11. Future (Greyed-Out) Features
+
+This avoids repetition (for example, "teacher uploads materials" should live in the Teacher Module, while supported file types belong in the Learning Materials Module).
+
+Some implementation notes:
+
+* **DOCX exam specification** is an excellent idea. Instead of requiring teachers to enter questions one by one, define a standard exam template with metadata (title, timing, answer key, points, etc.) that the system imports automatically.
+* **Chemistry support** (equations, Lewis structures, reaction schemes, periodic table) is definitely feasible using libraries such as MathJax/KaTeX for equations and ChemDoodle, Kekule.js, or Ketcher for molecular structures.
+* **Lockdown browser** in a web browser cannot be made completely secure. You can implement practical protections (fullscreen mode, tab-switch detection, copy/paste blocking, print blocking, context menu disabling, visibility change detection), but determined users can still circumvent them. The system should warn instructors that these measures reduce cheating but do not guarantee prevention.
+
+Another improvement would be to classify every feature by development priority:
+
+* **Core (MVP)** – required for the first working version.
+* **Enhanced** – planned after MVP.
+* **Future** – implemented in the interface but disabled (greyed out).
+
+For example:
+
+| Module                | MVP | Enhanced | Future |
+| --------------------- | --- | -------- | ------ |
+| Learning Materials    | ✓   |          |        |
+| Quiz Import (DOCX)    | ✓   |          |        |
+| Exam Scheduling       | ✓   |          |        |
+| Randomized Questions  | ✓   |          |        |
+| Question Banks        |     | ✓        |        |
+| Learning Analytics    |     | ✓        |        |
+| Student Notes         |     |          | ✓      |
+
+This makes implementation much more manageable.
+
+Overall, after merging your lists and removing duplicates, the project can be summarized as follows.
+
+---
+
+# DoC Learning Hub LMS/VLE System
+
+A lightweight Learning Management System (LMS) and Virtual Learning Environment (VLE) designed primarily for university courses. The system focuses on secure content distribution, online assessments, class management, and basic academic record management while remaining significantly simpler than enterprise LMS platforms.
+
+---
+
+# 1. Authentication
+
+* Google Sign-In only
+* Only `@msugensn.edu.ph` accounts are allowed
+* Automatic profile creation upon first login
+* Session management
+* Logout
+* Remember login
+
+---
+
+# 2. User Roles
+
+## Student
+
+* Access enrolled classes
+* Download learning materials
+* Take quizzes and examinations
+* View grades and feedback
+* View course syllabus
+
+---
+
+## Teacher
+
+* Manage classes
+* Upload learning materials
+* Create quizzes/examinations
+* Manage class records
+* Manage laboratory groups
+* Add students
+* View assessment results
+
+---
+
+## Administrator
+
+* Approve teacher class requests
+* Manage all users
+* Manage all classes
+* Manage academic years
+* View system reports
+* Full system permissions
+
+---
+
+# 3. Teacher Module
+
+## Class Management
+
+* Request creation of new class
+* Admin approval required
+* Specify:
+
+  * Course number
+  * Section
+  * Academic year
+  * Assigned teacher (auto-filled)
+* Archive classes
+
+---
+
+## Student Enrollment
+
+Add students by:
+
+* Individual email
+* TXT import
+* Excel import
+* Invitation link
+* QR code
+
+---
+
+## Laboratory Groups
+
+* Create groups
+* Assign students
+* Edit groups
+* Remove students
+
+---
+
+## Course Syllabus
+
+Required before publishing course.
+
+Supports PDF upload.
+
+---
+
+## Class Record
+
+* Automatic grade computation
+* Passing percentage
+* Manual total items adjustment
+* Manual score editing
+* Export:
+
+  * Excel
+  * CSV
+  * PDF
+
+---
+
+# 4. Learning Materials Module
+
+## Content Organization
+
+* Course homepage
+* Weekly modules
+* Topic modules
+* Unit folders
+* Learning paths
+* Sequential release
+* Prerequisite modules
+* Draft/Published
+* Archive
+* Version history
+
+---
+
+## Supported Materials
+
+Documents
+
+* PDF
+
+Download Links
+
+* Teacher-provided download buttons
+
+External Links
+
+* YouTube
+* Google Drive
+* OneDrive
+* Websites
+* Journal articles
+
+---
+
+## Content Access
+
+* Scheduled release
+* Hidden until date
+* Lock after due date
+* Prerequisite completion
+* Grade requirement
+* Group restriction
+* Section restriction
+* Individual restriction
+* Password protection
+* IP restriction
+
+---
+
+## Student Progress
+
+* Completed
+* Not Started
+* In Progress
+* Last Accessed
+* Time Spent
+* Completion Percentage
+* Learning Streak
+
+---
+
+## Analytics
+
+Teacher can view
+
+* Students who opened/downloaded material
+
+Future (greyed out)
+
+* Views
+* Reading time
+* Completion rate
+* Most viewed resources
+* Least viewed resources
+
+---
+
+## Search
+
+Within enrolled classes only.
+
+* Full-text
+* Topic
+* Tag
+* Instructor
+* File type
+
+---
+
+# 5. Assessment & Examination Module
+
+## Supported Assessment Types
+
+### Objective
+
+* Multiple Choice
+* Multiple Response
+* True/False
+* Yes/No
+* Matching
+* Ordering
+* Fill in the Blank
+* Dropdown
+* Hotspot
+* Image Labeling
+* Numerical
+* Formula
+* Drag-and-Drop
+
+### Subjective
+
+* Essay
+* Short Answer
+* Long Answer
+* Reflection
+* Case Study
+* File Upload
+
+---
+
+## Examination Import
+
+Teacher uploads a formatted DOCX template containing:
+
+* Exam title
+* Instructions
+* Question type
+* Questions
+* Answer key
+* Points
+* Time per question or per section
+* Scheduling information
+* Randomization settings
+
+The LMS automatically parses and generates the online examination.
+
+---
+
+## Question Bank
+
+* Categories
+* Topics
+* Difficulty
+* Bloom's Level
+* Tags
+* Outcomes Mapping
+* Import/Export
+* Shared Banks
+* Personal Banks
+
+---
+
+## Randomization
+
+* Questions
+* Answers
+* Sections
+* Question Pools
+
+---
+
+## Scheduling
+
+* Open Date
+* Close Date
+* Time Limit
+* Grace Period
+* Timer
+* Auto Submit
+
+---
+
+## Attempts
+
+* Single
+* Multiple
+* Highest Score
+* Average Score
+* Last Attempt
+* Unlimited
+
+---
+
+## Availability
+
+* Password
+* Access Code
+* IP Restriction
+* Browser Restriction
+* Device Restriction
+* Group Restriction
+
+---
+
+## Navigation
+
+* Sequential
+* Free Navigation
+* One Question per Page
+* All Questions
+* Review Before Submit
+* No Backtracking
+
+---
+
+## Question Features
+
+Supports
+
+* Images
+* Audio
+* Video
+* Tables
+* Equations
+* Chemical Structures
+
+---
+
+## Chemistry Support
+
+* Chemical Equations
+* Molecule Editor
+* Lewis Structures
+* Reaction Schemes
+* Periodic Table Popup
+
+---
+
+## Essay Grading
+
+Teacher can
+
+* Manual Scoring
+* Rubrics
+* Inline Comments
+
+---
+
+## Automatic Grading
+
+Supports
+
+* Objective Questions
+* Formula Evaluation
+* Numerical Tolerance
+* Regex Matching
+* Keyword Matching
+* Partial Credit
+
+---
+
+## Rubrics
+
+* Analytic
+* Holistic
+* Custom
+* Weighted
+* Reusable
+
+---
+
+## Feedback
+
+Release options
+
+* Immediately
+* After Submission
+* After Due Date
+* After All Students Finish
+* Never
+
+Includes
+
+* Correct Answers
+* Explanations
+* References
+* Teacher Comments
+* Solution Videos
+
+---
+
+# 6. Academic Integrity
+
+* Shuffle questions
+* Shuffle answers
+* Question pools
+* Fullscreen mode
+* Browser restriction
+* Tab switching detection
+* Visibility change detection
+* Copy/Paste blocking
+* Print blocking
+* Right-click blocking
+* Auto-submit or warning after repeated violations
+* Teacher receives violation log
+
+> Note: Browser-based lockdown measures improve exam security but cannot completely prevent cheating without dedicated lockdown software.
+
+---
+
+# 7. Results & Analytics
+
+## Students
+
+* Overall Score
+* Section Scores
+* Correct Answers
+* Incorrect Answers
+* Feedback
+* Rubrics
+* Teacher Comments
+* Attempt History
+
+---
+
+## Teachers
+
+Class statistics
+
+* Mean
+* Median
+* Standard Deviation
+* Score Distribution
+* Pass Rate
+* Competency Attainment
+
+Export
+
+* CSV
+* Excel
+* PDF
+
+---
+
+# 8. Integration Between Learning Materials & Assessments
+
+* Unlock quizzes after required materials are completed
+* Learning outcomes (CLO) mapping
+* Adaptive content release based on quiz performance
+* Embedded formative questions within learning modules
+* Recommend review materials after incorrect answers
+* Unified instructor dashboard combining learning material engagement and assessment performance
+
+---
+
+# 10. Chemistry Stockroom Clearance & Requisition (Fully Implemented)
+
+## Laboratory Account Role & Dashboard
+* Stockroom Dashboard for managing clearance requirements and user accountabilities.
+* Excel accountability sheet upload and client-side parsing (via SheetJS).
+* Intelligent student identity matching (linking roster names with active emails, holding unlinked students).
+* Search and filter interface for student/teacher accountabilities by semester.
+* Configurable "Semester End Date" with automated two-week reminders.
+
+## Laboratory Requisition Form (Student Portal)
+* "Lab Requisition" tab enabled for students enrolled in laboratory classes.
+* Pre-populated group members' family names based on assigned classroom groupings.
+* Advanced datepicker validation requiring submissions >= 3 days in advance of conduct.
+* Double-column interface: (a) Chemicals/Reagents, (b) Materials/Glasswares.
+* Dedicated "Unknown Samples & Codes" field.
+* Attempt history list with single-click edit & resubmit for returned requisitions.
+
+## Requisition Review Inbox (Stockroom Portal)
+* Review inbox filtering requests by status (Pending, Approved, Returned).
+* Complete itemized double-column preview and unknowns text viewer.
+* Actions to Approve (with optional remarks) or Return for Revision (requires remarks).
+
+## Subject Requests & Classroom Grouping Warnings
+* "Subject Type" selection (Lecture vs. Laboratory) during teacher class requests.
+* Auto-checking for unassigned student groups in laboratory classes with dismissible teacher warnings.
+
+## Targeted Alerts
+* Warning cards on Student Home Dashboard for outstanding accountabilities.
+* Warning cards on Teacher Home Dashboard listing students with pending requirements.
+
+---
+
+# 11. Future Features (Implemented but Disabled/Greyed Out)
+
+## Learning Materials
+
+* Disable downloads
+* Watermarked downloads
+* Offline packages
+* Print restrictions
+* Student annotations
+* Personal notebooks
+* Reading analytics
+
+## Assessments
+
+* Adaptive testing
+* Certification and badges
+* Advanced accessibility features
+* AI-assisted grading
+* Audio/video feedback
+* Webcam and AI-based proctoring
+* Detailed per-student and per-question analytics
+
+This organization is much closer to a professional SRS and should translate well into implementation, prompt engineering, or AI-assisted code generation.

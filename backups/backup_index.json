@@ -1,0 +1,121 @@
+[
+  {
+    "version": "v2026.06.29_112223",
+    "date": "2026-06-29 11:22:23",
+    "changelog": "Fixed bootstrapper duplicate firebase init and DOMContentLoaded race conditions",
+    "status": "Live",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v2026.06.29_111448",
+    "date": "2026-06-29 11:14:48",
+    "changelog": "Completed Version Control State Machine",
+    "status": "Working",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v8_2026-06-28_20-22-16_Implemented-login-overlay-domain-notice-floating-onboarding-modal-redirects-pre-filled-readonly-nameemail-fields-and-PCO-subrole-options-including-PCO-PPD",
+    "date": "2026-06-28 20:22:16",
+    "changelog": "Implemented login overlay domain notice, floating onboarding modal redirects, pre-filled readonly name/email fields, and PCO subrole options (including PCO PPD)",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v7_2026-06-28_19-00-36_Removed-all-hardcoded-external-Gmail-addresses-for-domain-security-enforcement",
+    "date": "2026-06-28 19:00:36",
+    "changelog": "Removed all hardcoded external Gmail addresses for domain security enforcement",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v6_2026-06-28_18-17-10_Added-Faculty-Announcements-publishing-and-approval-flow",
+    "date": "2026-06-28 18:17:10",
+    "changelog": "Added Faculty Announcements publishing and approval flow",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v5_2026-06-28_13-38-29_Refactored-Landing-Page-Routing-and-Chairperson-Switchers",
+    "date": "2026-06-28 13:38:29",
+    "changelog": "Refactored Landing Page Routing and Chairperson Switchers",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v4_2026-06-28_12-56-20_Added-Changelog-Column-to-System-Backups",
+    "date": "2026-06-28 12:56:20",
+    "changelog": "Added Changelog Column to System Backups",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v3_2026-06-28_07-38-14",
+    "date": "2026-06-28 07:38:14",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v2_2026-06-28_07-22-58",
+    "date": "2026-06-28 07:22:58",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  },
+  {
+    "version": "v1_2026-06-28_07-18-40",
+    "date": "2026-06-28 07:18:40",
+    "files": [
+      "index.html",
+      "app.js",
+      "lims.js",
+      "index.css",
+      "data/manifest.json"
+    ]
+  }
+]

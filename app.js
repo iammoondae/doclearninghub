@@ -30,6 +30,30 @@ firestore.enablePersistence()
     }
   });
 
+// Dynamically load lims.js with cache-busting to bypass stale browser caches
+if (!document.querySelector('script[src*="lims.js"]')) {
+  console.log("Dynamically injecting lims.js script tag with cache-buster...");
+  const script = document.createElement('script');
+  script.src = (window.versionPathPrefix || '') + 'lims.js?v=' + Date.now();
+  document.head.appendChild(script);
+}
+
+// Dynamically load pco.js with cache-busting
+if (!document.querySelector('script[src*="pco.js"]')) {
+  console.log("Dynamically injecting pco.js script tag with cache-buster...");
+  const script = document.createElement('script');
+  script.src = (window.versionPathPrefix || '') + 'pco.js?v=' + Date.now();
+  document.head.appendChild(script);
+}
+
+// Dynamically load chairperson.js with cache-busting
+if (!document.querySelector('script[src*="chairperson.js"]')) {
+  console.log("Dynamically injecting chairperson.js script tag with cache-buster...");
+  const script = document.createElement('script');
+  script.src = (window.versionPathPrefix || '') + 'chairperson.js?v=' + Date.now();
+  document.head.appendChild(script);
+}
+
 // ==========================================================================
 // GLOBAL STATE & CONSTANTS
 // ==========================================================================
@@ -242,13 +266,7 @@ const GLOBAL_SAMPLE_CLASS = {
   facultyName: "Prof. Ramon M. Eduque, Jr.",
   facultyEmail: atob("cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg="),
   status: "approved",
-  students: [
-    "test.student@msugensan.edu.ph",
-    "student1@msugensan.edu.ph",
-    "student2@msugensan.edu.ph",
-    "student3@msugensan.edu.ph",
-    "student4@msugensan.edu.ph"
-  ],
+  students: [],
   announcements: [
     {
       id: "ann_sample_1",
@@ -324,7 +342,7 @@ function saveSemesterDateConfig() {
   const startVal = startInput.value;
   const endVal = endInput.value;
   if (!startVal || !endVal) {
-    alert("Please select both start and end dates.");
+    showCustomAlert("Please select both start and end dates.", 'warning');
     return;
   }
   
@@ -337,11 +355,12 @@ function saveSemesterDateConfig() {
   .then(() => {
     semesterStartDate = startVal;
     semesterEndDate = endVal;
-    alert("Semester date configuration successfully saved!");
+    logAdminActivity('semester_config', { startDate: startVal, endDate: endVal });
+    showCustomAlert("Semester date configuration successfully saved!", 'success');
   })
   .catch(err => {
     console.error("Error saving semester date config:", err);
-    alert("Failed to save date config: " + err.message);
+    showCustomAlert("Failed to save date config: " + err.message, 'error');
   });
 }
 window.saveSemesterDateConfig = saveSemesterDateConfig;
@@ -413,7 +432,7 @@ function syncSectionDropdown(subjectSelectId, sectionSelectId) {
 // ==========================================================================
 // INITIALIZATION & ONBOARDING
 // ==========================================================================
-document.addEventListener('DOMContentLoaded', () => {
+function initializeApp() {
   // 1. Initialize IndexedDB for Background Music
   initMusicDB(() => {
     loadPlaylistFromDB(() => {
@@ -443,7 +462,13 @@ document.addEventListener('DOMContentLoaded', () => {
       syncSectionDropdown('settings-subject-select', 'settings-section-select');
     });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
+}
 
 function loadPreferences() {
   // Theme
@@ -473,17 +498,10 @@ function determineUserRole(email) {
   if (!email) return 'student';
   const lowerEmail = email.toLowerCase().trim();
   const encoded = btoa(lowerEmail);
-  // Faculty: ramon.eduque@msugensan.edu.ph
-  if (encoded === 'cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=' || lowerEmail === 'faculty@msugensan.edu.ph' || lowerEmail === 'faculty@msugensan.edu.ph') {
-    return 'faculty';
-  // Admin: mon.eduque@gmail.com (primary) + legacy admin emails
-  } else if (encoded === 'bW9uLmVkdXF1ZUBnbWFpbC5jb20=' || encoded === 'bW9vbmR1a2Uuc2FuZHNAZ21haWwuY29t' || lowerEmail === 'admin@msugensan.edu.ph') {
+  // Admin: ramon.eduque@msugensan.edu.ph (Department Chairperson & System Admin)
+  if (encoded === 'cmFtb24uZWR1cXVlQG1zdWdlbnNhbi5lZHUucGg=') {
     return 'admin';
-  // Laboratory stockroom account default debug emails
-  } else if (lowerEmail === 'laboratory@msugensan.edu.ph' || lowerEmail === 'lab@msugensan.edu.ph' || lowerEmail === 'dumpscr1521@gmail.com') {
-    return 'laboratory';
   }
-  // Everyone else (including pco@msugensan.edu.ph) defaults to student
   return 'student';
 }
 
@@ -501,37 +519,106 @@ function loadStudentClassData() {
     .get()
     .then(querySnapshot => {
       activeStudentClassData = {};
-      let hasSample = false;
       querySnapshot.forEach(doc => {
         const classData = doc.data();
         activeStudentClassData[classData.courseId] = classData;
-        if (doc.id === 'sample_class_49c') {
-          hasSample = true;
-        }
       });
-      
-      const lowerEmail = currentUser.email.toLowerCase().trim();
-      const isMockStudent = lowerEmail === 'test.student@msugensan.edu.ph' || 
-                            lowerEmail === 'pco@msugensan.edu.ph' ||
-                            lowerEmail.startsWith('student');
-                            
-      if (!hasSample && isMockStudent) {
-        activeStudentClassData[GLOBAL_SAMPLE_CLASS.courseId] = GLOBAL_SAMPLE_CLASS;
-      }
       console.log("Loaded student classroom schedules:", activeStudentClassData);
     })
     .catch(err => {
       console.error("Error loading student class data:", err);
-      // Offline fallback: seed sample class for mock students
-      const lowerEmail = currentUser.email.toLowerCase().trim();
-      const isMockStudent = lowerEmail === 'test.student@msugensan.edu.ph' || 
-                            lowerEmail === 'pco@msugensan.edu.ph' ||
-                            lowerEmail.startsWith('student');
-      if (isMockStudent) {
-        console.log("Offline fallback: adding sample class locally.");
-        activeStudentClassData[GLOBAL_SAMPLE_CLASS.courseId] = GLOBAL_SAMPLE_CLASS;
+    });
+}
+
+function sanitizeUserRoles(user) {
+  if (!user) return;
+  if (user.role === 'teacher') {
+    user.role = 'faculty';
+  }
+  if (user.roles) {
+    user.roles = user.roles.map(r => r === 'teacher' ? 'faculty' : r);
+  } else {
+    user.roles = [user.role || 'student'];
+  }
+
+  const email = (user.email || '').toLowerCase().trim();
+
+  // Cleanup legacy 'pco' role for non-admin accounts
+  const isAdmin = user.role === 'admin' || user.roles.includes('admin');
+  if (!isAdmin && user.roles.includes('pco')) {
+    const hasSpecificPcoRole = user.roles.some(r => ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r));
+    if (hasSpecificPcoRole) {
+      user.roles = user.roles.filter(r => r !== 'pco');
+      if (user.role === 'pco') {
+        const firstSpecific = user.roles.find(r => ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r));
+        user.role = firstSpecific || 'student';
+      }
+    } else {
+      user.roles = user.roles.map(r => r === 'pco' ? 'pco_head' : r);
+      if (user.role === 'pco') {
+        user.role = 'pco_head';
+      }
+    }
+  }
+
+  // Administrators get access to all roles for rapid quality checking
+  if (user.role === 'admin' || user.roles.includes('admin')) {
+    user.roles = ['admin', 'faculty', 'laboratory', 'pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary', 'student', 'chairperson'];
+  }
+
+  user.roles = [...new Set(user.roles)].filter(Boolean);
+}
+
+// Background database migration helper
+function migrateLegacyRoles() {
+  if (typeof firestore === 'undefined' || !firestore) return;
+  console.log("Admin session: checking database for legacy 'teacher' and 'pco' roles...");
+  firestore.collection('students').get().then(snapshot => {
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      let needsUpdate = false;
+      let updatedRole = data.role;
+      let updatedRoles = data.roles || [data.role || 'student'];
+      
+      if (data.role === 'teacher') {
+        updatedRole = 'faculty';
+        needsUpdate = true;
+      }
+      if (updatedRoles.includes('teacher')) {
+        updatedRoles = updatedRoles.map(r => r === 'teacher' ? 'faculty' : r);
+        needsUpdate = true;
+      }
+
+      // Migrate legacy 'pco' role to 'pco_head' for non-admin accounts
+      const isAdmin = data.role === 'admin' || updatedRoles.includes('admin');
+      if (!isAdmin && updatedRoles.includes('pco')) {
+        const hasSpecificPcoRole = updatedRoles.some(r => ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r));
+        if (hasSpecificPcoRole) {
+          updatedRoles = updatedRoles.filter(r => r !== 'pco');
+          if (updatedRole === 'pco') {
+            const firstSpecific = updatedRoles.find(r => ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r));
+            updatedRole = firstSpecific || 'student';
+          }
+        } else {
+          updatedRoles = updatedRoles.map(r => r === 'pco' ? 'pco_head' : r);
+          if (updatedRole === 'pco') {
+            updatedRole = 'pco_head';
+          }
+        }
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        const updateData = { 
+          role: updatedRole,
+          roles: [...new Set(updatedRoles)].filter(Boolean)
+        };
+        firestore.collection('students').doc(doc.id).update(updateData)
+          .then(() => console.log(`Successfully migrated legacy roles for ${doc.id}`))
+          .catch(err => console.error(`Failed migration for ${doc.id}:`, err));
       }
     });
+  }).catch(err => console.error("Error migrating legacy roles:", err));
 }
 
 function loadUserSession() {
@@ -540,32 +627,36 @@ function loadUserSession() {
 
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
+    sanitizeUserRoles(currentUser);
     currentUserRole = currentUser.role || determineUserRole(currentUser.email);
     if (!currentUser.roles) {
       currentUser.roles = [currentUserRole];
     }
     updateProfileUI();
     
-    // If student has incomplete onboarding details, show Stage 2 onboarding
-    if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
-      if (onboardingOverlay) {
-        onboardingOverlay.style.display = 'flex';
-        onboardingOverlay.classList.add('show');
-        showOnboardingStage(2);
-      }
+    // Hide onboarding overlay by default
+    if (onboardingOverlay) {
+      onboardingOverlay.style.display = 'none';
+      onboardingOverlay.classList.remove('show');
+    }
+
+    if (currentUserRole === 'admin') {
+      // Admin skips landing page and goes straight to Admin Console
+      setMode('admin-dashboard');
     } else {
-      if (onboardingOverlay) {
-        onboardingOverlay.style.display = 'none';
-        onboardingOverlay.classList.remove('show');
-      }
+      // All other accounts go to Portal Home first
+      setMode('welcome');
     }
   } else {
-    // Show Onboarding Login Overlay
+    // Unregistered or not logged in: go to Portal Home first
+    currentUser = null;
+    currentUserRole = 'unassigned';
+    updateProfileUI();
     if (onboardingOverlay) {
-      onboardingOverlay.style.display = 'flex';
-      setTimeout(() => onboardingOverlay.classList.add('show'), 50);
-      showOnboardingStage(1);
+      onboardingOverlay.style.display = 'none';
+      onboardingOverlay.classList.remove('show');
     }
+    setMode('welcome');
   }
 }
 
@@ -577,23 +668,46 @@ function showOnboardingStage(stageNum) {
   }
 }
 
+// Session Unload Handler to save logged hours
+window.addEventListener('beforeunload', () => {
+  if (currentUser && currentUser.email && window.sessionStartTime) {
+    const elapsedHours = (Date.now() - window.sessionStartTime) / 3600000;
+    if (elapsedHours > 0.001) {
+      firestore.collection("students").doc(currentUser.email).update({
+        totalLoggedHours: firebase.firestore.FieldValue.increment(elapsedHours)
+      }).catch(() => {});
+    }
+  }
+});
+
 // Firebase Auth State Listener
 auth.onAuthStateChanged((user) => {
   if (user) {
     console.log("Firebase user logged in:", user.email);
     
-    // Enforce email domain (allow approved admin/laboratory Gmail accounts)
-    const approvedGmails = ['mon.eduque@gmail.com', 'moonduke.sands@gmail.com', 'dumpscr1521@gmail.com'];
-    if (!user.email.endsWith('@msugensan.edu.ph') && !approvedGmails.includes(user.email.toLowerCase())) {
-      alert("Access Denied: Only @msugensan.edu.ph accounts are allowed.");
-      auth.signOut();
+    // Enforce email domain
+    if (!user.email.endsWith('@msugensan.edu.ph')) {
+      showCustomAlert("Access Denied: Only @msugensan.edu.ph accounts are allowed.", "error", () => {
+        auth.signOut();
+      });
       return;
     }
+    
+    // Start session timer
+    window.sessionStartTime = Date.now();
     
     // Load student profile from Firestore
     loadOrCreateUserProfile(user);
   } else {
     console.log("Firebase user logged out.");
+    if (currentUser && currentUser.email && window.sessionStartTime) {
+      const elapsedHours = (Date.now() - window.sessionStartTime) / 3600000;
+      if (elapsedHours > 0.001) {
+        firestore.collection("students").doc(currentUser.email).update({
+          totalLoggedHours: firebase.firestore.FieldValue.increment(elapsedHours)
+        }).catch(() => {});
+      }
+    }
     stopSessionTracker();
     currentUser = null;
     localStorage.removeItem('student_user_session');
@@ -604,13 +718,13 @@ auth.onAuthStateChanged((user) => {
     const profilePic = document.getElementById('user-profile-pic');
     if (profilePic) profilePic.src = 'chemistry_logo.png';
     
-    // Show login onboarding
+    // Ensure onboarding overlay is hidden by default to show landing page
     const onboardingOverlay = document.getElementById('onboarding-overlay');
     if (onboardingOverlay) {
-      onboardingOverlay.style.display = 'flex';
-      onboardingOverlay.classList.add('show');
-      showOnboardingStage(1);
+      onboardingOverlay.style.display = 'none';
+      onboardingOverlay.classList.remove('show');
     }
+    setMode('welcome');
   }
 });
 
@@ -629,13 +743,29 @@ function loadOrCreateUserProfile(firebaseUser) {
   // Try loading from Firestore first
   firestore.collection("students").doc(email).get()
     .then((doc) => {
+      const isPcoRoleName = (r) => ['pco', 'pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r);
+      
       if (doc.exists) {
         // Profile exists in Firestore!
         currentUser = doc.data();
+        sanitizeUserRoles(currentUser);
         currentUserRole = currentUser.role || determineUserRole(currentUser.email);
-        if (!currentUser.roles) {
-          currentUser.roles = [currentUserRole];
+        
+        if (isPcoRoleName(currentUserRole)) {
+          currentUserRole = 'pco';
         }
+        
+        if (!currentUser.roles) {
+          currentUser.roles = [currentUser.role || currentUserRole];
+        }
+        if (currentUserRole === 'admin') {
+          migrateLegacyRoles();
+        }
+
+        // Update login metadata
+        firestore.collection("students").doc(email).update({
+          lastLoginDate: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(() => {});
         
         // Save locally for quick access
         localStorage.setItem('student_user_session', JSON.stringify(currentUser));
@@ -644,30 +774,22 @@ function loadOrCreateUserProfile(firebaseUser) {
         // Sync UI
         updateProfileUI();
         
-        // If student, check if onboarding is complete
-        if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
-          showOnboardingStage(2);
-          
-          const nicknameInput = document.getElementById('onboarding-nickname');
-          if (nicknameInput) nicknameInput.value = currentUser.name || firebaseUser.displayName || '';
-          
-          const studentIdInput = document.getElementById('onboarding-studentid');
-          if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
-          
-          const yearSelect = document.getElementById('onboarding-year');
-          if (yearSelect) yearSelect.value = currentUser.year || '1';
-          
-          renderOnboardingSelectedClasses();
+        // Hide onboarding overlay
+        const overlay = document.getElementById('onboarding-overlay');
+        if (overlay) {
+          overlay.classList.remove('show');
+          setTimeout(() => overlay.style.display = 'none', 300);
+        }
+
+        if (currentUserRole === 'admin') {
+          setMode('admin-dashboard');
         } else {
-          // Hide onboarding
-          const overlay = document.getElementById('onboarding-overlay');
-          if (overlay) {
-            overlay.classList.remove('show');
-            setTimeout(() => overlay.style.display = 'none', 300);
+          setMode('welcome');
+          if (window.pendingWorkspaceRedirect) {
+            const redirect = window.pendingWorkspaceRedirect;
+            window.pendingWorkspaceRedirect = null;
+            handleWelcomeModuleClick(redirect);
           }
-          
-          buildUIFromManifest();
-          setMode('home');
         }
       } else {
         // Profile doesn't exist in Firestore yet!
@@ -684,47 +806,41 @@ function loadOrCreateUserProfile(firebaseUser) {
         }
         
         if (localProfile) {
-          // If we have a local profile, save it to Firestore to sync
           currentUser = localProfile;
+          sanitizeUserRoles(currentUser);
           currentUserRole = currentUser.role || determineUserRole(currentUser.email);
+          
+          if (isPcoRoleName(currentUserRole)) {
+            currentUserRole = 'pco';
+          }
           if (!currentUser.roles) {
-            currentUser.roles = [currentUserRole];
+            currentUser.roles = [currentUser.role || currentUserRole];
           }
           
-          // Check if student needs onboarding
-          if (currentUserRole === 'student' && (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0)) {
-            saveStudentSession();
-            updateProfileUI();
-            showOnboardingStage(2);
-            
-            const nicknameInput = document.getElementById('onboarding-nickname');
-            if (nicknameInput) nicknameInput.value = currentUser.name || firebaseUser.displayName || '';
-            
-            const studentIdInput = document.getElementById('onboarding-studentid');
-            if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
-            
-            const yearSelect = document.getElementById('onboarding-year');
-            if (yearSelect) yearSelect.value = currentUser.year || '1';
-            
-            renderOnboardingSelectedClasses();
+          saveStudentSession();
+          updateProfileUI();
+          const overlay = document.getElementById('onboarding-overlay');
+          if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.style.display = 'none', 300);
+          }
+
+          if (currentUserRole === 'admin') {
+            setMode('admin-dashboard');
           } else {
-            saveStudentSession(); // Writes to localStorage + Firestore
-            updateProfileUI();
-            
-            const overlay = document.getElementById('onboarding-overlay');
-            if (overlay) {
-              overlay.classList.remove('show');
-              setTimeout(() => overlay.style.display = 'none', 300);
+            setMode('welcome');
+            if (window.pendingWorkspaceRedirect) {
+              const redirect = window.pendingWorkspaceRedirect;
+              window.pendingWorkspaceRedirect = null;
+              handleWelcomeModuleClick(redirect);
             }
-            buildUIFromManifest();
-            setMode('home');
           }
         } else {
           // Determine role before deciding on onboarding
           currentUserRole = determineUserRole(email);
+          const isFreshPco = isPcoRoleName(currentUserRole);
           
-          if (currentUserRole === 'admin' || currentUserRole === 'faculty' || currentUserRole === 'laboratory') {
-            // Admin/Faculty: auto-create profile and skip onboarding
+          if (currentUserRole === 'admin' || currentUserRole === 'faculty' || currentUserRole === 'laboratory' || isFreshPco) {
             currentUser = {
               name: firebaseUser.displayName || email.split('@')[0],
               email: email,
@@ -735,42 +851,52 @@ function loadOrCreateUserProfile(firebaseUser) {
               roles: [currentUserRole],
               avatar: firebaseUser.photoURL || 'chemistry_logo.png'
             };
-            
-            saveStudentSession();
-            updateProfileUI();
-            
-            const overlay = document.getElementById('onboarding-overlay');
-            if (overlay) {
-              overlay.classList.remove('show');
-              setTimeout(() => overlay.style.display = 'none', 300);
+            if (isFreshPco) {
+              currentUserRole = 'pco';
             }
-            
-            buildUIFromManifest();
-            setMode('home');
+          } else if (currentUserRole === 'unassigned') {
+            currentUser = {
+              name: firebaseUser.displayName || email.split('@')[0],
+              email: email,
+              studentId: '',
+              subjects: [],
+              year: '',
+              role: 'unassigned',
+              roles: ['unassigned'],
+              avatar: firebaseUser.photoURL || 'chemistry_logo.png'
+            };
           } else {
-            // Student: show onboarding Stage 2 for enrollment
+            // Student
             currentUser = {
               name: firebaseUser.displayName || '',
               email: email,
               studentId: '',
               subjects: [],
               year: '1',
+              role: 'student',
               roles: ['student'],
               avatar: firebaseUser.photoURL || 'chemistry_logo.png'
             };
+          }
+
+          saveStudentSession();
+          updateProfileUI();
           
-            showOnboardingStage(2);
-          
-            const nicknameInput = document.getElementById('onboarding-nickname');
-            if (nicknameInput) nicknameInput.value = currentUser.name;
-          
-            const studentIdInput = document.getElementById('onboarding-studentid');
-            if (studentIdInput) studentIdInput.value = '';
-          
-            const yearSelect = document.getElementById('onboarding-year');
-            if (yearSelect) yearSelect.value = '1';
-          
-            renderOnboardingSelectedClasses();
+          const overlay = document.getElementById('onboarding-overlay');
+          if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.style.display = 'none', 300);
+          }
+
+          if (currentUserRole === 'admin') {
+            setMode('admin-dashboard');
+          } else {
+            setMode('welcome');
+            if (window.pendingWorkspaceRedirect) {
+              const redirect = window.pendingWorkspaceRedirect;
+              window.pendingWorkspaceRedirect = null;
+              handleWelcomeModuleClick(redirect);
+            }
           }
         }
       }
@@ -923,11 +1049,74 @@ function submitOnboardingProfile() {
 }
 
 function updateProfileUI() {
-  if (!currentUser) return;
+  if (!currentUser) {
+    document.getElementById('user-display-name').innerText = "Guest Portal";
+    document.getElementById('user-display-email').innerText = "Please connect account";
+    
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) settingsBtn.style.display = 'none';
+    const switcher = document.getElementById('role-switcher-container');
+    if (switcher) switcher.innerHTML = '';
+    
+    const themeBtn = document.getElementById('theme-btn');
+    if (themeBtn) themeBtn.style.display = '';
+    
+    const signOutBtn = document.getElementById('header-signout-btn');
+    if (signOutBtn) {
+      signOutBtn.innerHTML = `🔑 <span>Sign In</span>`;
+      signOutBtn.style.background = 'var(--accent)';
+      signOutBtn.style.color = 'white';
+      signOutBtn.style.borderColor = 'var(--accent)';
+      signOutBtn.onclick = () => {
+        const onboardingOverlay = document.getElementById('onboarding-overlay');
+        if (onboardingOverlay) {
+          onboardingOverlay.style.display = 'flex';
+          setTimeout(() => onboardingOverlay.classList.add('show'), 50);
+          showOnboardingStage(1);
+        }
+      };
+    }
+    
+    document.getElementById('header-icon').innerText = '🏛️';
+    document.getElementById('header-title').innerText = 'Chemistry Portal';
+    document.getElementById('header-subtitle').innerText = 'Please sign in to access';
+    document.body.classList.remove('pco-active-role');
+    return;
+  }
+
+  // Restore signout button style
+  const signOutBtn = document.getElementById('header-signout-btn');
+  if (signOutBtn) {
+    if (currentUserRole === 'unassigned') {
+      signOutBtn.innerHTML = `🔑 <span>Sign In</span>`;
+      signOutBtn.style.background = 'var(--accent)';
+      signOutBtn.style.color = 'white';
+      signOutBtn.style.borderColor = 'var(--accent)';
+      signOutBtn.onclick = () => {
+        const onboardingOverlay = document.getElementById('onboarding-overlay');
+        if (onboardingOverlay) {
+          onboardingOverlay.style.display = 'flex';
+          setTimeout(() => onboardingOverlay.classList.add('show'), 50);
+          showOnboardingStage(1);
+        }
+      };
+    } else {
+      signOutBtn.innerHTML = `🚪 <span>Sign Out</span>`;
+      signOutBtn.style.background = '';
+      signOutBtn.style.color = '';
+      signOutBtn.style.borderColor = '';
+      signOutBtn.onclick = signOutStudent;
+    }
+  }
+  
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.style.display = (currentUserRole === 'unassigned') ? 'none' : 'inline-flex';
+  }
 
   // Header display name & email
-  document.getElementById('user-display-name').innerText = currentUser.name;
-  document.getElementById('user-display-email').innerText = currentUser.email;
+  document.getElementById('user-display-name').innerText = (currentUserRole === 'unassigned') ? 'Guest Student' : currentUser.name;
+  document.getElementById('user-display-email').innerText = (currentUserRole === 'unassigned') ? 'Not Signed In' : currentUser.email;
 
   // Profile pic in header
   const profilePic = document.getElementById('user-profile-pic');
@@ -972,11 +1161,56 @@ function updateProfileUI() {
   // Render settings chips
   renderSettingsSelectedClasses();
   
+  // Toggle active role branding header updates
+  if (currentUserRole === 'admin') {
+    document.getElementById('header-icon').innerText = '🛠️';
+    document.getElementById('header-title').innerText = 'Admin Console';
+    document.getElementById('header-subtitle').innerText = 'System administration & approvals';
+    document.body.classList.remove('pco-active-role');
+  } else if (currentUserRole === 'pco') {
+    document.getElementById('header-icon').innerText = '🌿';
+    document.getElementById('header-title').innerText = 'PCO/EIS';
+    document.getElementById('header-subtitle').innerText = 'EMIS monitoring & SMR compiler';
+    document.body.classList.add('pco-active-role');
+  } else if (currentUserRole === 'laboratory') {
+    document.getElementById('header-icon').innerText = '🧪';
+    document.getElementById('header-title').innerText = 'Chemistry Stockroom';
+    document.getElementById('header-subtitle').innerText = 'LIMS Inventory & Requisitions';
+    document.body.classList.remove('pco-active-role');
+  } else if (currentUserRole === 'faculty') {
+    document.getElementById('header-icon').innerText = '👨‍🏫';
+    document.getElementById('header-title').innerText = 'Faculty Portal';
+    document.getElementById('header-subtitle').innerText = 'Classroom management & gradebooks';
+    document.body.classList.remove('pco-active-role');
+  } else if (currentUserRole === 'unassigned') {
+    document.getElementById('header-icon').innerText = '🏛️';
+    document.getElementById('header-title').innerText = 'Chemistry Portal';
+    document.getElementById('header-subtitle').innerText = 'Please sign in to access';
+    document.body.classList.remove('pco-active-role');
+  } else {
+    document.getElementById('header-icon').innerText = '🧪';
+    document.getElementById('header-title').innerText = 'Department of Chemistry';
+    document.getElementById('header-subtitle').innerText = 'Student Portal';
+    document.body.classList.remove('pco-active-role');
+  }
   // Render alternate role switcher buttons
   renderRoleSwitcher();
   
+  // Sync system phase and access shield
+  if (typeof syncSystemPhase === 'function') {
+    syncSystemPhase();
+  }
+  // Keep theme switcher button visible
+  const themeBtn = document.getElementById('theme-btn');
+  if (themeBtn) {
+    themeBtn.style.display = '';
+  }
+  
   // Start tracking user session activity
   startSessionTracker();
+  
+  // Render dynamic sidebar navigation tabs
+  renderSidebarNavigation();
 }
 
 // User Session Activity & Heartbeat Tracking
@@ -1050,7 +1284,6 @@ function renderRoleSwitcher() {
     return;
   }
 
-  // Get all assigned roles
   let roles = currentUser.roles || [];
   const primaryRole = currentUser.role || determineUserRole(currentUser.email);
   if (primaryRole && !roles.includes(primaryRole)) {
@@ -1058,21 +1291,86 @@ function renderRoleSwitcher() {
   }
   roles = [...new Set(roles)].filter(Boolean);
 
-  if (roles.length >= 2) {
+  if (roles.includes('admin')) {
+    container.innerHTML = `
+      <button onclick="switchActiveRole('unassigned')" 
+              class="role-switch-btn student ${currentUserRole === 'unassigned' ? 'active' : ''}" 
+              title="Simulate Guest/Unregistered Onboarding"
+              style="border-color: #6b7280; color: #9ca3af; background: transparent;">
+        👤 Unregistered
+      </button>
+      <button onclick="switchActiveRole('student')" 
+              class="role-switch-btn student ${currentUserRole === 'student' ? 'active' : ''}" 
+              title="Switch profile to Student Portal">
+        🎓 Student
+      </button>
+      <button onclick="switchActiveRole('faculty')" 
+              class="role-switch-btn faculty ${currentUserRole === 'faculty' ? 'active' : ''}" 
+              title="Switch profile to Faculty Portal">
+        👨‍🏫 Faculty
+      </button>
+      <button onclick="switchActiveRole('chairperson')" 
+              class="role-switch-btn chairperson ${currentUserRole === 'chairperson' ? 'active' : ''}" 
+              title="Switch profile to Chairperson Executive">
+        🏛️ Chairperson
+      </button>
+      <button onclick="switchActiveRole('laboratory')" 
+              class="role-switch-btn laboratory ${currentUserRole === 'laboratory' ? 'active' : ''}" 
+              title="Switch profile to Chemistry Stockroom">
+        🧪 Chemistry Stockroom
+      </button>
+      <div class="role-switch-dropdown-container" style="position: relative; display: inline-block;">
+        <button onclick="togglePcoSubroleDropdown(event)" 
+                class="role-switch-btn pco ${currentUserRole === 'pco' ? 'active' : ''}" 
+                title="Switch profile to PCO/EIS & Choose Category"
+                style="display: flex; align-items: center; gap: 4px;">
+          🌿 PCO/EIS ▾
+        </button>
+        <div id="pco-subrole-dropdown-menu" style="display: none; position: absolute; top: 100%; left: 0; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.6); z-index: 9999; min-width: 250px; margin-top: 6px; padding: 6px 0;">
+          <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 6px 12px; letter-spacing: 0.5px;">Choose PCO View Mode:</div>
+          <a href="#" onclick="switchActivePcoSubrole('pco_head', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">👑 PCO Head (Master View)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_college', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">🏛️ PCO College (CNSM Dean)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_office', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">🏢 PCO Office (OVCREI Director)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_laboratory', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">🧪 PCO Laboratory (Chem Custodian)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_ppd', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">⚡ PCO PPD (Power Plant Tech)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_gso', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">🧹 PCO GSO (Solid Waste Clerk)</a>
+          <a href="#" onclick="switchActivePcoSubrole('pco_sanitary', event)" style="display: flex; align-items: center; padding: 8px 12px; color: var(--text-main); text-decoration: none; font-size: 12px; font-weight: 600; transition: background 0.2s;">💧 PCO Sanitary (Water Safety Inspector)</a>
+        </div>
+      </div>
+      <button onclick="switchActiveRole('admin')" 
+              class="role-switch-btn admin ${currentUserRole === 'admin' ? 'active' : ''}" 
+              title="Switch profile to Admin Console">
+        🛡️ Admin Console
+      </button>
+    `;
+  } else if (roles.includes('chairperson') && roles.includes('faculty')) {
+    container.innerHTML = `
+      <button onclick="switchActiveRole('faculty')" 
+              class="role-switch-btn faculty ${currentUserRole === 'faculty' ? 'active' : ''}" 
+              title="Switch profile to Faculty Portal">
+        👨‍🏫 Faculty
+      </button>
+      <button onclick="switchActiveRole('chairperson')" 
+              class="role-switch-btn chairperson ${currentUserRole === 'chairperson' ? 'active' : ''}" 
+              title="Switch profile to Chairperson Executive">
+        🏛️ Chairperson
+      </button>
+    `;
+  } else if (roles.length >= 2) {
     let html = '';
     roles.forEach(r => {
       if (r !== currentUserRole) {
         let label = '';
-        let color = '#3b82f6';
-        if (r === 'faculty') { label = '👨‍🏫 Faculty'; color = '#3b82f6'; }
-        else if (r === 'admin') { label = '🛡️ Admin'; color = '#10b981'; }
-        else if (r === 'laboratory') { label = '🧪 Laboratory'; color = '#ec4899'; }
-        else if (r === 'student') { label = '🎓 Student'; color = '#6b7280'; }
+        if (r === 'faculty') { label = '👨‍🏫 Faculty'; }
+        else if (r === 'admin') { label = '🛡️ Admin'; }
+        else if (r === 'laboratory') { label = '🧪 Laboratory'; }
+        else if (r === 'student') { label = '🎓 Student'; }
+        else if (r === 'pco') { label = '🌿 PCO'; }
+        else if (r === 'chairperson') { label = '🏛️ Chairperson'; }
 
         html += `
           <button onclick="switchActiveRole('${r}')" 
-                  class="settings-btn-primary" 
-                  style="width: auto; margin: 0; padding: 0 12px; height: 38px; box-sizing: border-box; font-size: 12px; font-weight: 600; background: ${color}; border: none; color: white; cursor: pointer; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease; font-family: 'Outfit', sans-serif;"
+                  class="role-switch-btn ${r}" 
                   title="Switch profile to ${label}">
             ${label}
           </button>
@@ -1085,23 +1383,98 @@ function renderRoleSwitcher() {
   }
 }
 
+function togglePcoSubroleDropdown(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('pco-subrole-dropdown-menu');
+  if (menu) {
+    const isVisible = menu.style.display === 'block';
+    menu.style.display = isVisible ? 'none' : 'block';
+  }
+}
+
+function switchActivePcoSubrole(subrole, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const menu = document.getElementById('pco-subrole-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+
+  window.simulatedPcoSubrole = subrole;
+  
+  if (subrole === 'pco_college') {
+    window.simulatedAffiliationUnit = 'CNSM';
+    window.simulatedOffice = 'College of Natural Sciences and Mathematics';
+  } else if (subrole === 'pco_office') {
+    window.simulatedAffiliationUnit = 'OVCREI';
+    window.simulatedOffice = 'Office of the Vice Chancellor for Research, Extension & Innovation';
+  } else if (subrole === 'pco_laboratory') {
+    window.simulatedAffiliationUnit = 'CNSM';
+    window.simulatedOffice = 'CNMS Chemistry Stockroom';
+  } else if (subrole === 'pco_ppd') {
+    window.simulatedAffiliationUnit = 'PPD';
+    window.simulatedOffice = 'Fatima Standby Generator House';
+  } else if (subrole === 'pco_gso') {
+    window.simulatedAffiliationUnit = 'GSO';
+    window.simulatedOffice = 'General Services Office';
+  } else if (subrole === 'pco_sanitary') {
+    window.simulatedAffiliationUnit = 'CNSM';
+    window.simulatedOffice = 'Sanitary discharge division';
+  } else {
+    window.simulatedAffiliationUnit = '';
+    window.simulatedOffice = '';
+  }
+
+  switchActiveRole('pco');
+}
+
+// Close dropdown on document click
+document.addEventListener('click', () => {
+  const menu = document.getElementById('pco-subrole-dropdown-menu');
+  if (menu) menu.style.display = 'none';
+});
+
+window.togglePcoSubroleDropdown = togglePcoSubroleDropdown;
+window.switchActivePcoSubrole = switchActivePcoSubrole;
+
 function switchActiveRole(newRole) {
   if (!currentUser) return;
   
-  const confirmSwitch = confirm(`Switch active session to ${newRole.toUpperCase()}?`);
-  if (!confirmSwitch) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  currentUserRole = newRole;
-  currentUser.role = newRole;
-  localStorage.setItem('student_user_session', JSON.stringify(currentUser));
-  
-  // Reload the navigation sidebar and views
-  updateProfileUI();
-  renderSidebarNavigation();
-  buildUIFromManifest();
-  
-  // Reroute back to home/dashboard
-  setMode('home');
+    if (newRole !== 'pco') {
+      window.simulatedPcoSubrole = null;
+      window.simulatedAffiliationUnit = null;
+      window.simulatedOffice = null;
+    }
+
+    currentUserRole = newRole;
+    currentUser.role = newRole;
+    localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+    
+    // Reload the navigation sidebar and views
+    updateProfileUI();
+    renderSidebarNavigation();
+    buildUIFromManifest();
+    if (newRole === 'chairperson') {
+      setMode('cp-dashboard');
+    } else if (newRole === 'pco') {
+      setMode('pco-dashboard');
+    } else if (newRole === 'unassigned') {
+      setMode('welcome');
+    } else {
+      setMode('home');
+    }
+  };
+
+  const confirmMsg = `Switch active session to ${newRole.toUpperCase()}?`;
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 window.renderRoleSwitcher = renderRoleSwitcher;
@@ -1112,32 +1485,62 @@ window.switchActiveRole = switchActiveRole;
 // ==========================================================================
 function loadManifest() {
   const localCache = localStorage.getItem('doc_lms_manifest');
-  if (localCache) {
+  if (localCache && !window.versionPathPrefix) {
     manifestData = JSON.parse(localCache);
     buildUIFromManifest();
   }
 
+  let url = REMOTE_MANIFEST_URL;
+  if (window.versionPathPrefix) {
+    url = window.versionPathPrefix + 'data/manifest.json';
+  }
+
   // Fetch from configured URL (with cache-busting)
-  fetch(`${REMOTE_MANIFEST_URL}?nocache=${Date.now()}`)
+  fetch(`${url}?nocache=${Date.now()}`)
     .then(response => {
       if (!response.ok) throw new Error("Manifest download failed");
       return response.json();
     })
     .then(data => {
       manifestData = data;
-      localStorage.setItem('doc_lms_manifest', JSON.stringify(data));
+      if (!window.versionPathPrefix) {
+        localStorage.setItem('doc_lms_manifest', JSON.stringify(data));
+      }
       buildUIFromManifest();
     })
     .catch(err => {
       console.error("Could not fetch latest course manifest:", err);
-      if (!manifestData) {
-        document.getElementById('courses-list').innerHTML = `
-          <div class="empty-playlist-msg" style="color:var(--incorrect);">
-            ⚠️ Failed to load courses. Please check connection and click Sync in Settings.
-          </div>
-        `;
+      // Fallback to local server path if remote fetch fails and we are not versioned
+      if (!window.versionPathPrefix && url !== 'data/manifest.json') {
+        console.log("Attempting fallback to local course manifest...");
+        fetch(`data/manifest.json?nocache=${Date.now()}`)
+          .then(res => {
+            if (!res.ok) throw new Error("Local fallback manifest download failed");
+            return res.json();
+          })
+          .then(data => {
+            manifestData = data;
+            localStorage.setItem('doc_lms_manifest', JSON.stringify(data));
+            buildUIFromManifest();
+          })
+          .catch(fallbackErr => {
+            console.error("Local fallback manifest failed:", fallbackErr);
+            showManifestError();
+          });
+      } else {
+        showManifestError();
       }
     });
+}
+
+function showManifestError() {
+  if (!manifestData) {
+    document.getElementById('courses-list').innerHTML = `
+      <div class="empty-playlist-msg" style="color:var(--incorrect);">
+        ⚠️ Failed to load courses. Please check connection and click Sync in Settings.
+      </div>
+    `;
+  }
 }
 
 let currentUserRole = 'student'; // 'student', 'faculty', 'admin', 'laboratory'
@@ -1160,20 +1563,112 @@ function loadSemesterConfig() {
     });
 }
 
+function getPcoSubrole() {
+  if (window.simulatedPcoSubrole && currentUserRole === 'pco') {
+    return window.simulatedPcoSubrole;
+  }
+  if (!currentUser) return 'pco_college';
+  const specificPco = (currentUser.roles || []).find(r => ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].includes(r));
+  if (specificPco) return specificPco;
+  if (currentUser.role && currentUser.role !== 'pco') return currentUser.role;
+  return 'pco_college';
+}
+window.getPcoSubrole = getPcoSubrole;
+
+function getPcoAffiliationUnit() {
+  if (window.simulatedAffiliationUnit && currentUserRole === 'pco') {
+    return window.simulatedAffiliationUnit;
+  }
+  if (!currentUser) return '';
+  return currentUser.affiliationUnit || '';
+}
+window.getPcoAffiliationUnit = getPcoAffiliationUnit;
+
+function getPcoOffice() {
+  if (window.simulatedOffice && currentUserRole === 'pco') {
+    return window.simulatedOffice;
+  }
+  if (!currentUser) return '';
+  return currentUser.office || '';
+}
+window.getPcoOffice = getPcoOffice;
+
 function renderSidebarNavigation() {
   const container = document.getElementById('sidebar-dynamic-tabs');
   if (!container) return;
 
   let html = '';
 
-  if (currentUserRole === 'admin') {
+  if (currentUserRole === 'unassigned') {
+    // Guest/Unregistered Navigation
+    html += `
+      <div class="nav-section-title">Portal Navigation</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn active" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
+      </div>
+    `;
+
+  } else if (currentUserRole === 'admin') {
     // Admin navigation
     html += `
-      <div class="nav-section-title">Admin Tools</div>
+      <div class="nav-section-title">Admin Core</div>
       <div class="mode-tabs">
-        <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
+        <button class="mode-tab-btn active" id="tab-admin-dashboard" onclick="setMode('admin-dashboard')">📊 System Overview</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
         <button class="mode-tab-btn" id="tab-admin-requests" onclick="setMode('admin-requests')">🔔 Class Requests</button>
         <button class="mode-tab-btn" id="tab-admin-users" onclick="setMode('admin-users')">👥 User Directory</button>
+        <button class="mode-tab-btn" id="tab-admin-applications" onclick="setMode('admin-applications')">📋 Role Applications</button>
+        <button class="mode-tab-btn" id="tab-admin-feedback" onclick="setMode('admin-feedback')">🐛 Feedback & Bugs</button>
+      </div>
+      <div class="nav-section-title">Maintenance</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-admin-roadmap" onclick="setMode('admin-roadmap')">🗺️ Portal Roadmap</button>
+        <button class="mode-tab-btn" id="tab-admin-backups" onclick="setMode('admin-backups')">💾 Backups & Restore</button>
+        <button class="mode-tab-btn" id="tab-admin-logs" onclick="setMode('admin-logs')">📜 System Activity Logs</button>
+      </div>
+    `;
+  } else if (currentUserRole === 'pco') {
+    const subrole = getPcoSubrole();
+    
+    html += `
+      <div class="nav-section-title">PCO / EMIS Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
+        <button class="mode-tab-btn active" id="tab-pco-dashboard" onclick="setMode('pco-dashboard')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
+    `;
+    if (['pco_head', 'pco_laboratory', 'pco_gso', 'pco_sanitary'].includes(subrole)) {
+      html += `<button class="mode-tab-btn" id="tab-pco-waste" onclick="setMode('pco-waste')">📋 Waste Ledger</button>`;
+    }
+    
+    // Air Emissions (Generators)
+    if (['pco_head', 'pco_office', 'pco_ppd'].includes(subrole)) {
+      html += `<button class="mode-tab-btn" id="tab-pco-generators" onclick="setMode('pco-generators')">⚡ Air Emissions</button>`;
+    }
+    
+    // Permits & CAPA
+    if (['pco_head', 'pco_office'].includes(subrole)) {
+      html += `<button class="mode-tab-btn" id="tab-pco-permits" onclick="setMode('pco-permits')">📜 Permits & CAPA</button>`;
+    }
+
+    // Incidents & ERCP
+    if (['pco_head', 'pco_office'].includes(subrole)) {
+      html += `<button class="mode-tab-btn" id="tab-pco-incidents" onclick="setMode('pco-incidents')">🚨 Incidents & ERCP</button>`;
+    }
+    
+    // SMR Compiler
+    if (['pco_head', 'pco_laboratory', 'pco_college', 'pco_sanitary'].includes(subrole)) {
+      html += `<button class="mode-tab-btn" id="tab-pco-smr" onclick="setMode('pco-smr')">📊 SMR Compiler</button>`;
+    }
+
+    // PCO Directories & Notice Center (PCO Head only)
+    if (subrole === 'pco_head') {
+      html += `<button class="mode-tab-btn" id="tab-pco-directories" onclick="setMode('pco-directories')">🏛️ PCO Directories</button>`;
+      html += `<button class="mode-tab-btn" id="tab-pco-notices" onclick="setMode('pco-notices')">🔔 Notice Center</button>`;
+    }
+    
+    html += `
       </div>
     `;
   } else if (currentUserRole === 'laboratory') {
@@ -1181,12 +1676,22 @@ function renderSidebarNavigation() {
     html += `
       <div class="nav-section-title">Stockroom Tools</div>
       <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
         <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Home</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
         <button class="mode-tab-btn" id="tab-lab-transactions" onclick="setMode('lab-transactions')">📋 Transactions</button>
         <button class="mode-tab-btn" id="tab-lab-students" onclick="setMode('lab-students')">👨‍🎓 Students</button>
         <button class="mode-tab-btn" id="tab-lab-reports" onclick="setMode('lab-reports')">📊 Reports</button>
         <button class="mode-tab-btn" id="tab-lab-communication" onclick="setMode('lab-communication')">📢 Communication</button>
         <button class="mode-tab-btn" id="tab-lab-settings" onclick="setMode('lab-settings')">⚙️ Settings</button>
+      </div>
+
+      <div class="nav-section-title">PCO Laboratory</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-lab-spent-chemicals" onclick="setMode('lab-spent-chemicals')">🧪 Spent Chemicals</button>
+        <button class="mode-tab-btn" id="tab-lab-effluent-ph" onclick="setMode('lab-effluent-ph')">💧 Lab Effluent pH</button>
+        <button class="mode-tab-btn" id="tab-lab-hazardous-inventory" onclick="setMode('lab-hazardous-inventory')">📦 Hazardous Waste Inventory</button>
+        <button class="mode-tab-btn" id="tab-lab-spill-incident" onclick="setMode('lab-spill-incident')">🚨 Spill Incident Report</button>
       </div>
     `;
   } else if (currentUserRole === 'faculty') {
@@ -1194,10 +1699,38 @@ function renderSidebarNavigation() {
     html += `
       <div class="nav-section-title">Faculty Tools</div>
       <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
         <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
         <button class="mode-tab-btn" id="tab-faculty-classes" onclick="setMode('faculty-classes')">🏫 My Classes</button>
         <button class="mode-tab-btn" id="tab-faculty-gradebook" onclick="setMode('faculty-gradebook')">📊 Class Gradebooks</button>
         <button class="mode-tab-btn" id="tab-faculty-groups" onclick="setMode('faculty-groups')">👥 Lab Groups</button>
+        <button class="mode-tab-btn" id="tab-faculty-announcements" onclick="setMode('faculty-announcements')">📢 Announcements</button>
+      </div>
+      
+      <div class="nav-section-title">Academic Foundations</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-foundations" onclick="setMode('foundations')">🏛️ Foundations</button>
+        <button class="mode-tab-btn" id="tab-faculty" onclick="setMode('faculty')">👨‍🏫 Faculty Info</button>
+      </div>
+    `;
+  } else if (currentUserRole === 'chairperson') {
+    html += `
+      <div class="nav-section-title">Executive Tools</div>
+      <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
+        <button class="mode-tab-btn" id="tab-cp-dashboard" onclick="setMode('cp-dashboard')">📊 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
+        <button class="mode-tab-btn" id="tab-cp-academic" onclick="setMode('cp-academic')">🎓 Academic Affairs</button>
+        <button class="mode-tab-btn" id="tab-cp-faculty" onclick="setMode('cp-faculty')">👨‍🏫 Faculty Oversight</button>
+        <button class="mode-tab-btn" id="tab-cp-student" onclick="setMode('cp-student')">👨‍🎓 Student Oversight</button>
+        <button class="mode-tab-btn" id="tab-cp-laboratory" onclick="setMode('cp-laboratory')">🧪 Lab Oversight</button>
+        <button class="mode-tab-btn" id="tab-cp-pco" onclick="setMode('cp-pco')">🌿 PCO/EMIS Oversight</button>
+        <button class="mode-tab-btn" id="tab-cp-strategic" onclick="setMode('cp-strategic')">📈 Strategic Planning</button>
+        <button class="mode-tab-btn" id="tab-cp-reports" onclick="setMode('cp-reports')">📄 Executive Reports</button>
+        <button class="mode-tab-btn" id="tab-cp-calendar" onclick="setMode('cp-calendar')">📅 Exec Calendar</button>
+        <button class="mode-tab-btn" id="tab-cp-approvals" onclick="setMode('cp-approvals')">🔔 Approvals <span id="cp-badge-approvals" style="display:none; background:#ef4444; color:white; font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:10px; margin-left:auto;">0</span></button>
+        <button class="mode-tab-btn" id="tab-cp-settings" onclick="setMode('cp-settings')">⚙️ Exec Settings</button>
       </div>
       
       <div class="nav-section-title">Academic Foundations</div>
@@ -1218,7 +1751,9 @@ function renderSidebarNavigation() {
 
       <div class="nav-section-title">Student Tools</div>
       <div class="mode-tabs">
+        <button class="mode-tab-btn" id="tab-welcome" onclick="setMode('welcome')">🏛️ Portal Home</button>
         <button class="mode-tab-btn active" id="tab-home" onclick="setMode('home')">🏠 Dashboard</button>
+        <button class="mode-tab-btn" id="tab-notice-tasks" onclick="setMode('notice-tasks')">📬 Notice/Tasks</button>
         <button class="mode-tab-btn" id="tab-syllabus" onclick="setMode('syllabus')">📋 Syllabus</button>
         <button class="mode-tab-btn" id="tab-notes" onclick="setMode('notes')">📚 Lecture Notes</button>
         <button class="mode-tab-btn" id="tab-safety" onclick="setMode('safety')">🥽 Lab Safety Guide</button>
@@ -1347,6 +1882,9 @@ function setMode(mode) {
   currentMode = mode;
   playSFX(true);
 
+  // Toggle full-screen landing page style
+  document.body.classList.toggle('landing-page-active', mode === 'welcome');
+
   // Update menu tab highlights
   document.querySelectorAll('.mode-tab-btn').forEach(btn => btn.classList.remove('active'));
   const tabBtn = document.getElementById(`tab-${mode}`);
@@ -1366,8 +1904,10 @@ function renderCurrentModeView() {
   document.getElementById('view-meta').style.display = 'none';
   document.getElementById('viewport-footer').style.display = 'none';
   document.getElementById('progress-bar').style.width = '0%';
+  const progContainer = document.getElementById('progress-container');
+  if (progContainer) progContainer.style.display = 'none';
 
-  if (!currentUser) {
+  if (!currentUser && currentMode !== 'welcome') {
     viewportBody.innerHTML = `
       <div class="empty-playlist-msg">
         Please complete student onboarding and sign in to access materials.
@@ -1448,8 +1988,100 @@ function renderCurrentModeView() {
     case 'lab-settings':
       renderLabSettingsView();
       break;
+    case 'lab-spent-chemicals':
+      if (typeof renderLabSpentChemicalsView === 'function') renderLabSpentChemicalsView();
+      break;
+    case 'lab-effluent-ph':
+      if (typeof renderLabEffluentPhView === 'function') renderLabEffluentPhView();
+      break;
+    case 'lab-hazardous-inventory':
+      if (typeof renderLabHazardousInventoryView === 'function') renderLabHazardousInventoryView();
+      break;
+    case 'lab-spill-incident':
+      if (typeof renderLabSpillIncidentView === 'function') renderLabSpillIncidentView();
+      break;
     case 'requisition':
       renderStudentRequisitionView();
+      break;
+    case 'pco-dashboard':
+      if (typeof renderPcoDashboardView === 'function') renderPcoDashboardView();
+      break;
+    case 'pco-waste':
+      if (typeof renderPcoWasteView === 'function') renderPcoWasteView();
+      break;
+    case 'pco-generators':
+      if (typeof renderPcoGeneratorsView === 'function') renderPcoGeneratorsView();
+      break;
+    case 'pco-permits':
+      if (typeof renderPcoPermitsView === 'function') renderPcoPermitsView();
+      break;
+    case 'pco-incidents':
+      if (typeof renderPcoIncidentsView === 'function') renderPcoIncidentsView();
+      break;
+    case 'pco-smr':
+      if (typeof renderPcoSmrCompiler === 'function') renderPcoSmrCompiler();
+      break;
+    case 'pco-directories':
+      if (typeof renderPcoDirectoriesView === 'function') renderPcoDirectoriesView();
+      break;
+    case 'pco-notices':
+      if (typeof renderPcoNoticesView === 'function') renderPcoNoticesView();
+      break;
+    case 'cp-dashboard':
+    case 'cp-academic':
+    case 'cp-faculty':
+    case 'cp-student':
+    case 'cp-laboratory':
+    case 'cp-pco':
+    case 'cp-strategic':
+    case 'cp-reports':
+    case 'cp-calendar':
+    case 'cp-approvals':
+    case 'cp-settings':
+      if (typeof renderChairpersonTab === 'function') {
+        renderChairpersonTab(currentMode.replace('cp-', ''));
+      }
+      break;
+    case 'welcome':
+      renderWelcomeDashboard();
+      break;
+    case 'faculty-announcements':
+      renderFacultyAnnouncementsView();
+      break;
+    case 'admin-dashboard':
+      adminActiveSubTab = 'overview';
+      renderAdminConsoleView();
+      break;
+    case 'admin-roadmap':
+      adminActiveSubTab = 'roadmap';
+      renderAdminConsoleView();
+      break;
+    case 'admin-requests':
+      adminActiveSubTab = 'requests';
+      renderAdminConsoleView();
+      break;
+    case 'admin-users':
+      adminActiveSubTab = 'users';
+      renderAdminConsoleView();
+      break;
+    case 'admin-applications':
+      adminActiveSubTab = 'applications';
+      renderAdminConsoleView();
+      break;
+    case 'admin-feedback':
+      adminActiveSubTab = 'feedback';
+      renderAdminConsoleView();
+      break;
+    case 'admin-backups':
+      adminActiveSubTab = 'backups';
+      renderAdminConsoleView();
+      break;
+    case 'admin-logs':
+      adminActiveSubTab = 'logs';
+      renderAdminConsoleView();
+      break;
+    case 'notice-tasks':
+      renderNoticeTasksView();
       break;
     default:
       renderDashboardView();
@@ -1460,105 +2092,17 @@ function renderCurrentModeView() {
 function renderDashboardView() {
   const viewport = document.getElementById('viewport-body');
   
+  if (currentUserRole === 'chairperson') {
+    setMode('cp-dashboard');
+    return;
+  }
+  if (currentUserRole === 'pco') {
+    setMode('pco-dashboard');
+    return;
+  }
+
   if (currentUserRole === 'admin') {
-    viewport.innerHTML = `
-      <div class="home-greeting-card" style="padding: 24px; background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
-        <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: #10b981; margin: 0 0 8px 0;">🛡️ Welcome, System Administrator!</h2>
-        <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Manage classes approval, verify user roles, and monitor system performance from your admin dashboards.</p>
-      </div>
-      
-      <!-- Admin Statistics Grid -->
-      <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; text-align: left;">
-        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">👥 Total Enrolled Students</div>
-          <div id="admin-stat-students" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
-        </div>
-        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🏫 Total Classrooms</div>
-          <div id="admin-stat-classes" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
-        </div>
-        <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🔔 Pending Approvals</div>
-          <div id="admin-stat-pending" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #f59e0b;">...</div>
-        </div>
-      </div>
-
-      <!-- Semester Configuration Card -->
-      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 20px; border-radius: 14px; text-align: left; margin-bottom: 24px;">
-        <h3 style="font-size: 16px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 12px 0; color: var(--text-main);">📅 Semester Configuration</h3>
-        <p style="margin: 0 0 16px 0; font-size: 13px; color: var(--text-muted);">Configure the official start and end dates of the current semester. This controls class scheduling and clearance notification alarms.</p>
-        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">SEMESTER START DATE</label>
-            <input type="date" id="admin-semester-start-date" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; min-width: 180px;">
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">SEMESTER END DATE</label>
-            <input type="date" id="admin-semester-end-date" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 13px; min-width: 180px;">
-          </div>
-          <button class="settings-btn-primary" onclick="saveSemesterDateConfig()" style="width: auto; margin: 0; padding: 10px 20px; font-size: 13px;">Save Date Config</button>
-        </div>
-      </div>
-
-      <div class="class-grid">
-        <div class="class-card" onclick="setMode('admin-requests')">
-          <div class="class-code">🔔 Class Catalog & Requests</div>
-          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Approve or deny class creation requested by faculty, and manage catalog.</p>
-        </div>
-        <div class="class-card" onclick="setMode('admin-users')">
-          <div class="class-code">👥 User Directory</div>
-          <p style="margin:0; font-size: 13px; color: var(--text-muted); margin-top: 6px;">Promote student accounts to instructors and manage directory.</p>
-        </div>
-      </div>
-    `;
-
-    // Fetch stats from Firestore
-    firestore.collection('students').get().then(snap => {
-      const el = document.getElementById('admin-stat-students');
-      if (el) el.innerText = snap.size;
-    }).catch(err => {
-      console.error("Error loading students count:", err);
-      const el = document.getElementById('admin-stat-students');
-      if (el) el.innerText = "0";
-    });
-
-    firestore.collection('classes').get().then(snap => {
-      const elClasses = document.getElementById('admin-stat-classes');
-      const elPending = document.getElementById('admin-stat-pending');
-      
-      let totalClasses = 0;
-      let pendingClasses = 0;
-      
-      snap.forEach(doc => {
-        const d = doc.data();
-        totalClasses++;
-        if (d.status === 'pending') {
-          pendingClasses++;
-        }
-      });
-      
-      if (elClasses) elClasses.innerText = totalClasses;
-      if (elPending) elPending.innerText = pendingClasses;
-    }).catch(err => {
-      console.error("Error loading classes stats:", err);
-      const elClasses = document.getElementById('admin-stat-classes');
-      const elPending = document.getElementById('admin-stat-pending');
-      if (elClasses) elClasses.innerText = "0";
-      if (elPending) elPending.innerText = "0";
-    });
-
-    // Set input value if config exists
-    setTimeout(() => {
-      const startInput = document.getElementById('admin-semester-start-date');
-      const endInput = document.getElementById('admin-semester-end-date');
-      if (startInput && semesterStartDate) {
-        startInput.value = semesterStartDate;
-      }
-      if (endInput && semesterEndDate) {
-        endInput.value = semesterEndDate;
-      }
-    }, 100);
-
+    setMode('admin-dashboard');
     return;
   }
   if (currentUserRole === 'laboratory') {
@@ -2987,7 +3531,7 @@ function renderLectureNotesWithFiles(files) {
         <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 20px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.5;">
           Please wait while the assigned faculty uploads the files or contact the faculty through email.
         </p>
-        <a href="mailto:${activeCourse.faculty ? activeCourse.faculty.split(' | ')[1] : 'faculty@msugensan.edu.ph'}" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; border-radius: 10px; font-weight: 600;">
+        <a href="mailto:${activeCourse.faculty ? activeCourse.faculty.split(' | ')[1] : 'ramon.eduque@msugensan.edu.ph'}" class="settings-btn-primary" style="display: inline-flex; width: auto; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; border-radius: 10px; font-weight: 600;">
           ✉️ Contact Faculty (${activeCourse.faculty ? activeCourse.faculty.split(' | ')[0] : 'Faculty'})
         </a>
       </div>
@@ -3356,6 +3900,8 @@ function startQuizRunner(moduleId) {
   document.getElementById('slide-mode-label').innerText = 'Module Quiz Mode';
   document.getElementById('slide-num-label').innerText = `Question 1 of ${activeQuizData.questions.length}`;
   document.getElementById('progress-bar').style.width = '0%';
+  const progContainer = document.getElementById('progress-container');
+  if (progContainer) progContainer.style.display = 'block';
 
   // Setup Timer if configured
   if (activeQuizData.timeLimitSeconds) {
@@ -4470,6 +5016,60 @@ function renderSettingsDrawerContent() {
         </div>
       </div>
     `;
+  } else if (currentUserRole === 'chairperson') {
+    profileHTML = `
+      <!-- Chairperson Profile Section -->
+      <div class="settings-section">
+        <h3>🏛️ Chairperson Profile</h3>
+        <div class="settings-row">
+          <label for="settings-nickname">Name:</label>
+          <input type="text" id="settings-nickname" value="${escapeHtml(currentUser.name)}" onchange="updateProfileName(this.value)">
+        </div>
+        <div class="settings-row">
+          <label>Email Address:</label>
+          <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">${escapeHtml(currentUser.email)}</span>
+        </div>
+        
+        <!-- Digital Signature Uploader -->
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 15px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 600; font-size: 12px; color: var(--text-muted); text-transform: uppercase;">✍️ Digital Signature Image:</span>
+          <div style="display: flex; flex-direction: column; gap: 8px; align-items: stretch;">
+            <div id="settings-signature-preview-container" style="border: 1px dashed var(--border-card); border-radius: 8px; padding: 10px; background: rgba(255,255,255,0.01); display: flex; align-items: center; justify-content: center; height: 80px; overflow: hidden;">
+              ${currentUser.digitalSignatureBase64 ? `
+                <img id="settings-signature-img" src="${currentUser.digitalSignatureBase64}" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+              ` : `
+                <span id="settings-signature-placeholder" style="font-size: 11.5px; color: var(--text-muted); font-style: italic;">No signature uploaded</span>
+              `}
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <label class="upload-btn-label" for="signature-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer;">
+                📁 Choose Signature Image
+              </label>
+              ${currentUser.digitalSignatureBase64 ? `
+                <button class="settings-btn-primary" onclick="if(typeof removeChairpersonSignature === 'function') removeChairpersonSignature()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+                  Remove
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          <input type="file" id="signature-pic-upload" accept="image/*" style="display: none;" onchange="if(typeof uploadChairpersonSignature === 'function') uploadChairpersonSignature(event)">
+        </div>
+
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; border-top: 1px dashed var(--border-card); padding-top: 10px;">
+          <span style="font-weight: 500;">Profile Photo:</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <img id="settings-profile-pic" src="${currentUser.avatar || 'chemistry_logo.png'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            <label class="upload-btn-label" for="profile-pic-upload" style="flex: 1; margin: 0; padding: 10px 14px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer;">
+              📸 Choose Image
+            </label>
+            <button class="settings-btn-primary" onclick="removeProfilePic()" style="width: auto; padding: 10px 14px; margin-top: 0; white-space: nowrap; font-size: 13px; background: var(--incorrect);">
+              Remove
+            </button>
+          </div>
+          <input type="file" id="profile-pic-upload" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(this.files)">
+        </div>
+      </div>
+    `;
   }
 
   // Theme & Audio Section (Always relevant but customized slightly if needed)
@@ -4685,41 +5285,60 @@ function checkWeeklyUpdates() {
 
 function signOutStudent() {
   playSFX(true);
-  const confirmOut = confirm("Are you sure you want to sign out? Your profile details and score history will be saved.");
-  if (!confirmOut) return;
+  
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  stopSessionTracker();
+    stopSessionTracker();
 
-  auth.signOut().then(() => {
-    localStorage.removeItem('student_user_session');
-    currentUser = null;
-    closeSettings();
-    loadUserSession();
-  }).catch((err) => {
-    console.error("Firebase signout error:", err);
-    // Force local clear anyway
-    localStorage.removeItem('student_user_session');
-    currentUser = null;
-    closeSettings();
-    loadUserSession();
-  });
+    auth.signOut().then(() => {
+      localStorage.removeItem('student_user_session');
+      currentUser = null;
+      closeSettings();
+      loadUserSession();
+    }).catch((err) => {
+      console.error("Firebase signout error:", err);
+      // Force local clear anyway
+      localStorage.removeItem('student_user_session');
+      currentUser = null;
+      closeSettings();
+      loadUserSession();
+    });
+  };
+
+  const confirmMsg = "Are you sure you want to sign out? Your profile details and score history will be saved.";
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 function confirmClearAllProgress() {
-  const confirmClear = confirm("⚠️ Danger: Clear all local grade records, quizzes scores history, and checklist details? This cannot be undone.");
-  if (!confirmClear) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  // Find all quiz score keys and remove them
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const key = localStorage.key(i);
-    if (key.startsWith('quiz_score_') || key.startsWith('quiz_max_') || key.startsWith('assignment_submitted_')) {
-      localStorage.removeItem(key);
+    // Find all quiz score keys and remove them
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key.startsWith('quiz_score_') || key.startsWith('quiz_max_') || key.startsWith('assignment_submitted_')) {
+        localStorage.removeItem(key);
+      }
     }
-  }
 
-  playSFX(true);
-  alert("Cached academic progress records cleared successfully.");
-  renderCurrentModeView();
+    playSFX(true);
+    showCustomAlert("Cached academic progress records cleared successfully.", 'success');
+    renderCurrentModeView();
+  };
+
+  const confirmMsg = "⚠️ Danger: Clear all local grade records, quizzes scores history, and checklist details? This cannot be undone.";
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 // ==========================================================================
@@ -6068,12 +6687,1789 @@ window.deleteLabGroup = deleteLabGroup;
 window.saveLabGroupLink = saveLabGroupLink;
 window.addStudentToLabGroup = addStudentToLabGroup;
 window.removeStudentFromLabGroup = removeStudentFromLabGroup;
+// ==========================================================================
+// ADMIN CONSOLE REDESIGN & MULTI-ACCOUNT MANAGEMENT UTILITIES
+// ==========================================================================
+let adminActiveSubTab = 'overview';
+let systemStatus = 'live';
+let activeVersion = 'v2026.06.29_112223';
+window.activeLiveVersion = '';
+window.activeTestingVersion = '';
 
+function syncSystemPhase() {
+  return firestore.collection('system_settings').doc('config').get().then(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      systemStatus = data.status || 'live';
+      activeVersion = data.activeVersion || '';
+      window.activeLiveVersion = data.liveVersion || '';
+      window.activeTestingVersion = data.testingVersion || '';
+    } else {
+      firestore.collection('system_settings').doc('config').set({
+        status: 'live',
+        activeVersion: activeVersion,
+        liveVersion: activeVersion,
+        testingVersion: ""
+      });
+      window.activeLiveVersion = activeVersion;
+      window.activeTestingVersion = "";
+    }
+    renderSystemPhaseHeader();
+    enforceSystemPhaseShield();
+  }).catch(err => {
+    console.error("Error syncing system release phase:", err);
+  });
+}
+window.syncSystemPhase = syncSystemPhase;
+
+function renderSystemPhaseHeader() {
+  const container = document.getElementById('system-phase-header-container');
+  if (!container) return;
+  
+  const isAdmin = currentUser && (currentUserRole === 'admin' || (currentUser.roles && currentUser.roles.includes('admin')));
+  
+  if (isAdmin) {
+    container.style.display = 'inline-flex';
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 6px; font-family: 'Outfit', sans-serif;">
+        <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Phase:</span>
+        <button onclick="setSystemPhase('live')" class="role-switch-btn student ${systemStatus === 'live' ? 'active' : ''}" style="height: 30px; padding: 0 10px; font-size: 11.5px; border-color: #10b981; color: ${systemStatus === 'live' ? 'white' : '#10b981'}; background: ${systemStatus === 'live' ? '#10b981' : 'transparent'};">
+          🟢 Live
+        </button>
+        <button onclick="setSystemPhase('testing')" class="role-switch-btn student ${systemStatus === 'testing' ? 'active' : ''}" style="height: 30px; padding: 0 10px; font-size: 11.5px; border-color: #f59e0b; color: ${systemStatus === 'testing' ? 'white' : '#f59e0b'}; background: ${systemStatus === 'testing' ? '#f59e0b' : 'transparent'};">
+          🟡 Testing
+        </button>
+      </div>
+    `;
+  } else {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+window.renderSystemPhaseHeader = renderSystemPhaseHeader;
+
+function setSystemPhase(phase) {
+  const confirmMsg = `Switch system phase to ${phase.toUpperCase()}?`;
+  
+  showCustomConfirm(confirmMsg, (confirm) => {
+    if (!confirm) return;
+    
+    firestore.collection('system_settings').doc('config').update({
+      status: phase
+    })
+    .then(() => {
+      showCustomAlert(`System phase updated to ${phase.toUpperCase()} successfully!`, "success");
+      syncSystemPhase().then(() => {
+        const livePref = window.activeLiveVersion ? 'backups/' + window.activeLiveVersion + '/' : '';
+        const testingPref = window.activeTestingVersion ? 'backups/' + window.activeTestingVersion + '/' : '';
+        
+        localStorage.setItem('doc_lms_user_version_prefix', livePref);
+        localStorage.setItem('doc_lms_admin_version_prefix', (phase === 'testing') ? testingPref : livePref);
+        
+        window.location.reload();
+      });
+    })
+    .catch(err => {
+      showCustomAlert("Error updating phase: " + err.message, "error");
+    });
+  });
+}
+window.setSystemPhase = setSystemPhase;
+
+function enforceSystemPhaseShield() {
+  // Blocking overlay is disabled. Testing Phase serves different versions dynamically!
+  let shield = document.getElementById('testing-phase-shield');
+  if (shield) {
+    shield.remove();
+  }
+}
+window.enforceSystemPhaseShield = enforceSystemPhaseShield;
+
+function renderAdminConsoleView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  renderAdminSubTabContent();
+}
+window.renderAdminConsoleView = renderAdminConsoleView;
+
+function switchAdminSubTab(tab) {
+  const modeMap = {
+    'overview': 'admin-dashboard',
+    'requests': 'admin-requests',
+    'roadmap': 'admin-roadmap',
+    'users': 'admin-users',
+    'applications': 'admin-applications',
+    'feedback': 'admin-feedback',
+    'backups': 'admin-backups',
+    'logs': 'admin-logs'
+  };
+  const mode = modeMap[tab] || 'admin-dashboard';
+  setMode(mode);
+}
+window.switchAdminSubTab = switchAdminSubTab;
+
+function getAdminSubviewTitle() {
+  switch (adminActiveSubTab) {
+    case 'overview': return '📊 System Overview';
+    case 'requests': return '🔔 Class Catalog & Requests';
+    case 'roadmap': return '🗺️ Institutional Portal Roadmap';
+    case 'users': return '👥 User Directory & Promotion';
+    case 'applications': return '📋 Role Access Applications';
+    case 'feedback': return '🐛 User Feedback & Bug Submissions';
+    case 'backups': return '💾 Backup & Restore';
+    case 'logs': return '📜 System Activity Audit Trails';
+    default: return '🛡️ Admin Console';
+  }
+}
+
+function handleAdminGlobalSearch(query) {
+  const dropdown = document.getElementById('admin-global-search-results');
+  if (!dropdown) return;
+  
+  if (!query || !query.trim()) {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+    return;
+  }
+  
+  const q = query.toLowerCase().trim();
+  let resultsHTML = '';
+  
+  // 1. Users
+  if (window.adminCachedUsers && window.adminCachedUsers.length > 0) {
+    const matchedUsers = window.adminCachedUsers.filter(u => 
+      (u.name && u.name.toLowerCase().includes(q)) || 
+      (u.email && u.email.toLowerCase().includes(q))
+    ).slice(0, 4);
+    
+    if (matchedUsers.length > 0) {
+      resultsHTML += `<div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; padding:4px 8px; border-bottom:1px solid var(--border-card);">👥 Users</div>`;
+      matchedUsers.forEach(u => {
+        resultsHTML += `
+          <div onclick="selectGlobalSearchResult('users', '${escapeJsString(u.email)}')" class="search-result-item" style="padding:6px 12px; cursor:pointer; font-size:12px; display:flex; justify-content:space-between; align-items:center; border-radius:4px;">
+            <span>👤 ${escapeHtml(u.name || u.email.split('@')[0])}</span>
+            <span style="font-size:10.5px; color:var(--text-muted); text-transform:uppercase;">${escapeHtml(u.role || 'student')}</span>
+          </div>
+        `;
+      });
+    }
+  }
+  
+  // 2. Classrooms
+  if (window.adminCachedClasses && window.adminCachedClasses.length > 0) {
+    const matchedClasses = window.adminCachedClasses.filter(c => 
+      (c.courseName && c.courseName.toLowerCase().includes(q)) || 
+      (c.section && c.section.toLowerCase().includes(q))
+    ).slice(0, 4);
+    
+    if (matchedClasses.length > 0) {
+      resultsHTML += `<div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; padding:4px 8px; border-bottom:1px solid var(--border-card); margin-top:4px;">🏫 Classrooms</div>`;
+      matchedClasses.forEach(c => {
+        resultsHTML += `
+          <div onclick="selectGlobalSearchResult('requests', '${escapeJsString(c.id)}')" class="search-result-item" style="padding:6px 12px; cursor:pointer; font-size:12px; display:flex; justify-content:space-between; align-items:center; border-radius:4px;">
+            <span>📚 ${escapeHtml(c.courseName)} (Sec ${escapeHtml(c.section)})</span>
+            <span style="font-size:10.5px; color:var(--text-muted); text-transform:uppercase;">${escapeHtml(c.status)}</span>
+          </div>
+        `;
+      });
+    }
+  }
+
+  // 3. Feedback
+  if (window.adminCachedFeedback && window.adminCachedFeedback.length > 0) {
+    const matchedFeedbacks = window.adminCachedFeedback.filter(f => 
+      (f.subject && f.subject.toLowerCase().includes(q)) || 
+      (f.description && f.description.toLowerCase().includes(q))
+    ).slice(0, 4);
+    
+    if (matchedFeedbacks.length > 0) {
+      resultsHTML += `<div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; padding:4px 8px; border-bottom:1px solid var(--border-card); margin-top:4px;">🐛 Feedback</div>`;
+      matchedFeedbacks.forEach(f => {
+        resultsHTML += `
+          <div onclick="selectGlobalSearchResult('feedback', '${escapeJsString(f.id)}')" class="search-result-item" style="padding:6px 12px; cursor:pointer; font-size:12px; display:flex; justify-content:space-between; align-items:center; border-radius:4px;">
+            <span>${f.type === 'bug' ? '🐛' : '💡'} ${escapeHtml(f.subject)}</span>
+            <span style="font-size:10.5px; color:var(--text-muted); text-transform:uppercase;">${escapeHtml(f.status)}</span>
+          </div>
+        `;
+      });
+    }
+  }
+
+  if (!resultsHTML) {
+    dropdown.style.display = 'flex';
+    dropdown.innerHTML = `<div style="padding:12px; text-align:center; font-size:12px; color:var(--text-muted); font-style:italic;">No matches found.</div>`;
+    return;
+  }
+  
+  dropdown.style.display = 'flex';
+  dropdown.innerHTML = resultsHTML;
+}
+window.handleAdminGlobalSearch = handleAdminGlobalSearch;
+
+function selectGlobalSearchResult(tab, id) {
+  const modeMap = {
+    'overview': 'admin-dashboard',
+    'requests': 'admin-requests',
+    'roadmap': 'admin-roadmap',
+    'users': 'admin-users',
+    'applications': 'admin-applications',
+    'feedback': 'admin-feedback',
+    'backups': 'admin-backups',
+    'logs': 'admin-logs'
+  };
+  const mode = modeMap[tab] || 'admin-dashboard';
+  setMode(mode);
+  
+  const dropdown = document.getElementById('admin-global-search-results');
+  if (dropdown) dropdown.style.display = 'none';
+  
+  setTimeout(() => {
+    if (tab === 'users') {
+      const searchBox = document.getElementById('manage-accounts-search');
+      if (searchBox) {
+        searchBox.value = id;
+        handleManageAccountsSearch(id);
+      }
+    } else if (tab === 'feedback') {
+      const filterSelect = document.getElementById('admin-feedback-filter-status');
+      if (filterSelect) {
+        filterSelect.value = 'all';
+        filterFeedbackList();
+      }
+    }
+  }, 100);
+}
+window.selectGlobalSearchResult = selectGlobalSearchResult;
+
+function escapeJsString(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function renderAdminSubTabContent() {
+  const targetId = 'viewport-body';
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  let searchHtml = `
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed var(--border-card); padding-bottom:12px; margin-bottom:20px; flex-wrap:wrap; gap:16px;">
+      <h2 style="font-size:18px; font-weight:800; font-family:'Outfit',sans-serif; margin:0; color:var(--text-main);" id="admin-subview-title">
+        ${getAdminSubviewTitle()}
+      </h2>
+      <div style="position:relative; width:300px; max-width:100%;">
+        <input type="text" id="admin-global-search" placeholder="Quick Search (Ctrl+K)..." 
+               oninput="handleAdminGlobalSearch(this.value)" 
+               onfocus="handleAdminGlobalSearch(this.value)"
+               style="width:100%; padding:8px 12px 8px 32px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; box-sizing:border-box;">
+        <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--text-muted);">🔍</span>
+        <div id="admin-global-search-results" style="display:none; position:absolute; top:36px; right:0; left:0; z-index:9999; max-height:280px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border-card); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.5); padding:6px; box-sizing:border-box; flex-direction:column; gap:4px;"></div>
+      </div>
+    </div>
+  `;
+
+  const subviewContentId = 'admin-subview-content';
+  container.innerHTML = `
+    ${searchHtml}
+    <div id="${subviewContentId}"></div>
+  `;
+
+  switch (adminActiveSubTab) {
+    case 'overview':
+      loadAdminOverviewTab(subviewContentId);
+      break;
+    case 'requests':
+      renderAdminRequestsView(subviewContentId);
+      break;
+    case 'users':
+      renderAdminUsersView(subviewContentId);
+      firestore.collection('students').get().then(snap => {
+        window.adminCachedUsers = [];
+        snap.forEach(doc => {
+          window.adminCachedUsers.push(doc.data());
+        });
+      });
+      break;
+    case 'applications':
+      renderAdminRoleApplications(subviewContentId);
+      break;
+    case 'feedback':
+      renderAdminFeedbackView(subviewContentId);
+      break;
+    case 'roadmap':
+      renderAdminRoadmapTab(subviewContentId);
+      break;
+    case 'backups':
+      renderAdminBackupsTab(subviewContentId);
+      break;
+
+    case 'logs':
+      renderAdminLogsTab(subviewContentId);
+      break;
+  }
+}
+window.renderAdminSubTabContent = renderAdminSubTabContent;
+
+function loadAdminOverviewTab(targetId) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="admin-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; text-align: left;">
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">👥 Total Enrolled Students</div>
+        <div id="admin-stat-students" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🏫 Total Classrooms</div>
+        <div id="admin-stat-classes" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: var(--text-main);">...</div>
+      </div>
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 18px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">🔔 Pending Approvals</div>
+        <div id="admin-stat-pending" style="font-size: 28px; font-weight: 800; font-family: 'Outfit', sans-serif; margin-top: 6px; color: #f59e0b;">...</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:24px;">
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 20px; border-radius: 14px; text-align: left;">
+        <h3 style="font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 8px 0; color: var(--text-main);">📅 Semester Configuration</h3>
+        <p style="margin: 0 0 16px 0; font-size: 12.5px; color: var(--text-muted);">Configure official calendar limits for schedulers and clearance notices.</p>
+        <div style="display: flex; flex-direction:column; gap: 12px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; flex-direction: column; gap: 4px; flex:1; min-width: 120px;">
+              <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">START DATE</label>
+              <input type="date" id="admin-semester-start-date" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 12.5px; box-sizing:border-box;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; flex:1; min-width: 120px;">
+              <label style="font-size: 10px; font-weight: 700; color: var(--text-muted);">END DATE</label>
+              <input type="date" id="admin-semester-end-date" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-body); color: var(--text-main); font-size: 12.5px; box-sizing:border-box;">
+            </div>
+          </div>
+          <button class="settings-btn-primary" onclick="saveSemesterDateConfig()" style="width: 100%; margin: 0; padding: 10px; font-size: 12.5px; font-weight:700;">Save Calendar Configuration</button>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 20px; border-radius: 14px; text-align: left; display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <h3 style="font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 8px 0; color: var(--text-main);">🌐 Deployment Release Phase</h3>
+          <p style="margin: 0 0 16px 0; font-size: 12.5px; color: var(--text-muted);">Change active release mode. Testing Phase routes admins to a separate test version while other users access the live site.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button onclick="setSystemPhase('live')" class="role-switch-btn student ${systemStatus === 'live' ? 'active' : ''}" style="flex:1; border-color: #10b981; color: ${systemStatus === 'live' ? 'white' : '#10b981'}; background: ${systemStatus === 'live' ? '#10b981' : 'transparent'}; font-weight:700; font-size:12.5px; height:38px;">🟢 Live</button>
+          <button onclick="setSystemPhase('testing')" class="role-switch-btn student ${systemStatus === 'testing' ? 'active' : ''}" style="flex:1; border-color: #f59e0b; color: ${systemStatus === 'testing' ? 'white' : '#f59e0b'}; background: ${systemStatus === 'testing' ? '#f59e0b' : 'transparent'}; font-weight:700; font-size:12.5px; height:38px;">🟡 Testing Phase</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 20px; border-radius: 14px; text-align: left; margin-top: 20px;">
+      <h3 style="font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 12px 0; color: var(--text-main);">💾 Backup & Restore</h3>
+      <div id="admin-overview-backups-container">
+        <div style="font-size: 13.5px; color: var(--text-muted); font-style: italic; text-align:center; padding:12px;">Loading backups...</div>
+      </div>
+    </div>
+  `;
+
+  firestore.collection('students').get().then(snap => {
+    const el = document.getElementById('admin-stat-students');
+    if (el) el.innerText = snap.size;
+  }).catch(() => {
+    const el = document.getElementById('admin-stat-students');
+    if (el) el.innerText = "0";
+  });
+
+  firestore.collection('classes').get().then(snap => {
+    const elClasses = document.getElementById('admin-stat-classes');
+    const elPending = document.getElementById('admin-stat-pending');
+    let totalClasses = 0;
+    let pendingClasses = 0;
+    
+    snap.forEach(doc => {
+      const d = doc.data();
+      totalClasses++;
+      if (d.status === 'pending') pendingClasses++;
+    });
+    
+    window.adminCachedClasses = [];
+    snap.forEach(doc => {
+      window.adminCachedClasses.push({ id: doc.id, ...doc.data() });
+    });
+
+    if (elClasses) elClasses.innerText = totalClasses;
+    if (elPending) elPending.innerText = pendingClasses;
+  }).catch(() => {
+    const elClasses = document.getElementById('admin-stat-classes');
+    const elPending = document.getElementById('admin-stat-pending');
+    if (elClasses) elClasses.innerText = "0";
+    if (elPending) elPending.innerText = "0";
+  });
+
+  const startInput = document.getElementById('admin-semester-start-date');
+  const endInput = document.getElementById('admin-semester-end-date');
+  if (startInput && semesterStartDate) startInput.value = semesterStartDate;
+  if (endInput && semesterEndDate) endInput.value = semesterEndDate;
+
+  loadOverviewBackupTable();
+}
+window.loadAdminOverviewTab = loadAdminOverviewTab;
+
+function loadOverviewBackupTable() {
+  const container = document.getElementById('admin-overview-backups-container');
+  if (!container) return;
+
+  firestore.collection('system_settings').doc('config').get()
+    .then(configDoc => {
+      const configData = configDoc.exists ? configDoc.data() : {};
+      const liveVer = configData.liveVersion || '';
+      const testingVer = configData.testingVersion || '';
+
+      return fetch('backups/backup_index.json')
+        .then(res => {
+          if (!res.ok) throw new Error("No backup index found.");
+          return res.json();
+        })
+        .then(backups => {
+          return firestore.collection('backup_releases').get().then(snap => {
+            const releaseStatuses = {};
+            snap.forEach(doc => {
+              releaseStatuses[doc.id] = doc.data().status;
+            });
+
+            if (!backups || backups.length === 0) {
+              container.innerHTML = `<div style="font-size: 13px; color: var(--text-muted); font-style: italic;">No backup versions recorded yet.</div>`;
+              return;
+            }
+
+            // Resolve statuses first
+            backups.forEach(b => {
+              let status = b.status || 'Working';
+              if (releaseStatuses[b.version]) {
+                status = releaseStatuses[b.version];
+              }
+              if (b.version === liveVer) {
+                status = 'Live';
+              } else if (b.version === testingVer) {
+                status = 'Testing';
+              }
+              b.resolvedStatus = status;
+            });
+
+            // Sort by date descending
+            backups.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // Select only three latest versions + live
+            // If live is within the first three, show only three.
+            let displayed = backups.slice(0, 3);
+            const liveInTop3 = displayed.some(b => b.version === liveVer);
+            if (!liveInTop3) {
+              const liveBackup = backups.find(b => b.version === liveVer);
+              if (liveBackup) {
+                displayed.push(liveBackup);
+              }
+            }
+
+            let html = `
+              <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+                  <thead>
+                    <tr style="border-bottom:1px dashed var(--border-card); color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">
+                      <th style="padding:10px 6px;">Version Name</th>
+                      <th style="padding:10px 6px; width:150px;">Backup Date</th>
+                      <th style="padding:10px 6px;">Changelog Description</th>
+                      <th style="padding:10px 6px; width:120px; text-align:center;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            `;
+
+            displayed.forEach(b => {
+              const dateStr = b.date ? new Date(b.date).toLocaleString() : 'N/A';
+              const changelogStr = b.changelog || 'N/A';
+              let statusBadge = '';
+
+              if (b.resolvedStatus === 'Live') {
+                statusBadge = '<span style="font-size:10.5px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#10b981; padding:2px 6px; border-radius:4px; font-weight:700; text-transform:uppercase;">🟢 Live</span>';
+              } else if (b.resolvedStatus === 'Testing') {
+                statusBadge = '<span style="font-size:10.5px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); color:#f59e0b; padding:2px 6px; border-radius:4px; font-weight:700; text-transform:uppercase;">🟡 Testing</span>';
+              } else if (b.resolvedStatus === 'Working') {
+                statusBadge = '<span style="font-size:10.5px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); color:#0ea5e9; padding:2px 6px; border-radius:4px; font-weight:700; text-transform:uppercase;">🔵 Working</span>';
+              } else if (b.resolvedStatus === 'Archived') {
+                statusBadge = '<span style="font-size:10.5px; background:rgba(107,114,128,0.1); border:1px solid rgba(107,114,128,0.25); color:#9ca3af; padding:2px 6px; border-radius:4px; font-weight:700; text-transform:uppercase;">Archived</span>';
+              }
+
+              html += `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.02);">
+                  <td style="padding:10px 6px; font-weight:700; color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(b.version)}</td>
+                  <td style="padding:10px 6px; color:var(--text-muted); font-size:11.5px;">${dateStr}</td>
+                  <td style="padding:10px 6px; line-height:1.4; font-size:12px;">${escapeHtml(changelogStr)}</td>
+                  <td style="padding:10px 6px; text-align:center;">${statusBadge}</td>
+                </tr>
+              `;
+            });
+
+            html += `
+                  </tbody>
+                </table>
+              </div>
+            `;
+            container.innerHTML = html;
+          });
+        });
+    })
+    .catch(err => {
+      console.error("Error loading overview backup table:", err);
+      container.innerHTML = `<div style="font-size:12px; color:var(--text-muted); font-style:italic;">Failed to load backup status.</div>`;
+    });
+}
+window.loadOverviewBackupTable = loadOverviewBackupTable;
+
+
+
+// ==========================================================================
+// DYNAMIC INSTITUTIONAL PORTAL ROADMAP COMPONENT
+// ==========================================================================
+window.roadmapSortField = 'version';
+window.roadmapSortAsc = false;
+window.roadmapFilterStatus = 'active';
+
+function compareVersions(a, b) {
+  const clean = v => (v || '').replace(/[^0-9.]/g, '').split('.').map(Number);
+  const partsA = clean(a);
+  const partsB = clean(b);
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const numA = partsA[i] || 0;
+    const numB = partsB[i] || 0;
+    if (numA !== numB) return numA - numB;
+  }
+  return 0;
+}
+window.compareVersions = compareVersions;
+
+function loadRoadmapData(callback) {
+  firestore.collection('portal_roadmap').get().then(snap => {
+    if (snap.empty) {
+      // Seed default items
+      const defaults = [
+        {
+          title: "Android App Admin Module",
+          description: "Develop native Android app module supporting real-time push notifications and stockroom scan-clearances.",
+          priority: "High",
+          version: "v9.0",
+          status: "active"
+        },
+        {
+          title: "Shared Services Architecture",
+          description: "Build reusable platform services: authentication, notification engine, universal search, centralized approval engine, and audit logs.",
+          priority: "High",
+          version: "v9.1",
+          status: "active"
+        },
+        {
+          title: "Student Progress & Clearance",
+          description: "Implement learning progress tracking, automatic assessments clearance workflows, and unified student requests dashboard.",
+          priority: "Medium",
+          version: "v9.2",
+          status: "active"
+        },
+        {
+          title: "Faculty Advising & Workload",
+          description: "Add department faculty teaching workloads, extensions/accreditation tracking, and academic advising modules.",
+          priority: "Medium",
+          version: "v9.3",
+          status: "active"
+        },
+        {
+          title: "Stockroom Re-engineering & Scan",
+          description: "Implement logistical inventory re-engineering, barcode/QR scanning, automated safety stock alert threshold indicators, and digital locker integrations.",
+          priority: "High",
+          version: "v9.4",
+          status: "active"
+        },
+        {
+          title: "Hazardous Waste Management",
+          description: "Develop PCO generator registration, wastewater treatment monitoring, and solid waste logging for environmental compliance.",
+          priority: "High",
+          version: "v9.5",
+          status: "active"
+        },
+        {
+          title: "Chairperson Executive Center",
+          description: "Design and release the Chairperson dashboard with unified department KPIs, digital signatures, approval workflows, and statistics.",
+          priority: "High",
+          version: "v10.0",
+          status: "active"
+        },
+        {
+          title: "Workflow Standardization",
+          description: "Standardize approval lifecycles, notification dispatches, and activity trails across all operational sub-modules.",
+          priority: "Medium",
+          version: "v10.1",
+          status: "active"
+        }
+      ];
+      
+      const promises = defaults.map(item => firestore.collection('portal_roadmap').add(item));
+      Promise.all(promises).then(() => {
+        loadRoadmapData(callback);
+      });
+    } else {
+      const items = [];
+      snap.forEach(doc => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+      callback(items);
+    }
+  }).catch(err => {
+    console.error("Error loading roadmap data:", err);
+    callback([]);
+  });
+}
+window.loadRoadmapData = loadRoadmapData;
+
+function renderAdminRoadmapTab(targetId) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:20px;">
+      <!-- Add New Item Form -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:14px; padding:18px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+        <h3 style="font-size: 15px; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 0 0 12px 0; color: var(--text-main); display:flex; align-items:center; gap:8px;">
+          <span>➕</span> Add Roadmap Milestone
+        </h3>
+        <form id="add-roadmap-form" onsubmit="addRoadmapItem(event)" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:end;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Module / Title:</label>
+            <input type="text" id="roadmap-new-title" required placeholder="e.g. Mobile App API Integration" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; box-sizing:border-box;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Scheduled Version:</label>
+            <input type="text" id="roadmap-new-version" required placeholder="e.g. v9.2" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; box-sizing:border-box;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px; grid-column:span 2;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Description / Scope:</label>
+            <textarea id="roadmap-new-desc" required placeholder="Describe the objectives and requirements..." style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; min-height:60px; resize:vertical; font-family:inherit; box-sizing:border-box;"></textarea>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Priority weight:</label>
+            <select id="roadmap-new-priority" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; cursor:pointer; box-sizing:border-box;">
+              <option value="High">🔴 High Priority</option>
+              <option value="Medium" selected>🟡 Medium Priority</option>
+              <option value="Low">🔵 Low Priority</option>
+            </select>
+          </div>
+          <button type="submit" class="settings-btn-primary" style="margin:0; font-weight:700; font-size:12.5px; height:36px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+            <span>🚀</span> Add to Roadmap
+          </button>
+        </form>
+      </div>
+
+      <!-- Filters & Roadmap Table List -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:14px; padding:20px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-card); padding-bottom:12px; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; gap:6px;">
+            <button onclick="setRoadmapFilter('active')" class="role-switch-btn ${window.roadmapFilterStatus === 'active' ? 'active' : ''}" style="font-size:11.5px; padding:6px 12px; border-radius:6px; font-weight:600; cursor:pointer;">Active Roadmap</button>
+            <button onclick="setRoadmapFilter('archived')" class="role-switch-btn ${window.roadmapFilterStatus === 'archived' ? 'active' : ''}" style="font-size:11.5px; padding:6px 12px; border-radius:6px; font-weight:600; cursor:pointer;">Archived (Done)</button>
+            <button onclick="setRoadmapFilter('dismissed')" class="role-switch-btn ${window.roadmapFilterStatus === 'dismissed' ? 'active' : ''}" style="font-size:11.5px; padding:6px 12px; border-radius:6px; font-weight:600; cursor:pointer;">Dismissed</button>
+            <button onclick="setRoadmapFilter('all')" class="role-switch-btn ${window.roadmapFilterStatus === 'all' ? 'active' : ''}" style="font-size:11.5px; padding:6px 12px; border-radius:6px; font-weight:600; cursor:pointer;">All Releases</button>
+          </div>
+          <div style="font-size:12.5px; color:var(--text-muted); font-weight:600;" id="roadmap-count-label">Loading milestones...</div>
+        </div>
+
+        <div id="roadmap-table-container" style="overflow-x:auto;"></div>
+      </div>
+    </div>
+  `;
+
+  loadAndRenderRoadmapTable();
+}
+window.renderAdminRoadmapTab = renderAdminRoadmapTab;
+
+function loadAndRenderRoadmapTable() {
+  const container = document.getElementById('roadmap-table-container');
+  if (!container) return;
+
+  loadRoadmapData(items => {
+    let filtered = items;
+    if (window.roadmapFilterStatus !== 'all') {
+      filtered = items.filter(item => item.status === window.roadmapFilterStatus);
+    }
+
+    const priorityWeight = { 'High': 3, 'Medium': 2, 'Low': 1 };
+    
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      const field = window.roadmapSortField || 'version';
+      
+      if (field === 'priority') {
+        const wA = priorityWeight[a.priority] || 0;
+        const wB = priorityWeight[b.priority] || 0;
+        comparison = wA - wB;
+      } else if (field === 'version') {
+        comparison = compareVersions(a.version, b.version);
+      } else {
+        const strA = (a[field] || '').toLowerCase();
+        const strB = (b[field] || '').toLowerCase();
+        comparison = strA.localeCompare(strB);
+      }
+      
+      return window.roadmapSortAsc ? comparison : -comparison;
+    });
+
+    const countLabel = document.getElementById('roadmap-count-label');
+    if (countLabel) {
+      countLabel.innerText = `Total items: ${filtered.length}`;
+    }
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding:32px; color:var(--text-muted); font-style:italic;">No milestones matching filter found.</div>`;
+      return;
+    }
+
+    const getSortArrow = field => {
+      if (window.roadmapSortField === field) {
+        return window.roadmapSortAsc ? '▲' : '▼';
+      }
+      return '<span style="opacity:0.3; font-size:10px; margin-left:4px;">↕</span>';
+    };
+
+    let tbodyHtml = filtered.map(item => {
+      let priorityBadge = '';
+      if (item.priority === 'High') {
+        priorityBadge = '<span style="font-size:11px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); color:#ef4444; padding:2px 8px; border-radius:4px; font-weight:700;">High</span>';
+      } else if (item.priority === 'Medium') {
+        priorityBadge = '<span style="font-size:11px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); color:#f59e0b; padding:2px 8px; border-radius:4px; font-weight:700;">Medium</span>';
+      } else {
+        priorityBadge = '<span style="font-size:11px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); color:#0ea5e9; padding:2px 8px; border-radius:4px; font-weight:700;">Low</span>';
+      }
+
+      let statusBadge = '';
+      if (item.status === 'active') {
+        statusBadge = '<span style="font-size:11px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#10b981; padding:2px 8px; border-radius:4px; font-weight:700;">Active</span>';
+      } else if (item.status === 'archived') {
+        statusBadge = '<span style="font-size:11px; background:rgba(107,114,128,0.1); border:1px solid rgba(107,114,128,0.25); color:#9ca3af; padding:2px 8px; border-radius:4px; font-weight:700;">Archived (Done)</span>';
+      } else {
+        statusBadge = '<span style="font-size:11px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); color:#ef4444; padding:2px 8px; border-radius:4px; font-weight:700;">Dismissed</span>';
+      }
+
+      let actionButtons = '';
+      if (item.status === 'active') {
+        actionButtons = `
+          <button class="settings-btn-primary" onclick="updateRoadmapStatus('${item.id}', 'archived')" style="width:auto; margin:0; padding:4px 8px; font-size:11px; background:#10b981; border:none; color:white; border-radius:4px; cursor:pointer;" title="Mark Done (Archive)">Done</button>
+          <button class="settings-btn-primary" onclick="updateRoadmapStatus('${item.id}', 'dismissed')" style="width:auto; margin:0; padding:4px 8px; font-size:11px; background:transparent; border:1px solid var(--border-card); color:var(--text-muted); border-radius:4px; cursor:pointer;" title="Dismiss from Roadmap">Dismiss</button>
+        `;
+      } else {
+        actionButtons = `
+          <button class="settings-btn-primary" onclick="updateRoadmapStatus('${item.id}', 'active')" style="width:auto; margin:0; padding:4px 8px; font-size:11px; background:#0ea5e9; border:none; color:white; border-radius:4px; cursor:pointer;" title="Restore to Active Roadmap">Restore</button>
+        `;
+      }
+      
+      actionButtons += `
+        <button class="settings-btn-primary" onclick="deleteRoadmapItem('${item.id}')" style="width:auto; margin:0; padding:4px 8px; font-size:11px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#ef4444; border-radius:4px; cursor:pointer; margin-left:4px;" title="Delete Permanently">Delete</button>
+      `;
+
+      return `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+          <td style="padding:12px 8px; font-weight:700; color:var(--accent); font-size:13px;">${escapeHtml(item.title)}</td>
+          <td style="padding:12px 8px; color:var(--text-muted); line-height:1.4; font-size:12.5px;">${escapeHtml(item.description)}</td>
+          <td style="padding:12px 8px; text-align:center;">${priorityBadge}</td>
+          <td style="padding:12px 8px; text-align:center; font-family:monospace; font-weight:600; color:var(--text-main); font-size:12px;">${escapeHtml(item.version)}</td>
+          <td style="padding:12px 8px; text-align:center;">${statusBadge}</td>
+          <td style="padding:12px 8px; text-align:right;">
+            <div style="display:flex; gap:4px; justify-content:flex-end;">
+              ${actionButtons}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px; color:var(--text-main); min-width:750px;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border-card); background:rgba(0,0,0,0.15); color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">
+            <th onclick="toggleRoadmapSort('title')" style="padding:12px 8px; cursor:pointer; font-weight:700;">Module / Title ${getSortArrow('title')}</th>
+            <th style="padding:12px 8px; font-weight:700; width:40%;">Description</th>
+            <th onclick="toggleRoadmapSort('priority')" style="padding:12px 8px; cursor:pointer; font-weight:700; text-align:center;">Priority ${getSortArrow('priority')}</th>
+            <th onclick="toggleRoadmapSort('version')" style="padding:12px 8px; cursor:pointer; font-weight:700; text-align:center; width:110px;">Version ${getSortArrow('version')}</th>
+            <th onclick="toggleRoadmapSort('status')" style="padding:12px 8px; cursor:pointer; font-weight:700; text-align:center; width:130px;">Status ${getSortArrow('status')}</th>
+            <th style="padding:12px 8px; font-weight:700; text-align:right; width:180px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tbodyHtml}
+        </tbody>
+      </table>
+    `;
+  });
+}
+window.loadAndRenderRoadmapTable = loadAndRenderRoadmapTable;
+
+function toggleRoadmapSort(field) {
+  if (window.roadmapSortField === field) {
+    window.roadmapSortAsc = !window.roadmapSortAsc;
+  } else {
+    window.roadmapSortField = field;
+    window.roadmapSortAsc = true;
+  }
+  loadAndRenderRoadmapTable();
+}
+window.toggleRoadmapSort = toggleRoadmapSort;
+
+function setRoadmapFilter(status) {
+  window.roadmapFilterStatus = status;
+  renderAdminRoadmapTab('admin-subview-content');
+}
+window.setRoadmapFilter = setRoadmapFilter;
+
+function addRoadmapItem(event) {
+  event.preventDefault();
+  const title = document.getElementById('roadmap-new-title').value.trim();
+  const version = document.getElementById('roadmap-new-version').value.trim();
+  const description = document.getElementById('roadmap-new-desc').value.trim();
+  const priority = document.getElementById('roadmap-new-priority').value;
+
+  if (!title || !version || !description) return;
+
+  const newItem = {
+    title: title,
+    version: version,
+    description: description,
+    priority: priority,
+    status: 'active'
+  };
+
+  firestore.collection('portal_roadmap').add(newItem).then(() => {
+    showCustomAlert("Roadmap milestone added successfully!", "success");
+    logAdminActivity('roadmap_add', { title: title, version: version });
+    document.getElementById('add-roadmap-form').reset();
+    loadAndRenderRoadmapTable();
+  }).catch(err => {
+    console.error("Error adding roadmap item:", err);
+    showCustomAlert("Failed to add roadmap item: " + err.message, "error");
+  });
+}
+window.addRoadmapItem = addRoadmapItem;
+
+function updateRoadmapStatus(id, newStatus) {
+  firestore.collection('portal_roadmap').doc(id).update({
+    status: newStatus
+  }).then(() => {
+    showCustomAlert(`Milestone status updated to ${newStatus.toUpperCase()} successfully!`, "success");
+    logAdminActivity('roadmap_status_update', { docId: id, status: newStatus });
+    loadAndRenderRoadmapTable();
+  }).catch(err => {
+    console.error("Error updating roadmap status:", err);
+    showCustomAlert("Failed to update milestone status: " + err.message, "error");
+  });
+}
+window.updateRoadmapStatus = updateRoadmapStatus;
+
+function deleteRoadmapItem(id) {
+  if (!confirm("Are you sure you want to permanently delete this roadmap milestone?")) return;
+
+  firestore.collection('portal_roadmap').doc(id).delete().then(() => {
+    showCustomAlert("Roadmap milestone deleted permanently.", "success");
+    logAdminActivity('roadmap_delete', { docId: id });
+    loadAndRenderRoadmapTable();
+  }).catch(err => {
+    console.error("Error deleting roadmap item:", err);
+    showCustomAlert("Failed to delete milestone: " + err.message, "error");
+  });
+}
+window.deleteRoadmapItem = deleteRoadmapItem;
+
+
+function renderAdminBackupsTab(targetId) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:14px; padding:20px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+      
+      <input type="text" id="backup-search" oninput="filterBackupsTable(this.value)" placeholder="🔍 Search backups by version name or changelog description..." style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; outline:none; box-sizing:border-box; margin-bottom:12px;">
+
+      <div id="admin-backups-container">
+        <div style="font-size: 13.5px; color: var(--text-muted); font-style: italic; text-align:center; padding:24px;">Loading backups catalog index...</div>
+      </div>
+    </div>
+  `;
+
+  loadBackupCatalog();
+}
+window.renderAdminBackupsTab = renderAdminBackupsTab;
+
+function filterBackupsTable(query) {
+  const tbody = document.querySelector('#admin-backups-tbody');
+  const rows = document.querySelectorAll('.backup-row-item');
+  if (!tbody || !rows) return;
+  
+  const q = query.toLowerCase().trim();
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    if (text.includes(q)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+window.filterBackupsTable = filterBackupsTable;
+
+function renderAdminLogsTab(targetId) {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:14px; padding:20px; text-align:left; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+      <p style="margin:0 0 16px 0; font-size:13px; color:var(--text-muted);">Inspect system administration audit trails and operational logging records.</p>
+      <div id="admin-activity-logs-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 450px; overflow-y: auto; padding-right: 6px;">
+        <div style="font-size: 13.5px; color: var(--text-muted); font-style: italic; text-align:center; padding:24px;">Loading activity audit logs...</div>
+      </div>
+    </div>
+  `;
+
+  loadAdminActivityLogs();
+}
+window.renderAdminLogsTab = renderAdminLogsTab;
+
+// ==========================================================================
+// USER BUG REPORT & FEATURE REQUESTS WORKSPACE
+// ==========================================================================
+function submitFeedbackForm(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  
+  const type = document.getElementById('feedback-type').value;
+  const subject = document.getElementById('feedback-subject').value.trim();
+  const description = document.getElementById('feedback-description').value.trim();
+  const priority = document.getElementById('feedback-priority').value;
+  const attachDevice = document.getElementById('feedback-attach-device').checked;
+  
+  let deviceDetails = null;
+  if (attachDevice) {
+    deviceDetails = {
+      userAgent: navigator.userAgent,
+      screenSize: `${window.innerWidth}x${window.innerHeight}`,
+      language: navigator.language,
+      platform: navigator.platform
+    };
+  }
+  
+  const feedbackData = {
+    email: currentUser.email,
+    name: currentUser.name || currentUser.email.split('@')[0],
+    role: currentUserRole,
+    type: type,
+    subject: subject,
+    description: description,
+    priority: priority,
+    deviceDetails: deviceDetails,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    status: 'pending_review',
+    reply: ''
+  };
+  
+  firestore.collection('feedback_submissions').add(feedbackData)
+  .then(() => {
+    showCustomAlert("Thank you! Your feedback has been submitted successfully.", "success");
+    document.getElementById('settings-feedback-form').reset();
+    closeSettings();
+  })
+  .catch(err => {
+    showCustomAlert("Error submitting feedback: " + err.message, "error");
+  });
+}
+window.submitFeedbackForm = submitFeedbackForm;
+
+function renderAdminFeedbackView(targetId = 'admin-viewport-body') {
+  const container = document.getElementById(targetId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="text-align:left;">
+      <p style="margin:0 0 16px 0; font-size:13px; color:var(--text-muted);">Manage bug reports and feature requests submitted by portal users.</p>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; background:var(--bg-card); border:1px solid var(--border-card); padding:10px 16px; border-radius:12px;">
+        <div style="display:flex; gap:8px;">
+          <select id="admin-feedback-filter-type" onchange="filterFeedbackList()" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; cursor:pointer;">
+            <option value="all">All Types</option>
+            <option value="bug">🐛 Bugs</option>
+            <option value="feature">💡 Features</option>
+          </select>
+          <select id="admin-feedback-filter-status" onchange="filterFeedbackList()" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:12.5px; cursor:pointer;">
+            <option value="all">All Statuses</option>
+            <option value="pending_review">⏳ Pending Review</option>
+            <option value="in_progress">⚙️ In Progress</option>
+            <option value="resolved">✅ Resolved</option>
+            <option value="dismissed">❌ Dismissed</option>
+          </select>
+        </div>
+      </div>
+      
+      <div id="admin-feedback-list-container" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="text-align:center; padding:24px; color:var(--text-muted); font-style:italic;">Loading feedback submissions...</div>
+      </div>
+    </div>
+  `;
+
+  firestore.collection('feedback_submissions')
+    .orderBy('timestamp', 'desc')
+    .get()
+    .then(snap => {
+      window.adminCachedFeedback = [];
+      snap.forEach(doc => {
+        window.adminCachedFeedback.push({ id: doc.id, ...doc.data() });
+      });
+      filterFeedbackList();
+    })
+    .catch(err => {
+      console.error("Error loading feedback submissions:", err);
+      const listContainer = document.getElementById('admin-feedback-list-container');
+      if (listContainer) {
+        listContainer.innerHTML = `<div style="color:var(--incorrect); text-align:center; padding:12px;">⚠️ Failed to load feedback: ${err.message}</div>`;
+      }
+    });
+}
+window.renderAdminFeedbackView = renderAdminFeedbackView;
+
+function filterFeedbackList() {
+  const listContainer = document.getElementById('admin-feedback-list-container');
+  if (!listContainer || !window.adminCachedFeedback) return;
+
+  const typeFilter = document.getElementById('admin-feedback-filter-type').value;
+  const statusFilter = document.getElementById('admin-feedback-filter-status').value;
+
+  const filtered = window.adminCachedFeedback.filter(f => {
+    if (typeFilter !== 'all' && f.type !== typeFilter) return false;
+    if (statusFilter !== 'all' && f.status !== statusFilter) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-muted); background:var(--bg-body); border:1px solid var(--border-card); border-radius:12px; font-size:13px;">No feedback submissions found matching criteria.</div>`;
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(f => {
+    const dateStr = f.timestamp 
+      ? new Date(f.timestamp.seconds * 1000).toLocaleString() 
+      : new Date().toLocaleString();
+
+    const priorityBadge = f.priority === 'high' 
+      ? '<span style="color:#ef4444; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase;">High</span>' 
+      : (f.priority === 'medium' 
+          ? '<span style="color:#f59e0b; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase;">Medium</span>' 
+          : '<span style="color:#10b981; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase;">Low</span>');
+
+    const statusBadge = f.status === 'resolved'
+      ? '<span style="color:#10b981; font-weight:700;">✅ Resolved</span>'
+      : (f.status === 'in_progress'
+          ? '<span style="color:#3b82f6; font-weight:700;">⚙️ In Progress</span>'
+          : (f.status === 'dismissed'
+              ? '<span style="color:#9ca3af; font-weight:700;">❌ Dismissed</span>'
+              : '<span style="color:#f59e0b; font-weight:700;">⏳ Pending Review</span>'));
+
+    html += `
+      <div style="background:var(--bg-body); border:1px solid var(--border-card); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:10px; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h4 style="margin:0 0 4px 0; font-size:14.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
+              <span>${f.type === 'bug' ? '🐛' : '💡'} ${escapeHtml(f.subject)}</span>
+              ${priorityBadge}
+            </h4>
+            <div style="font-size:11.5px; color:var(--text-muted);">Submitted by: <strong>${escapeHtml(f.name)}</strong> (${escapeHtml(f.email)} - ${f.role.toUpperCase()}) | ${dateStr}</div>
+          </div>
+          <div style="font-size:12.5px;">${statusBadge}</div>
+        </div>
+        
+        <p style="margin:0; font-size:13px; color:var(--text-main); white-space:pre-wrap; line-height:1.5;">${escapeHtml(f.description)}</p>
+        
+        ${f.deviceDetails ? `
+          <div style="background:rgba(255,255,255,0.01); border:1px dashed var(--border-card); border-radius:8px; padding:8px 12px; font-size:11px; color:var(--text-muted); font-family:monospace; line-height:1.4;">
+            📱 Client System: ${f.deviceDetails.platform} | Agent: ${f.deviceDetails.userAgent} | Size: ${f.deviceDetails.screenSize}
+          </div>
+        ` : ''}
+
+        ${f.reply ? `
+          <div style="background:rgba(13,148,136,0.05); border-left:3px solid var(--accent); padding:10px 14px; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.5;">
+            <strong>💬 Admin Response:</strong> ${escapeHtml(f.reply)}
+          </div>
+        ` : ''}
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px; border-top:1px solid rgba(255,255,255,0.02); padding-top:10px;">
+          <select onchange="updateFeedbackStatus('${f.id}', this.value)" style="padding:6px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-card); color:var(--text-main); font-size:12px; cursor:pointer;">
+            <option value="pending_review" ${f.status === 'pending_review' ? 'selected' : ''}>⏳ Pending Review</option>
+            <option value="in_progress" ${f.status === 'in_progress' ? 'selected' : ''}>⚙️ In Progress</option>
+            <option value="resolved" ${f.status === 'resolved' ? 'selected' : ''}>✅ Resolved</option>
+            <option value="dismissed" ${f.status === 'dismissed' ? 'selected' : ''}>❌ Dismissed</option>
+          </select>
+          <button class="settings-btn-primary" onclick="replyToFeedback('${f.id}')" style="width:auto; margin:0; padding:6px 12px; font-size:12px; background:var(--accent); font-weight:600;">Reply 💬</button>
+        </div>
+      </div>
+    `;
+  });
+  listContainer.innerHTML = html;
+}
+window.filterFeedbackList = filterFeedbackList;
+
+function updateFeedbackStatus(docId, newStatus) {
+  firestore.collection('feedback_submissions').doc(docId).update({
+    status: newStatus
+  })
+  .then(() => {
+    const f = window.adminCachedFeedback.find(item => item.id === docId);
+    if (f) f.status = newStatus;
+    showCustomAlert("Feedback status updated successfully!", "success");
+    filterFeedbackList();
+  })
+  .catch(err => {
+    showCustomAlert("Error updating feedback status: " + err.message, "error");
+  });
+}
+window.updateFeedbackStatus = updateFeedbackStatus;
+
+function replyToFeedback(docId) {
+  const f = window.adminCachedFeedback.find(item => item.id === docId);
+  if (!f) return;
+
+  const replyText = prompt("Enter your response to the user:", f.reply || "");
+  if (replyText === null) return;
+
+  firestore.collection('feedback_submissions').doc(docId).update({
+    reply: replyText.trim()
+  })
+  .then(() => {
+    f.reply = replyText.trim();
+    showCustomAlert("Response saved successfully!", "success");
+    filterFeedbackList();
+  })
+  .catch(err => {
+    showCustomAlert("Error saving response: " + err.message, "error");
+  });
+}
+window.replyToFeedback = replyToFeedback;
+
+// ==========================================================================
+// NOTICE/TASKS INBOX MODULE
+// ==========================================================================
+function renderNoticeTasksView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport || !currentUser) return;
+
+  viewport.innerHTML = `
+    <div style="text-align: left;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:16px;">
+        <h2 style="font-size: 20px; font-weight: 800; font-family: 'Outfit', sans-serif; margin: 0;">📬 Notice/Tasks Section</h2>
+        <button class="settings-btn-primary" onclick="openAddTaskModal()" style="width:auto; margin:0; padding:8px 16px; font-size:12.5px;">➕ Create Task</button>
+      </div>
+      
+      <p style="font-size: 13.5px; color: var(--text-muted); margin: 0 0 20px 0;">View action-required tasks and notification messages. Click any task to add personal notes, reminders, or rearrange priorities.</p>
+      
+      <div style="background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 14px; overflow-x: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; min-width: 600px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-card); background: rgba(255,255,255,0.01); color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
+              <th style="padding: 14px 16px; width: 40px; text-align:center;">Star</th>
+              <th style="padding: 14px 16px; width: 160px;">From</th>
+              <th style="padding: 14px 16px;">Task Content</th>
+              <th style="padding: 14px 16px; width: 180px;">Action Needed</th>
+              <th style="padding: 14px 16px; width: 120px; text-align:center;">Date Received</th>
+              <th style="padding: 14px 16px; width: 230px; text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="notices-tasks-tbody">
+            <tr>
+              <td colspan="6" style="padding: 30px; text-align: center; color: var(--text-muted); font-style: italic;">Loading tasks list...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  loadNoticesTasks();
+}
+window.renderNoticeTasksView = renderNoticeTasksView;
+
+function loadNoticesTasks() {
+  const tbody = document.getElementById('notices-tasks-tbody');
+  if (!tbody) return;
+
+  firestore.collection('notices_tasks')
+    .where('recipientEmail', '==', currentUser.email)
+    .get()
+    .then(snap => {
+      let tasks = [];
+      snap.forEach(doc => {
+        tasks.push({ id: doc.id, ...doc.data() });
+      });
+
+      if (tasks.length === 0) {
+        seedMockTasks().then(() => {
+          loadNoticesTasks();
+        });
+        return;
+      }
+
+      tasks.sort((a, b) => {
+        if (a.status === 'completed' && b.status !== 'completed') return 1;
+        if (a.status !== 'completed' && b.status === 'completed') return -1;
+        if (a.priority && !b.priority) return -1;
+        if (!a.priority && b.priority) return 1;
+        const indexA = a.orderIndex || 0;
+        const indexB = b.orderIndex || 0;
+        if (indexA !== indexB) return indexA - indexB;
+        const timeA = a.timestamp ? a.timestamp.seconds : 0;
+        const timeB = b.timestamp ? b.timestamp.seconds : 0;
+        return timeB - timeA;
+      });
+
+      window.adminCachedTasks = tasks;
+      renderTasksTable(tasks);
+    })
+    .catch(err => {
+      console.error("Error loading notices and tasks:", err);
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:var(--incorrect);">⚠️ Error loading tasks: ${err.message}</td></tr>`;
+    });
+}
+window.loadNoticesTasks = loadNoticesTasks;
+
+function seedMockTasks() {
+  const role = currentUserRole;
+  let mockList = [];
+
+  if (role === 'student') {
+    mockList = [
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Prof. Ramon Eduque',
+        content: 'Review CHM151 Syllabus outcomes. Ensure you understand the grading system and course policies.',
+        actionNeeded: 'Read course syllabus',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: true,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 0
+      },
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Lab Stockroom',
+        content: 'Clearance notice: You have unreturned glassware (2 beakers, 1 graduated cylinder) from Experiment 3.',
+        actionNeeded: 'Clear lab clearances',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: false,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 1
+      }
+    ];
+  } else if (role === 'faculty') {
+    mockList = [
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Lab Stockroom',
+        content: 'CHM151 Section 49C student experiment groups are not set up. Students cannot submit requisitions.',
+        actionNeeded: 'Assign lab groups',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: true,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 0
+      },
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'System Administrator',
+        content: 'Reminder to publish the upcoming Midterm Quiz assessment to the student roster.',
+        actionNeeded: 'Publish Midterm Quiz',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: false,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 1
+      }
+    ];
+  } else if (role === 'laboratory') {
+    mockList = [
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Prof. Ramon Eduque',
+        content: 'Class CHM151 Section 49C has requested apparatus for Experiment 5 (Qualitative Analysis).',
+        actionNeeded: 'Prepare apparatus kits',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: true,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 0
+      }
+    ];
+  } else if (role === 'pco') {
+    mockList = [
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Chem Lab',
+        content: 'Wastewater pH log submitted. Acidic spill detected and neutralized in Room 302.',
+        actionNeeded: 'Verify spill incident',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: true,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 0
+      }
+    ];
+  } else {
+    mockList = [
+      {
+        recipientEmail: currentUser.email,
+        senderEmail: 'ramon.eduque@msugensan.edu.ph',
+        senderName: 'Prof. Ramon Eduque',
+        content: 'Class Creation Request: Inorganic Chemistry (Sec 49C). Syllabus attached.',
+        actionNeeded: 'Approve class request',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending',
+        priority: true,
+        personalNotes: '',
+        reminderDate: '',
+        orderIndex: 0
+      }
+    ];
+  }
+
+  const batch = firestore.batch();
+  mockList.forEach(m => {
+    const docRef = firestore.collection('notices_tasks').doc();
+    batch.set(docRef, m);
+  });
+  return batch.commit();
+}
+
+function renderTasksTable(tasks) {
+  const tbody = document.getElementById('notices-tasks-tbody');
+  if (!tbody) return;
+
+  let html = '';
+  tasks.forEach((t, idx) => {
+    const dateStr = t.timestamp 
+      ? new Date(t.timestamp.seconds * 1000).toLocaleString() 
+      : new Date().toLocaleString();
+
+    const isPending = t.status !== 'completed';
+    const rowStyle = isPending ? '' : 'style="opacity: 0.65; text-decoration: line-through;"';
+    const starColor = t.priority ? '#f59e0b' : 'var(--text-muted)';
+    const starText = t.priority ? '★' : '☆';
+
+    html += `
+      <tr ${rowStyle} style="border-bottom: 1px solid var(--border-card); cursor: pointer; transition: background 0.2s;" class="task-row" onclick="handleTaskRowClick(event, '${t.id}')">
+        <td style="padding: 14px 16px; font-size: 16px; color: ${starColor}; text-align: center; cursor: pointer;" onclick="toggleTaskStar(event, '${t.id}')">${starText}</td>
+        <td style="padding: 14px 16px; font-weight: 700; color: var(--text-main); line-height: 1.3;">${escapeHtml(t.senderName)}<br><span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">${escapeHtml(t.senderEmail)}</span></td>
+        <td style="padding: 14px 16px; font-weight: 500; line-height: 1.5;">${escapeHtml(t.content)}
+          ${t.reminderDate ? `<br><span style="font-size:10.5px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:2px 6px; border-radius:4px; margin-top:4px; display:inline-block; font-family:'Outfit'; font-weight:600;">⏰ Reminder: ${new Date(t.reminderDate).toLocaleString()}</span>` : ''}
+        </td>
+        <td style="padding: 14px 16px; font-weight: 600;"><span style="color:var(--accent); font-family:'Outfit',sans-serif; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">${escapeHtml(t.actionNeeded)}</span></td>
+        <td style="padding: 14px 16px; text-align: center; color: var(--text-muted); font-size: 11.5px;">${dateStr}</td>
+        <td style="padding: 14px 16px; text-align: center;" onclick="event.stopPropagation()">
+          <div style="display: flex; gap: 6px; justify-content: center; align-items:center; flex-wrap:wrap;">
+            ${isPending ? `
+              <button class="settings-btn-primary" onclick="markTaskDone('${t.id}')" style="width:auto; margin:0; padding:6px 10px; font-size:11.5px; background:#10b981; font-weight:700;">Done ✅</button>
+            ` : ''}
+            <button class="settings-btn-primary" onclick="dismissTask('${t.id}')" style="width:auto; margin:0; padding:6px 10px; font-size:11.5px; background:transparent; border:1px solid var(--border-card); color:var(--text-muted); font-weight:600;">Archive</button>
+            <button class="settings-btn-primary" onclick="replyTask('${t.id}')" style="width:auto; margin:0; padding:6px 10px; font-size:11.5px; background:var(--accent); font-weight:700;">Reply 💬</button>
+            <button class="settings-btn-primary" onclick="emailTaskSender('${t.id}')" style="width:auto; margin:0; padding:6px 10px; font-size:11.5px; background:#3b82f6; font-weight:700;">Email ✉️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+function toggleTaskStar(event, docId) {
+  event.stopPropagation();
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+
+  const newPriority = !t.priority;
+  firestore.collection('notices_tasks').doc(docId).update({
+    priority: newPriority
+  })
+  .then(() => {
+    t.priority = newPriority;
+    playSFX(true);
+    loadNoticesTasks();
+  })
+  .catch(err => {
+    console.error("Error updating priority:", err);
+  });
+}
+window.toggleTaskStar = toggleTaskStar;
+
+function markTaskDone(docId) {
+  firestore.collection('notices_tasks').doc(docId).update({
+    status: 'completed'
+  })
+  .then(() => {
+    showCustomAlert("Task marked as completed!", "success");
+    loadNoticesTasks();
+  })
+  .catch(err => {
+    showCustomAlert("Error completing task: " + err.message, "error");
+  });
+}
+window.markTaskDone = markTaskDone;
+
+function dismissTask(docId) {
+  showCustomConfirm("Are you sure you want to dismiss and delete this task notice?", (confirm) => {
+    if (!confirm) return;
+
+    firestore.collection('notices_tasks').doc(docId).delete()
+    .then(() => {
+      showCustomAlert("Notice dismissed successfully.", "success");
+      loadNoticesTasks();
+      closeActionDrawer();
+    })
+    .catch(err => {
+      showCustomAlert("Error deleting notice: " + err.message, "error");
+    });
+  });
+}
+window.dismissTask = dismissTask;
+
+function replyTask(docId) {
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+
+  const replyText = prompt(`Send a reply to ${t.senderName}:`);
+  if (!replyText || !replyText.trim()) return;
+
+  firestore.collection('notices_tasks').add({
+    recipientEmail: t.senderEmail,
+    senderEmail: currentUser.email,
+    senderName: currentUser.name || currentUser.email.split('@')[0],
+    content: `Reply to: "${t.content}"<br><br>💬 "${replyText.trim()}"`,
+    actionNeeded: 'Reply notice',
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    status: 'pending',
+    priority: true,
+    personalNotes: '',
+    reminderDate: '',
+    orderIndex: 0
+  })
+  .then(() => {
+    showCustomAlert("Reply sent successfully as a task notice!", "success");
+  })
+  .catch(err => {
+    showCustomAlert("Error sending reply: " + err.message, "error");
+  });
+}
+window.replyTask = replyTask;
+
+function emailTaskSender(docId) {
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+
+  const subject = encodeURIComponent(`RE: ${t.actionNeeded}`);
+  const body = encodeURIComponent(`Hello ${t.senderName},\n\nRegarding the task: "${t.content}"\n\n[Write your message here]\n\nBest regards,\n\n${currentUser.name || currentUser.email}`);
+  
+  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${t.senderEmail}&su=${subject}&body=${body}`, '_blank');
+
+  firestore.collection('notices_tasks').doc(docId).update({
+    status: 'completed'
+  })
+  .then(() => {
+    showCustomAlert("Email client opened. Task has been marked as completed!", "success");
+    loadNoticesTasks();
+  })
+  .catch(err => {
+    console.error("Error updating task status:", err);
+  });
+}
+window.emailTaskSender = emailTaskSender;
+
+let activeDetailTaskId = null;
+
+function handleTaskRowClick(event, docId) {
+  if (event && event.target && (event.target.tagName === 'BUTTON' || event.target.onclick)) return;
+
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+  
+  activeDetailTaskId = docId;
+  
+  const drawer = document.getElementById('action-drawer');
+  const overlay = document.getElementById('action-drawer-overlay');
+  const title = document.getElementById('action-drawer-title');
+  const body = document.getElementById('action-drawer-body');
+  const footer = document.getElementById('action-drawer-footer');
+  
+  if (!drawer || !body) return;
+  
+  title.innerText = "📋 Task / Notice Detail";
+  
+  body.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:16px; text-align:left; font-family:'Outfit',sans-serif;">
+      <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border-card); border-radius:12px; padding:16px;">
+        <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px;">Sender</div>
+        <div style="font-size:13.5px; font-weight:700; color:var(--text-main);">${escapeHtml(t.senderName)} (${escapeHtml(t.senderEmail)})</div>
+        <div style="border-top:1px solid var(--border-card); margin:12px 0;"></div>
+        <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px;">Task Message</div>
+        <div style="font-size:13px; line-height:1.5; color:var(--text-main);">${escapeHtml(t.content)}</div>
+        <div style="border-top:1px solid var(--border-card); margin:12px 0;"></div>
+        <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px;">Action Needed</div>
+        <div style="font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase;">${escapeHtml(t.actionNeeded)}</div>
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">✍️ Personal Notes</label>
+        <textarea id="task-personal-notes" placeholder="Type personal notes or checklists here. Auto-saves on change..." style="width:100%; height:80px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-card); color:var(--text-main); font-size:12.5px; outline:none; resize:vertical;" onchange="saveTaskPersonalNotes('${t.id}', this.value)">${escapeHtml(t.personalNotes || '')}</textarea>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">⏰ Set Reminder Alarm</label>
+        <div style="display:flex; gap:8px;">
+          <input type="datetime-local" id="task-reminder-date" value="${t.reminderDate || ''}" style="flex:1; padding:8px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-card); color:var(--text-main); font-size:12.5px; outline:none;">
+          <button class="settings-btn-primary" onclick="saveTaskReminder('${t.id}')" style="width:auto; margin:0; padding:8px 14px; font-size:12px; background:var(--accent); font-weight:700;">Set</button>
+          ${t.reminderDate ? `<button class="settings-btn-primary" onclick="clearTaskReminder('${t.id}')" style="width:auto; margin:0; padding:8px 10px; font-size:12px; background:var(--incorrect); border:none;">Clear</button>` : ''}
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid var(--border-card); border-radius:12px; padding:12px 16px;">
+        <span style="font-size:12.5px; font-weight:600; color:var(--text-main);">Star / Pin Task</span>
+        <button class="settings-btn-primary" onclick="toggleTaskPriorityInline('${t.id}')" style="width:auto; margin:0; padding:6px 12px; font-size:12px; background:${t.priority ? '#f59e0b' : 'transparent'}; border:${t.priority ? 'none' : '1px solid var(--border-card)'}; color:${t.priority ? 'white' : 'var(--text-muted)'}; font-weight:700;">
+          ${t.priority ? '★ Starred' : '☆ Star Task'}
+        </button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid var(--border-card); border-radius:12px; padding:12px 16px;">
+        <span style="font-size:12.5px; font-weight:600; color:var(--text-main);">Arrange Order</span>
+        <div style="display:flex; gap:6px;">
+          <button class="settings-btn-primary" onclick="moveTaskOrder('${t.id}', -1)" style="width:auto; margin:0; padding:6px 10px; font-size:12px; background:transparent; border:1px solid var(--border-card); color:var(--text-main); font-weight:700;">▲ Up</button>
+          <button class="settings-btn-primary" onclick="moveTaskOrder('${t.id}', 1)" style="width:auto; margin:0; padding:6px 10px; font-size:12px; background:transparent; border:1px solid var(--border-card); color:var(--text-main); font-weight:700;">▼ Down</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button class="settings-btn-primary" onclick="closeActionDrawer()" style="width:auto; margin:0; padding:8px 16px; font-size:13px; background:rgba(255,255,255,0.05); border:1px solid var(--border-card); color:var(--text-main);">Close Details</button>
+  `;
+
+  if (drawer && overlay) {
+    drawer.classList.add('active');
+    overlay.classList.add('active');
+  }
+}
+window.handleTaskRowClick = handleTaskRowClick;
+
+function saveTaskPersonalNotes(docId, val) {
+  firestore.collection('notices_tasks').doc(docId).update({
+    personalNotes: val.trim()
+  })
+  .then(() => {
+    const t = window.adminCachedTasks.find(item => item.id === docId);
+    if (t) t.personalNotes = val.trim();
+  })
+  .catch(err => {
+    console.error("Error saving personal notes:", err);
+  });
+}
+window.saveTaskPersonalNotes = saveTaskPersonalNotes;
+
+function saveTaskReminder(docId) {
+  const dateInput = document.getElementById('task-reminder-date');
+  if (!dateInput) return;
+  const val = dateInput.value;
+  
+  if (!val) {
+    showCustomAlert("Please select a date and time.", "error");
+    return;
+  }
+
+  firestore.collection('notices_tasks').doc(docId).update({
+    reminderDate: val
+  })
+  .then(() => {
+    showCustomAlert(`Reminder scheduled for ${new Date(val).toLocaleString()}`, "success");
+    const t = window.adminCachedTasks.find(item => item.id === docId);
+    if (t) t.reminderDate = val;
+    loadNoticesTasks();
+    handleTaskRowClick(null, docId);
+  })
+  .catch(err => {
+    showCustomAlert("Error saving reminder: " + err.message, "error");
+  });
+}
+window.saveTaskReminder = saveTaskReminder;
+
+function clearTaskReminder(docId) {
+  firestore.collection('notices_tasks').doc(docId).update({
+    reminderDate: ''
+  })
+  .then(() => {
+    showCustomAlert("Reminder cleared.", "success");
+    const t = window.adminCachedTasks.find(item => item.id === docId);
+    if (t) t.reminderDate = '';
+    loadNoticesTasks();
+    handleTaskRowClick(null, docId);
+  })
+  .catch(err => {
+    showCustomAlert("Error clearing reminder: " + err.message, "error");
+  });
+}
+window.clearTaskReminder = clearTaskReminder;
+
+function toggleTaskPriorityInline(docId) {
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+
+  const newPriority = !t.priority;
+  firestore.collection('notices_tasks').doc(docId).update({
+    priority: newPriority
+  })
+  .then(() => {
+    t.priority = newPriority;
+    playSFX(true);
+    loadNoticesTasks();
+    handleTaskRowClick(null, docId);
+  })
+  .catch(err => {
+    console.error("Error updating priority:", err);
+  });
+}
+window.toggleTaskPriorityInline = toggleTaskPriorityInline;
+
+function moveTaskOrder(docId, dir) {
+  const t = window.adminCachedTasks.find(item => item.id === docId);
+  if (!t) return;
+
+  const currentIdx = window.adminCachedTasks.findIndex(item => item.id === docId);
+  const targetIdx = currentIdx + dir;
+
+  if (targetIdx < 0 || targetIdx >= window.adminCachedTasks.length) return;
+
+  const targetTask = window.adminCachedTasks[targetIdx];
+  const currentOrder = t.orderIndex || 0;
+  const targetOrder = targetTask.orderIndex || 0;
+
+  const batch = firestore.batch();
+  batch.update(firestore.collection('notices_tasks').doc(docId), { orderIndex: targetOrder });
+  batch.update(firestore.collection('notices_tasks').doc(targetTask.id), { orderIndex: currentOrder });
+
+  batch.commit().then(() => {
+    t.orderIndex = targetOrder;
+    targetTask.orderIndex = currentOrder;
+    playSFX(true);
+    loadNoticesTasks();
+    handleTaskRowClick(null, docId);
+  })
+  .catch(err => {
+    console.error("Error reordering tasks:", err);
+  });
+}
+window.moveTaskOrder = moveTaskOrder;
+
+function openAddTaskModal() {
+  const modalEl = document.getElementById('role-app-modal');
+  const bodyEl = document.getElementById('role-app-modal-body');
+  const titleEl = document.querySelector('#role-app-modal h3');
+  
+  if (!modalEl || !bodyEl) {
+    const content = prompt("Enter task content:");
+    if (!content) return;
+    const action = prompt("Enter action needed:");
+    if (!action) return;
+    firestore.collection('notices_tasks').add({
+      recipientEmail: currentUser.email,
+      senderEmail: currentUser.email,
+      senderName: 'Self',
+      content: content,
+      actionNeeded: action,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      status: 'pending',
+      priority: false,
+      personalNotes: '',
+      reminderDate: '',
+      orderIndex: 0
+    }).then(() => loadNoticesTasks());
+    return;
+  }
+
+  titleEl.innerHTML = `📬 Create Personal Task / Notice`;
+  bodyEl.innerHTML = `
+    <form id="create-task-form" onsubmit="submitNewTask(event)" style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Recipient Email (Optional, default is Self):</label>
+        <input type="email" id="task-create-recipient" placeholder="e.g. self or user@msugensan.edu.ph" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Task Content / Message:</label>
+        <textarea id="task-create-content" placeholder="Describe the notification or task message..." required style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; height:70px; resize:vertical; outline:none; font-family:sans-serif;"></textarea>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Action Needed Label:</label>
+        <input type="text" id="task-create-action" placeholder="e.g. Review documents, Clear record" required style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+        <input type="checkbox" id="task-create-priority" style="width:14px; height:14px; cursor:pointer;">
+        <label for="task-create-priority" style="font-size:11.5px; color:var(--text-muted); cursor:pointer;">Flag as High Priority Task</label>
+      </div>
+      <button type="submit" class="settings-btn-primary" style="margin-top:10px; font-weight:700;">📤 Save Task Notice</button>
+    </form>
+  `;
+  modalEl.style.display = 'flex';
+}
+window.openAddTaskModal = openAddTaskModal;
+
+function submitNewTask(event) {
+  event.preventDefault();
+  const recipient = document.getElementById('task-create-recipient').value.trim() || currentUser.email;
+  const content = document.getElementById('task-create-content').value.trim();
+  const action = document.getElementById('task-create-action').value.trim();
+  const priority = document.getElementById('task-create-priority').checked;
+
+  const newTask = {
+    recipientEmail: recipient,
+    senderEmail: currentUser.email,
+    senderName: recipient === currentUser.email ? 'Self' : (currentUser.name || currentUser.email.split('@')[0]),
+    content: content,
+    actionNeeded: action,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    status: 'pending',
+    priority: priority,
+    personalNotes: '',
+    reminderDate: '',
+    orderIndex: 0
+  };
+
+  firestore.collection('notices_tasks').add(newTask)
+  .then(() => {
+    showCustomAlert("Task notice created successfully!", "success");
+    closeRoleAppModal();
+    if (currentMode === 'notice-tasks') {
+      loadNoticesTasks();
+    }
+  })
+  .catch(err => {
+    showCustomAlert("Failed to create task notice: " + err.message, "error");
+  });
+}
+window.submitNewTask = submitNewTask;
 // ==========================================================================
 // ADMIN DASHBOARD VIEW (CLASS REQUESTS & USER ROLES DIRECTORY)
 // ==========================================================================
-function renderAdminRequestsView() {
-  const viewport = document.getElementById('viewport-body');
+function renderAdminRequestsView(targetId = 'viewport-body') {
+  const viewport = document.getElementById(targetId);
   if (!viewport || !currentUser) return;
 
   viewport.innerHTML = `
@@ -6258,48 +8654,106 @@ function renderAdminRequestsView() {
 }
 
 function approveClassRequest(classId) {
-  firestore.collection('classes').doc(classId).update({
-    status: 'approved'
-  })
-  .then(() => {
-    alert("Classroom request approved successfully!");
-    renderAdminRequestsView();
-  })
-  .catch(err => {
-    console.error("Error approving class:", err);
-    alert("Failed to approve: " + err.message);
-  });
+  firestore.collection('classes').doc(classId).get()
+    .then(doc => {
+      if (!doc.exists) return;
+      const classData = doc.data();
+      return firestore.collection('classes').doc(classId).update({
+        status: 'approved'
+      }).then(() => {
+        logAdminActivity('class_status', {
+          classId: classId,
+          status: 'approved',
+          courseName: classData.courseName || classData.courseId || classId,
+          section: classData.section || '',
+          facultyName: classData.instructorName || classData.instructorEmail || ''
+        });
+      });
+    })
+    .then(() => {
+      showCustomAlert("Classroom request approved successfully!", 'success');
+      renderAdminRequestsView();
+    })
+    .catch(err => {
+      console.error("Error approving class:", err);
+      showCustomAlert("Failed to approve: " + err.message, 'error');
+    });
 }
 
 function denyClassRequest(classId) {
-  if (!confirm("Are you sure you want to deny this class request?")) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  firestore.collection('classes').doc(classId).update({
-    status: 'denied'
-  })
-  .then(() => {
-    alert("Classroom request denied.");
-    renderAdminRequestsView();
-  })
-  .catch(err => {
-    console.error("Error denying class request:", err);
-    alert("Failed to deny: " + err.message);
-  });
+    firestore.collection('classes').doc(classId).get()
+      .then(doc => {
+        if (!doc.exists) return;
+        const classData = doc.data();
+        return firestore.collection('classes').doc(classId).update({
+          status: 'denied'
+        }).then(() => {
+          logAdminActivity('class_status', {
+            classId: classId,
+            status: 'denied',
+            courseName: classData.courseName || classData.courseId || classId,
+            section: classData.section || '',
+            facultyName: classData.instructorName || classData.instructorEmail || ''
+          });
+        });
+      })
+      .then(() => {
+        showCustomAlert("Classroom request denied.", 'success');
+        renderAdminRequestsView();
+      })
+      .catch(err => {
+        console.error("Error denying class request:", err);
+        showCustomAlert("Failed to deny: " + err.message, 'error');
+      });
+  };
+
+  const confirmMsg = "Are you sure you want to deny this class request?";
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 function deleteClassRequest(classId) {
-  const confirmDelete = confirm("Are you sure you want to permanently delete this class record?");
-  if (!confirmDelete) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  firestore.collection('classes').doc(classId).delete()
-  .then(() => {
-    alert("Classroom record deleted successfully.");
-    renderAdminRequestsView();
-  })
-  .catch(err => {
-    console.error("Error deleting class:", err);
-    alert("Failed to delete record: " + err.message);
-  });
+    firestore.collection('classes').doc(classId).get()
+      .then(doc => {
+        if (!doc.exists) return;
+        const classData = doc.data();
+        return firestore.collection('classes').doc(classId).delete().then(() => {
+          logAdminActivity('class_status', {
+            classId: classId,
+            status: 'deleted',
+            courseName: classData.courseName || classData.courseId || classId,
+            section: classData.section || '',
+            facultyName: classData.instructorName || classData.instructorEmail || ''
+          });
+        });
+      })
+      .then(() => {
+        showCustomAlert("Classroom record deleted successfully.", 'success');
+        renderAdminRequestsView();
+      })
+      .catch(err => {
+        console.error("Error deleting class:", err);
+        showCustomAlert("Failed to delete record: " + err.message, 'error');
+      });
+  };
+
+  const confirmMsg = "Are you sure you want to permanently delete this class record?";
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 function toggleSelectAllPending(checked) {
@@ -6320,27 +8774,38 @@ function bulkApproveRequests(allPending) {
   }
 
   if (targetIds.length === 0) {
-    alert("No pending requests selected.");
+    showCustomAlert("No pending requests selected.", 'warning');
     return;
   }
 
-  if (!confirm(`Are you sure you want to approve ${targetIds.length} class request(s)?`)) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  const batch = firestore.batch();
-  targetIds.forEach(id => {
-    const docRef = firestore.collection('classes').doc(id);
-    batch.update(docRef, { status: 'approved' });
-  });
-
-  batch.commit()
-    .then(() => {
-      alert(`Successfully approved ${targetIds.length} class request(s)!`);
-      renderAdminRequestsView();
-    })
-    .catch(err => {
-      console.error("Error bulk approving classes:", err);
-      alert("Failed to bulk approve: " + err.message);
+    const batch = firestore.batch();
+    targetIds.forEach(id => {
+      const docRef = firestore.collection('classes').doc(id);
+      batch.update(docRef, { status: 'approved' });
     });
+
+    batch.commit()
+      .then(() => {
+        logAdminActivity('class_status', { bulk: true, action: 'approved', count: targetIds.length });
+        showCustomAlert(`Successfully approved ${targetIds.length} class request(s)!`, 'success');
+        renderAdminRequestsView();
+      })
+      .catch(err => {
+        console.error("Error bulk approving classes:", err);
+        showCustomAlert("Failed to bulk approve: " + err.message, 'error');
+      });
+  };
+
+  const confirmMsg = `Are you sure you want to approve ${targetIds.length} class request(s)?`;
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 function bulkDenyRequests(allPending) {
@@ -6354,27 +8819,38 @@ function bulkDenyRequests(allPending) {
   }
 
   if (targetIds.length === 0) {
-    alert("No pending requests selected.");
+    showCustomAlert("No pending requests selected.", 'warning');
     return;
   }
 
-  if (!confirm(`Are you sure you want to deny ${targetIds.length} class request(s)?`)) return;
+  const proceed = (approved) => {
+    if (!approved) return;
 
-  const batch = firestore.batch();
-  targetIds.forEach(id => {
-    const docRef = firestore.collection('classes').doc(id);
-    batch.update(docRef, { status: 'denied' });
-  });
-
-  batch.commit()
-    .then(() => {
-      alert(`Successfully denied ${targetIds.length} class request(s)!`);
-      renderAdminRequestsView();
-    })
-    .catch(err => {
-      console.error("Error bulk denying classes:", err);
-      alert("Failed to bulk deny: " + err.message);
+    const batch = firestore.batch();
+    targetIds.forEach(id => {
+      const docRef = firestore.collection('classes').doc(id);
+      batch.update(docRef, { status: 'denied' });
     });
+
+    batch.commit()
+      .then(() => {
+        logAdminActivity('class_status', { bulk: true, action: 'denied', count: targetIds.length });
+        showCustomAlert(`Successfully denied ${targetIds.length} class request(s)!`, 'success');
+        renderAdminRequestsView();
+      })
+      .catch(err => {
+        console.error("Error bulk denying classes:", err);
+        showCustomAlert("Failed to bulk deny: " + err.message, 'error');
+      });
+  };
+
+  const confirmMsg = `Are you sure you want to deny ${targetIds.length} class request(s)?`;
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
 }
 
 function clearAllDeniedRequests() {
@@ -6428,9 +8904,8 @@ function toggleAdminUsersSort(column) {
   renderAdminUsersView();
 }
 window.toggleAdminUsersSort = toggleAdminUsersSort;
-
-function renderAdminUsersView() {
-  const viewport = document.getElementById('viewport-body');
+function renderAdminUsersView(targetId = 'viewport-body') {
+  const viewport = document.getElementById(targetId);
   if (!viewport || !currentUser) return;
 
   viewport.innerHTML = `
@@ -6438,16 +8913,70 @@ function renderAdminUsersView() {
     <div class="empty-playlist-msg" id="admin-users-loading">Loading users list...</div>
     
     <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:16px; margin-bottom:16px; text-align: left;">
-      <h4 style="margin:0 0 8px 0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">➕ Promote User by Email</h4>
-      <div style="display:flex; gap:8px; flex-wrap: wrap;">
-        <input type="email" id="promote-email-input" placeholder="student.email@msugensan.edu.ph" style="flex:2; min-width: 200px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
-        <select id="promote-role-select" style="flex:1; min-width: 120px; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px;">
-          <option value="faculty">Faculty</option>
-          <option value="laboratory">Laboratory</option>
-          <option value="admin">Admin</option>
-          <option value="student">Student</option>
-        </select>
-        <button class="settings-btn-primary" onclick="promoteUserEmail()" style="width:auto; margin:0; padding:10px 18px; font-size:13px;">Assign Role</button>
+      <h4 style="margin:0 0 4px 0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">👥 Manage Accounts</h4>
+      <p style="margin:0 0 12px 0; font-size:12px; color:var(--text-muted);">Search accounts by email or last name to modify their system access privileges.</p>
+      
+      <div style="position:relative;">
+        <input type="text" id="manage-accounts-search" oninput="handleManageAccountsSearch(this.value)" placeholder="Search by email or last name..." style="width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+        <div id="manage-accounts-results" style="position:absolute; top:42px; left:0; right:0; z-index:100; display:none; flex-direction:column; max-height:220px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border-card); border-radius:8px; box-shadow:0 8px 16px rgba(0,0,0,0.25); padding:6px; box-sizing:border-box;"></div>
+      </div>
+      
+      <div id="selected-user-management-area"></div>
+    </div>
+
+    <!-- Direct Provisioning & Bulk Upload Card -->
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:12px; padding:16px; margin-bottom:16px; text-align: left;">
+      <h4 style="margin:0 0 4px 0; font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">🔑 Direct Provisioning & Bulk Upload</h4>
+      <p style="margin:0 0 12px 0; font-size:12px; color:var(--text-muted);">Assign roles to a single email address or upload a file containing multiple emails (CSV, TXT) to perform a bulk role update.</p>
+      
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <!-- Single Provisioning Form -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px dashed var(--border-card); padding-bottom:14px;">
+          <div style="display:flex; flex-direction:column; gap:6px; flex-grow:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:600; color:var(--text-muted);">EMAIL ADDRESS</label>
+            <input type="email" id="admin-provision-email" placeholder="e.g. professor@msugensan.edu.ph" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; box-sizing:border-box; width:100%; outline:none;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
+            <label style="font-size:11px; font-weight:600; color:var(--text-muted);">ROLE TO ASSIGN</label>
+            <select id="admin-provision-role" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; font-weight:600; cursor:pointer; outline:none; height:38px;">
+              <option value="faculty">Faculty</option>
+              <option value="laboratory">Chemistry Stockroom</option>
+              <option value="chairperson">Chairperson</option>
+              <option value="pco_head">PCO Head</option>
+              <option value="pco_laboratory">PCO Laboratory</option>
+              <option value="pco_office">PCO Office</option>
+              <option value="pco_college">PCO College</option>
+              <option value="pco_ppd">PCO PPD</option>
+              <option value="admin">Administrator</option>
+              <option value="student">Student</option>
+            </select>
+          </div>
+          <button class="settings-btn-primary" onclick="adminProvisionSingleEmail()" style="width:auto; margin:0; padding:10px 18px; font-size:13px; background:var(--accent); height:38px;">Assign Role</button>
+        </div>
+
+        <!-- Bulk Upload Form -->
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; gap:6px; flex-grow:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:600; color:var(--text-muted);">UPLOAD EMAILS FILE (.TXT / .CSV)</label>
+            <input type="file" id="admin-provision-file" accept=".txt,.csv" style="padding:8px 10px; border-radius:8px; border:1px dashed var(--border-card); background:var(--bg-body); color:var(--text-muted); font-size:12px; cursor:pointer; width:100%; box-sizing:border-box; height:38px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
+            <label style="font-size:11px; font-weight:600; color:var(--text-muted);">ROLE TO ASSIGN</label>
+            <select id="admin-provision-bulk-role" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; font-weight:600; cursor:pointer; outline:none; height:38px;">
+              <option value="faculty">Faculty</option>
+              <option value="laboratory">Chemistry Stockroom</option>
+              <option value="chairperson">Chairperson</option>
+              <option value="pco_head">PCO Head</option>
+              <option value="pco_laboratory">PCO Laboratory</option>
+              <option value="pco_office">PCO Office</option>
+              <option value="pco_college">PCO College</option>
+              <option value="pco_ppd">PCO PPD</option>
+              <option value="admin">Administrator</option>
+              <option value="student">Student</option>
+            </select>
+          </div>
+          <button class="settings-btn-primary" onclick="adminProvisionBulkFile()" style="width:auto; margin:0; padding:10px 18px; font-size:13px; background:#10b981; height:38px;">Batch Provision</button>
+        </div>
       </div>
     </div>
 
@@ -6462,7 +8991,7 @@ function renderAdminUsersView() {
             <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('hours')">Hours Logged ${adminUsersSortColumn === 'hours' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
             <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('studentId')">ID Number ${adminUsersSortColumn === 'studentId' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
             <th style="padding:12px; cursor:pointer; color:var(--accent);" onclick="toggleAdminUsersSort('year')">Year ${adminUsersSortColumn === 'year' ? (adminUsersSortOrder === 'asc' ? '▲' : '▼') : ''}</th>
-            <th style="padding:12px;">Action</th>
+            <th style="padding:12px; text-align:center; width:170px;">Action</th>
           </tr>
         </thead>
         <tbody id="admin-users-table-body"></tbody>
@@ -6487,8 +9016,13 @@ function renderAdminUsersView() {
       // Convert query snapshot to array of user objects
       let usersList = [];
       querySnapshot.forEach(doc => {
-        usersList.push({ email: doc.id, ...doc.data() });
+        const u = { email: doc.id, ...doc.data() };
+        sanitizeUserRoles(u);
+        usersList.push(u);
       });
+
+      // Save to window for search lookups
+      window.loadedAdminUsers = usersList;
 
       // Client-side sort logic
       usersList.sort((a, b) => {
@@ -6572,28 +9106,120 @@ function renderAdminUsersView() {
         const hoursLogged = userData.totalHoursLogged || 0;
         const hoursText = `${hoursLogged.toFixed(2)} hrs`;
 
+        // Resolve options for role dropdown
+        let userRoles = userData.roles || [];
+        if (assignedRole && !userRoles.includes(assignedRole)) {
+          userRoles.push(assignedRole);
+        }
+        userRoles = [...new Set(userRoles)].filter(Boolean);
+
+        let optionsHtml = `<option value="" disabled selected>Manage Roles...</option>`;
+        
+        optionsHtml += `<optgroup label="Academic Roles">`;
+        const acadRoles = ['faculty', 'laboratory', 'admin', 'chairperson'];
+        acadRoles.forEach(r => {
+          if (userRoles.includes(r)) {
+            optionsHtml += `<option value="remove_${r}">Remove ${r.charAt(0).toUpperCase() + r.slice(1)}</option>`;
+          } else {
+            optionsHtml += `<option value="add_${r}">Add ${r.charAt(0).toUpperCase() + r.slice(1)}</option>`;
+          }
+        });
+        optionsHtml += `</optgroup>`;
+
+        optionsHtml += `<optgroup label="PCO Category Roles">`;
+        const pcoRoles = ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'];
+        pcoRoles.forEach(r => {
+          let label = r.replace('pco_', 'PCO ').replace(/\b\w/g, c => c.toUpperCase());
+          if (userRoles.includes(r)) {
+            optionsHtml += `<option value="remove_${r}">Remove ${label}</option>`;
+          } else {
+            optionsHtml += `<option value="add_${r}">Add ${label}</option>`;
+          }
+        });
+        optionsHtml += `</optgroup>`;
+
+        if (userRoles.length > 1 || (userRoles.length === 1 && userRoles[0] !== 'student')) {
+          optionsHtml += `<option value="demote_student">Demote to Student</option>`;
+        }
+
+        let rolesBadgeHtml = `<div style="display:flex; flex-direction:column; gap:4px; align-items:center;">`;
+        let rolesToRender = [...userRoles];
+        if (rolesToRender.includes('admin')) {
+          rolesToRender = ['admin'];
+        }
+        rolesToRender.forEach(r => {
+          const isCurrentActiveRole = (r === assignedRole);
+          const highlight = isActive && isCurrentActiveRole;
+          
+          let bg = 'rgba(107,114,128,0.1)';
+          let color = 'var(--text-muted)';
+          let border = '1px solid transparent';
+          let shadow = 'none';
+          
+          if (r === 'admin') {
+            bg = highlight ? '#10b981' : 'rgba(16,185,129,0.1)';
+            color = highlight ? '#ffffff' : '#10b981';
+            if (highlight) {
+              border = '1px solid #10b981';
+              shadow = '0 0 8px rgba(16,185,129,0.4)';
+            }
+          } else if (r === 'faculty') {
+            bg = highlight ? '#3b82f6' : 'rgba(59,130,246,0.1)';
+            color = highlight ? '#ffffff' : '#3b82f6';
+            if (highlight) {
+              border = '1px solid #3b82f6';
+              shadow = '0 0 8px rgba(59,130,246,0.4)';
+            }
+          } else if (r === 'laboratory') {
+            bg = highlight ? '#ec4899' : 'rgba(236,72,153,0.1)';
+            color = highlight ? '#ffffff' : '#ec4899';
+            if (highlight) {
+              border = '1px solid #ec4899';
+              shadow = '0 0 8px rgba(236,72,153,0.4)';
+            }
+          } else if (r === 'chairperson') {
+            bg = highlight ? '#ef4444' : 'rgba(239,68,68,0.1)';
+            color = highlight ? '#ffffff' : '#ef4444';
+            if (highlight) {
+              border = '1px solid #ef4444';
+              shadow = '0 0 8px rgba(239,68,68,0.4)';
+            }
+          } else {
+            bg = highlight ? '#6b7280' : 'rgba(107,114,128,0.1)';
+            color = highlight ? '#ffffff' : 'var(--text-muted)';
+            if (highlight) {
+              border = '1px solid #6b7280';
+              shadow = '0 0 8px rgba(107,114,128,0.4)';
+            }
+          }
+
+          rolesBadgeHtml += `
+            <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:3px 8px; border-radius:6px; 
+              background: ${bg}; color: ${color}; border: ${border}; box-shadow: ${shadow}; display:inline-flex; align-items:center; gap:4px; min-width: 90px; justify-content: center;">
+              ${highlight ? '<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#ffffff; animation: modalLogoFloat 1s ease-in-out infinite;"></span>' : ''}
+              ${r}
+            </span>
+          `;
+        });
+        rolesBadgeHtml += `</div>`;
+
         html += `
           <tr>
             <td style="padding:12px;">${statusBadgeHtml}</td>
             <td style="text-align:left; padding:12px; font-weight:700;">${userData.name || email.split('@')[0]}</td>
             <td style="text-align:left; padding:12px; font-family:monospace; font-size:12px;">${email}</td>
             <td style="padding:12px;">
-              <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:2px 6px; border-radius:4px; 
-                background: ${assignedRole === 'admin' ? 'rgba(16,185,129,0.1)' : assignedRole === 'faculty' ? 'rgba(59,130,246,0.1)' : assignedRole === 'laboratory' ? 'rgba(236,72,153,0.1)' : 'rgba(107,114,128,0.1)'};
-                color: ${assignedRole === 'admin' ? '#10b981' : assignedRole === 'faculty' ? '#3b82f6' : assignedRole === 'laboratory' ? '#ec4899' : 'var(--text-muted)'};">
-                ${assignedRole}
-              </span>
+              ${rolesBadgeHtml}
             </td>
             <td style="padding:12px; font-weight:600; font-family:monospace;">${hoursText}</td>
             <td style="padding:12px;">${userData.studentId || '-'}</td>
             <td style="padding:12px;">${userData.year || '-'}</td>
-            <td style="padding:12px;">
+            <td style="padding:12px; text-align:center;">
               ${isSelf ? `<span style="font-size:11px; color:var(--text-muted); font-style:italic;">Active Session</span>` : `
-                <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
-                  <button onclick="updateUserRoleDatabase('${email}', 'faculty')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #3b82f6; background:transparent; color:#3b82f6; cursor:pointer;">Promote Faculty</button>
-                  <button onclick="updateUserRoleDatabase('${email}', 'laboratory')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid #ec4899; background:transparent; color:#ec4899; cursor:pointer;">Promote Laboratory</button>
-                  <button onclick="updateUserRoleDatabase('${email}', 'student')" style="font-size:11px; padding:4px 8px; border-radius:4px; border:1px solid var(--border-card); background:transparent; color:var(--text-muted); cursor:pointer;">Demote Student</button>
-                </div>
+                <select onchange="handleUserRoleDropdownChange('${email}', '${escapeJsString(userData.name || email.split('@')[0])}', this)" 
+                        style="padding:6px 10px; border-radius:6px; border:1px solid var(--border-card); background:var(--bg-card); color:var(--text-main); font-size:12px; font-weight:600; cursor:pointer; width:100%; max-width:145px; box-sizing:border-box; outline:none;">
+                  ${optionsHtml}
+                </select>
               `}
             </td>
           </tr>
@@ -6610,190 +9236,538 @@ function renderAdminUsersView() {
     });
 }
 
-function updateUserRoleDatabase(email, role) {
-  const confirmAction = confirm(`Are you sure you want to change the role of ${email} to ${role.toUpperCase()}?`);
-  if (!confirmAction) return;
+function logAdminActivity(type, details) {
+  if (typeof firestore === 'undefined' || !firestore || !currentUser) return;
+  
+  const log = {
+    type: type,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    adminEmail: currentUser.email,
+    adminName: currentUser.name || currentUser.email.split('@')[0],
+    details: details
+  };
 
-  firestore.collection('students').doc(email).get()
-    .then(doc => {
-      let currentRoles = [];
+  firestore.collection('activity_logs').add(log)
+    .then(() => console.log("Admin activity logged successfully"))
+    .catch(err => console.error("Error logging admin activity:", err));
+}
+window.logAdminActivity = logAdminActivity;
+
+function updateUserRoleDatabase(email, role) {
+  const proceed = (approved) => {
+    if (!approved) return;
+
+    firestore.collection('students').doc(email).get()
+      .then(doc => {
+        let currentRoles = [];
+        let userData = {};
+        if (doc.exists) {
+          userData = doc.data();
+          currentRoles = userData.roles || [];
+          const currentPrimaryRole = userData.role || determineUserRole(email);
+          if (currentPrimaryRole && !currentRoles.includes(currentPrimaryRole)) {
+            currentRoles.push(currentPrimaryRole);
+          }
+        } else {
+          currentRoles = [determineUserRole(email)];
+        }
+
+        if (role === 'student') {
+          currentRoles = ['student'];
+        } else {
+          currentRoles = currentRoles.filter(r => r !== 'student');
+          if (!currentRoles.includes(role)) {
+            currentRoles.push(role);
+          }
+        }
+
+        currentRoles = [...new Set(currentRoles)].filter(Boolean);
+
+        const updatedData = {
+          ...userData,
+          role: role,
+          roles: currentRoles
+        };
+
+        if (!doc.exists) {
+          updatedData.name = email.split('@')[0];
+          updatedData.email = email;
+          updatedData.studentId = "Placeholder";
+          updatedData.subjects = [];
+          updatedData.year = "1";
+          updatedData.avatar = "chemistry_logo.png";
+        }
+
+        if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+          currentUser.role = role;
+          currentUser.roles = currentRoles;
+          currentUserRole = role;
+          localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+          localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+        }
+
+        return firestore.collection('students').doc(email).set(updatedData).then(() => {
+          logAdminActivity('role_change', {
+            targetEmail: email,
+            targetName: updatedData.name || email.split('@')[0],
+            action: role === 'student' ? 'demote_student' : 'add_role',
+            role: role,
+            roles: currentRoles
+          });
+        });
+      })
+      .then(() => {
+        showCustomAlert(`Successfully assigned role ${role.toUpperCase()} to ${email}`, 'success');
+        
+        if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+          updateProfileUI();
+          renderSidebarNavigation();
+          buildUIFromManifest();
+          setMode('home');
+        }
+        
+        renderAdminUsersView();
+      })
+      .catch(err => {
+        console.error("Error updating user role:", err);
+        showCustomAlert("Failed to update user role: " + err.message, 'error');
+      });
+  };
+
+  const confirmMsg = `Are you sure you want to change the role of ${email} to ${role.toUpperCase()}?`;
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
+}
+
+function handleUserRoleDropdownChange(email, name, selectElement) {
+  const action = selectElement.value;
+  if (!action) return;
+
+  const resetSelect = () => { selectElement.value = ""; };
+
+  let confirmMsg = "";
+  let targetRole = "";
+  let isAdd = false;
+  let isRemove = false;
+  let isDemote = false;
+
+  if (action.startsWith("add_")) {
+    targetRole = action.replace("add_", "");
+    isAdd = true;
+    confirmMsg = `Assign ${name} (${email}) to ${targetRole.charAt(0).toUpperCase() + targetRole.slice(1)} role?`;
+  } else if (action.startsWith("remove_")) {
+    targetRole = action.replace("remove_", "");
+    isRemove = true;
+    confirmMsg = `Remove ${name} (${email}) from ${targetRole.charAt(0).toUpperCase() + targetRole.slice(1)} role?`;
+  } else if (action === "demote_student") {
+    isDemote = true;
+    confirmMsg = `Demote ${name} (${email}) to Student role? (This will clear all other assigned roles)`;
+  }
+
+  const proceed = (approved) => {
+    if (!approved) {
+      resetSelect();
+      return;
+    }
+
+    firestore.collection('students').doc(email).get()
+      .then(doc => {
+        let currentRoles = [];
+        let userData = {};
+        if (doc.exists) {
+          userData = doc.data();
+          currentRoles = userData.roles || [];
+          const currentPrimaryRole = userData.role || determineUserRole(email);
+          if (currentPrimaryRole && !currentRoles.includes(currentPrimaryRole)) {
+            currentRoles.push(currentPrimaryRole);
+          }
+        } else {
+          currentRoles = [determineUserRole(email)];
+        }
+
+        if (isDemote) {
+          currentRoles = ['student'];
+          userData.role = 'student';
+        } else if (isAdd) {
+          currentRoles = currentRoles.filter(r => r !== 'student');
+          if (!currentRoles.includes(targetRole)) {
+            currentRoles.push(targetRole);
+          }
+          userData.role = targetRole;
+        } else if (isRemove) {
+          currentRoles = currentRoles.filter(r => r !== targetRole);
+          if (currentRoles.length === 0) {
+            currentRoles = ['student'];
+            userData.role = 'student';
+          } else {
+            userData.role = currentRoles[0];
+          }
+        }
+
+        currentRoles = [...new Set(currentRoles)].filter(Boolean);
+
+        const updatedData = {
+          ...userData,
+          role: userData.role,
+          roles: currentRoles
+        };
+
+        if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+          currentUser.role = updatedData.role;
+          currentUser.roles = currentRoles;
+          currentUserRole = updatedData.role;
+          localStorage.setItem('student_user_session', JSON.stringify(currentUser));
+          localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
+        }
+
+        return firestore.collection('students').doc(email).set(updatedData).then(() => {
+          logAdminActivity('role_change', {
+            targetEmail: email,
+            targetName: name,
+            action: isDemote ? 'demote_student' : (isAdd ? 'add_role' : 'remove_role'),
+            role: targetRole || 'student',
+            roles: currentRoles
+          });
+        });
+      })
+      .then(() => {
+        showCustomAlert(`Successfully updated roles for ${name}.`, 'success');
+        
+        if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
+          updateProfileUI();
+          renderSidebarNavigation();
+          buildUIFromManifest();
+          setMode('home');
+        }
+        
+        renderAdminUsersView();
+      })
+      .catch(err => {
+        console.error("Error updating user roles:", err);
+        showCustomAlert("Failed to update role: " + err.message, 'error');
+        resetSelect();
+      });
+  };
+
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    const res = confirm(confirmMsg);
+    proceed(res);
+  }
+}
+window.handleUserRoleDropdownChange = handleUserRoleDropdownChange;
+
+function handleManageAccountsSearch(query) {
+  const resultsContainer = document.getElementById('manage-accounts-results');
+  if (!resultsContainer) return;
+
+  if (!query.trim()) {
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+    return;
+  }
+
+  const q = query.toLowerCase().trim();
+  const matched = (window.loadedAdminUsers || []).filter(u => {
+    const name = (u.name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const nameParts = name.split(/\s+/);
+    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+    return email.includes(q) || name.includes(q) || lastName.includes(q);
+  });
+
+  if (matched.length === 0) {
+    resultsContainer.style.display = 'flex';
+    resultsContainer.innerHTML = `<div style="padding: 8px; color: var(--text-muted); font-style: italic; font-size: 13px;">No accounts found matching "${query}"</div>`;
+    return;
+  }
+
+  resultsContainer.style.display = 'flex';
+  resultsContainer.innerHTML = matched.map(u => {
+    const name = u.name || u.email.split('@')[0];
+    const roleText = u.role || determineUserRole(u.email);
+    return `
+      <div onclick="selectUserForManagement('${u.email}', '${escapeJsString(name)}')" 
+           style="padding: 8px; cursor: pointer; border-radius: 6px; transition: background 0.2s; font-size: 13px; display: flex; justify-content: space-between; align-items: center;"
+           class="search-result-item">
+        <span><strong>${escapeHtml(name)}</strong> <span style="color:var(--text-muted); font-family:monospace;">(${escapeHtml(u.email)})</span></span>
+        <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05);">${roleText}</span>
+      </div>
+    `;
+  }).join('');
+}
+window.handleManageAccountsSearch = handleManageAccountsSearch;
+
+function selectUserForManagement(email, name) {
+  document.getElementById('manage-accounts-search').value = '';
+  document.getElementById('manage-accounts-results').style.display = 'none';
+
+  const selectedArea = document.getElementById('selected-user-management-area');
+  if (!selectedArea) return;
+
+  const userData = (window.loadedAdminUsers || []).find(u => u.email === email);
+  if (!userData) return;
+
+  let userRoles = userData.roles || [];
+  const primaryRole = userData.role || determineUserRole(email);
+  if (primaryRole && !userRoles.includes(primaryRole)) {
+    userRoles.push(primaryRole);
+  }
+  userRoles = [...new Set(userRoles)].filter(Boolean);
+
+  let optionsHtml = `<option value="" disabled selected>Manage Roles...</option>`;
+  
+  optionsHtml += `<optgroup label="Academic Roles">`;
+  const acadRoles = ['faculty', 'laboratory', 'admin', 'chairperson'];
+  acadRoles.forEach(r => {
+    if (userRoles.includes(r)) {
+      optionsHtml += `<option value="remove_${r}">Remove ${r.charAt(0).toUpperCase() + r.slice(1)} role</option>`;
+    } else {
+      optionsHtml += `<option value="add_${r}">Add ${r.charAt(0).toUpperCase() + r.slice(1)} role</option>`;
+    }
+  });
+  optionsHtml += `</optgroup>`;
+
+  optionsHtml += `<optgroup label="PCO Category Roles">`;
+  const pcoRoles = ['pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'];
+  pcoRoles.forEach(r => {
+    let label = r.replace('pco_', 'PCO ').replace(/\b\w/g, c => c.toUpperCase());
+    if (userRoles.includes(r)) {
+      optionsHtml += `<option value="remove_${r}">Remove ${label} role</option>`;
+    } else {
+      optionsHtml += `<option value="add_${r}">Add ${label} role</option>`;
+    }
+  });
+  optionsHtml += `</optgroup>`;
+  if (userRoles.length > 1 || (userRoles.length === 1 && userRoles[0] !== 'student')) {
+    optionsHtml += `<option value="demote_student">Demote to Student</option>`;
+  }
+
+  selectedArea.innerHTML = `
+    <div style="background:var(--bg-body); border:1px solid var(--border-card); padding:16px; border-radius:12px; margin-top:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; text-align:left;">
+      <div>
+        <h4 style="margin:0; font-size:14px; font-weight:700; color:var(--text-main); font-family:'Outfit',sans-serif;">Selected: ${escapeHtml(name)}</h4>
+        <p style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted); font-family:monospace;">${escapeHtml(email)}</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select onchange="handleUserRoleDropdownChange('${email}', '${escapeJsString(name)}', this)" 
+                style="padding:10px 14px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-card); color:var(--text-main); font-size:13px; font-weight:600; cursor:pointer;">
+          ${optionsHtml}
+        </select>
+        <button class="settings-btn-primary" onclick="clearSelectedUserManagement()" style="width:auto; margin:0; padding:10px 14px; font-size:13px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border-card);">Clear</button>
+      </div>
+    </div>
+  `;
+}
+window.selectUserForManagement = selectUserForManagement;
+
+function clearSelectedUserManagement() {
+  const selectedArea = document.getElementById('selected-user-management-area');
+  if (selectedArea) selectedArea.innerHTML = '';
+}
+window.clearSelectedUserManagement = clearSelectedUserManagement;
+
+function adminProvisionSingleEmail() {
+  const emailInput = document.getElementById('admin-provision-email');
+  const roleSelect = document.getElementById('admin-provision-role');
+  if (!emailInput || !roleSelect) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const role = roleSelect.value;
+
+  if (!email) {
+    showCustomAlert("Please enter a valid email address.", "error");
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    showCustomAlert("Please enter a valid email format.", "error");
+    return;
+  }
+
+  const proceed = (approved) => {
+    if (!approved) return;
+
+    firestore.collection('students').doc(email).get().then(doc => {
       let userData = {};
+      let currentRoles = [];
+
       if (doc.exists) {
         userData = doc.data();
         currentRoles = userData.roles || [];
-        const currentPrimaryRole = userData.role || determineUserRole(email);
-        if (currentPrimaryRole && !currentRoles.includes(currentPrimaryRole)) {
-          currentRoles.push(currentPrimaryRole);
-        }
       } else {
-        const defaultRole = determineUserRole(email);
-        currentRoles = [defaultRole];
+        userData = {
+          name: email.split('@')[0],
+          email: email,
+          studentId: "Placeholder",
+          subjects: [],
+          year: "1",
+          avatar: "chemistry_logo.png"
+        };
       }
 
       if (role === 'student') {
         currentRoles = ['student'];
+        userData.role = 'student';
       } else {
         currentRoles = currentRoles.filter(r => r !== 'student');
         if (!currentRoles.includes(role)) {
           currentRoles.push(role);
         }
+        userData.role = role;
       }
 
-      // Deduplicate and filter out empty
       currentRoles = [...new Set(currentRoles)].filter(Boolean);
-
       const updatedData = {
         ...userData,
-        role: role,
+        role: userData.role,
         roles: currentRoles
       };
 
-      if (!doc.exists) {
-        updatedData.name = email.split('@')[0];
-        updatedData.email = email;
-        updatedData.studentId = "Placeholder";
-        updatedData.subjects = [];
-        updatedData.year = "1";
-        updatedData.avatar = "chemistry_logo.png";
-      }
-
-      // If updating our own account, sync currentUser locally as well
-      if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
-        currentUser.role = role;
-        currentUser.roles = currentRoles;
-        currentUserRole = role;
-        localStorage.setItem('student_user_session', JSON.stringify(currentUser));
-        localStorage.setItem('doc_lms_saved_profile', JSON.stringify(currentUser));
-      }
-
-      return firestore.collection('students').doc(email).set(updatedData);
+      return firestore.collection('students').doc(email).set(updatedData).then(() => {
+        logAdminActivity('role_change', {
+          targetEmail: email,
+          targetName: userData.name,
+          action: 'provision_direct',
+          role: role,
+          roles: currentRoles
+        });
+      });
     })
     .then(() => {
-      alert(`Successfully assigned role ${role.toUpperCase()} to ${email}`);
-      
-      // If we updated ourselves, reload UI
-      if (currentUser && email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
-        updateProfileUI();
-        renderSidebarNavigation();
-        buildUIFromManifest();
-        setMode('home');
-      }
-      
+      showCustomAlert(`Successfully provisioned role ${role.toUpperCase()} to ${email}`, "success");
+      emailInput.value = '';
       renderAdminUsersView();
     })
     .catch(err => {
-      console.error("Error updating user role:", err);
-      alert("Failed to update user role: " + err.message);
-// ==========================================================================
-// 🧪 CHEMISTRY STOCKROOM LIMS CORE MODULES
-// ==========================================================================
-let activeLimsTransactionFilter = 'all';
-let limsTransactionSearchQuery = '';
-let loadedLimsTransactions = [];
+      console.error("Error provisioning user:", err);
+      showCustomAlert("Failed to provision user: " + err.message, "error");
+    });
+  };
 
-let limsStudentSearchQuery = '';
-let activeLimsSelectedStudentEmail = null;
-let loadedLimsStudents = [];
+  const confirmMsg = `Are you sure you want to provision the ${role.toUpperCase()} role to ${email}?`;
+  if (typeof showCustomConfirm === 'function') {
+    showCustomConfirm(confirmMsg, proceed);
+  } else {
+    proceed(confirm(confirmMsg));
+  }
+}
+window.adminProvisionSingleEmail = adminProvisionSingleEmail;
 
-let generatedReportRows = [];
-let generatedReportCategory = '';
+function adminProvisionBulkFile() {
+  const fileInput = document.getElementById('admin-provision-file');
+  const roleSelect = document.getElementById('admin-provision-bulk-role');
+  if (!fileInput || !roleSelect) return;
 
-function runFirestoreMigration() {
-  if (localStorage.getItem('firestore_migration_done_v2') === 'true') {
+  const file = fileInput.files[0];
+  const role = roleSelect.value;
+
+  if (!file) {
+    showCustomAlert("Please select a .txt or .csv file to upload.", "error");
     return;
   }
-  
-  console.log("Starting client-side Firestore collection migration...");
-  
-  firestore.collection('requisitions').get()
-    .then(snapshot => {
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const foundEmails = text.match(emailRegex) || [];
+    const emails = [...new Set(foundEmails.map(email => email.toLowerCase().trim()))];
+
+    if (emails.length === 0) {
+      showCustomAlert("No valid email addresses found in the uploaded file.", "error");
+      return;
+    }
+
+    const proceed = (approved) => {
+      if (!approved) return;
+
       const batch = firestore.batch();
-      let count = 0;
-      
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        let changed = false;
-        const updateData = {};
-        
-        // Old 'returned' (returned to student for revision) -> 'returned_for_revision'
-        if (data.status === 'returned') {
-          updateData.status = 'returned_for_revision';
-          changed = true;
-        }
-        // Old 'cleared' (requisition cleared) -> 'completed'
-        else if (data.status === 'cleared') {
-          updateData.status = 'completed';
-          changed = true;
-        }
-        
-        if (changed) {
-          batch.update(doc.ref, updateData);
-          count++;
-        }
-      });
-      
-      if (count > 0) {
-        return batch.commit().then(() => {
-          console.log(`Successfully migrated ${count} requisition records.`);
+      const promises = [];
+
+      emails.forEach(email => {
+        const ref = firestore.collection('students').doc(email);
+        const p = ref.get().then(doc => {
+          let userData = {};
+          let currentRoles = [];
+
+          if (doc.exists) {
+            userData = doc.data();
+            currentRoles = userData.roles || [];
+          } else {
+            userData = {
+              name: email.split('@')[0],
+              email: email,
+              studentId: "Placeholder",
+              subjects: [],
+              year: "1",
+              avatar: "chemistry_logo.png"
+            };
+          }
+
+          if (role === 'student') {
+            currentRoles = ['student'];
+            userData.role = 'student';
+          } else {
+            currentRoles = currentRoles.filter(r => r !== 'student');
+            if (!currentRoles.includes(role)) {
+              currentRoles.push(role);
+            }
+            userData.role = role;
+          }
+
+          currentRoles = [...new Set(currentRoles)].filter(Boolean);
+          const updatedData = {
+            ...userData,
+            role: userData.role,
+            roles: currentRoles
+          };
+
+          batch.set(ref, updatedData);
         });
-      } else {
-        console.log("No requisitions needed migration.");
-      }
-    })
-    .then(() => {
-      localStorage.setItem('firestore_migration_done_v2', 'true');
-      console.log("Firestore migration marked as complete.");
-    })
-    .catch(err => {
-      console.error("Firestore migration failed:", err);
-    });
+        promises.push(p);
+      });
+
+      Promise.all(promises).then(() => {
+        return batch.commit().then(() => {
+          logAdminActivity('bulk_role_provision', {
+            emailsCount: emails.length,
+            role: role
+          });
+        });
+      })
+      .then(() => {
+        showCustomAlert(`Successfully provisioned role ${role.toUpperCase()} to ${emails.length} email(s) in bulk!`, "success");
+        fileInput.value = '';
+        renderAdminUsersView();
+      })
+      .catch(err => {
+        console.error("Error bulk provisioning users:", err);
+        showCustomAlert("Failed bulk provisioning: " + err.message, "error");
+      });
+    };
+
+    const confirmMsg = `Are you sure you want to provision the ${role.toUpperCase()} role to all ${emails.length} email(s) parsed from the file?`;
+    if (typeof showCustomConfirm === 'function') {
+      showCustomConfirm(confirmMsg, proceed);
+    } else {
+      proceed(confirm(confirmMsg));
+    }
+  };
+
+  reader.onerror = function() {
+    showCustomAlert("Failed to read the uploaded file.", "error");
+  };
+
+  reader.readAsText(file);
 }
-
-function getDefaultSemester() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
-  if (year < 2026 || (year === 2026 && month < 8)) {
-    return "AY2026-2027, First Semester";
-  }
-  let ayStart = year;
-  let term = "First Semester";
-  if (month >= 8) {
-    ayStart = year;
-    term = "First Semester";
-  } else if (month >= 1 && month <= 5) {
-    ayStart = year - 1;
-    term = "Second Semester";
-  } else {
-    ayStart = year - 1;
-    term = "Summer Semester";
-  }
-  return `AY${ayStart}-${ayStart + 1}, ${term}`;
-}
-
-function openActionDrawer(title, bodyHTML, footerHTML) {
-  const overlay = document.getElementById('action-drawer-overlay');
-  const drawer = document.getElementById('action-drawer');
-  const elTitle = document.getElementById('action-drawer-title');
-  const elBody = document.getElementById('action-drawer-body');
-  const elFooter = document.getElementById('action-drawer-footer');
-
-  if (!overlay || !drawer) return;
-
-  if (elTitle) elTitle.innerText = title;
-  if (elBody) elBody.innerHTML = bodyHTML || '';
-  if (elFooter) elFooter.innerHTML = footerHTML || '';
-
-  overlay.classList.add('active');
-  drawer.classList.add('active');
-}
-
-function closeActionDrawer() {
-  const overlay = document.getElementById('action-drawer-overlay');
-  const drawer = document.getElementById('action-drawer');
-  if (overlay) overlay.classList.remove('active');
-  if (drawer) drawer.classList.remove('active');
-}
+window.adminProvisionBulkFile = adminProvisionBulkFile;
 
 // --- 1. HOME MODULE ---
 function renderLaboratoryDashboard() {
@@ -6881,6 +9855,12 @@ function renderLaboratoryDashboard() {
             <button class="settings-btn-primary" onclick="setMode('lab-communication');" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(13,148,136,0.06); border:1px solid rgba(13,148,136,0.2); color:#0d9488; display:flex; align-items:center; gap:8px;">
               <span>📢</span> Post Announcement / Reminder
             </button>
+            <button class="settings-btn-primary" onclick="triggerLimsChemicalWasteForm()" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(244,63,94,0.06); border:1px solid rgba(244,63,94,0.2); color:#f43f5e; display:flex; align-items:center; gap:8px;">
+              <span>☣️</span> Log Spent Chemical Deposit
+            </button>
+            <button class="settings-btn-primary" onclick="triggerLimsWastewaterForm()" style="width:100%; margin:0; padding:10px 12px; font-size:12.5px; text-align:left; background:rgba(6,182,212,0.06); border:1px solid rgba(6,182,212,0.2); color:#06b6d4; display:flex; align-items:center; gap:8px;">
+              <span>💧</span> Log Lab Effluent pH
+            </button>
           </div>
         </div>
 
@@ -6919,28 +9899,124 @@ function loadLimsDashboardStats() {
       snapshot.forEach(doc => {
         const d = doc.data();
         const id = doc.id;
-      targetEmail: facultyEmail,
-      targetName: facultyName,
-      subject: subject,
-      message: `Student ${studentName} has a pending accountability for ${subject}: ${description}. Please follow up.`,
-      sentBy: currentUser.email,
-      sentByName: currentUser.name,
-      sentAt: firebase.firestore.FieldValue.serverTimestamp(),
-      read: false
-    };
-    
-    return firestore.collection('notifications').add(reminder);
-  })
-  .then(ref => {
-    if (ref) {
-      alert(`Reminder sent to faculty member: ${facultyName}.`);
-    }
-  })
-  .catch(err => {
-    console.error("Error sending faculty reminder:", err);
-    alert("Failed to send faculty reminder: " + err.message);
-  });
+        
+        if (d.status === 'pending') pendingApprovals++;
+        else if (d.status === 'approved') currentReleases++;
+        else if (d.status === 'borrowed') {
+          borrowedItems++;
+          // check if overdue
+          if (d.scheduleDate) {
+            const schedDate = new Date(d.scheduleDate);
+            if (schedDate < now) {
+              overdueReturns++;
+            }
+          }
+        }
+
+        if (d.scheduleDate === todayStr) {
+          todaysSchedules.push({ id, ...d });
+        }
+
+        if (['approved', 'borrowed', 'returned', 'completed'].includes(d.status)) {
+          timelineData.push({ id, ...d });
+        }
+      });
+
+      // Update counters in UI
+      const elPending = document.getElementById('lims-stat-pending');
+      if (elPending) elPending.innerText = pendingApprovals;
+      const elReleases = document.getElementById('lims-stat-approved');
+      if (elReleases) elReleases.innerText = currentReleases;
+      const elBorrowed = document.getElementById('lims-stat-borrowed');
+      if (elBorrowed) elBorrowed.innerText = borrowedItems;
+      const elOverdue = document.getElementById('lims-stat-overdue');
+      if (elOverdue) elOverdue.innerText = overdueReturns;
+
+      // Render today's schedule table
+      const scheduleTbody = document.getElementById('lims-today-schedules-tbody');
+      if (scheduleTbody) {
+        if (todaysSchedules.length === 0) {
+          scheduleTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No schedules set for today.</td></tr>`;
+        } else {
+          scheduleTbody.innerHTML = todaysSchedules.map(sch => `
+            <tr>
+              <td><strong>${escapeHtml(sch.groupName)}</strong></td>
+              <td>${escapeHtml(sch.courseId ? sch.courseId.toUpperCase() : '')} (Sec ${escapeHtml(sch.section)})</td>
+              <td>${escapeHtml(sch.scheduleTime)}</td>
+              <td><span class="lims-status-badge ${sch.status}">${escapeHtml(sch.status)}</span></td>
+              <td><button class="settings-btn-primary" onclick="setMode('lab-transactions'); showLimsTransactionDetails('${sch.id}');" style="padding:4px 8px; font-size:11px; margin:0;">View</button></td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      // Render timeline stepper list
+      const timelineContainer = document.getElementById('lims-recent-activity-timeline');
+      if (timelineContainer) {
+        if (timelineData.length === 0) {
+          timelineContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">No recent laboratory activities.</div>`;
+        } else {
+          // Sort by timestamp desc and take top 4
+          timelineData.sort((a, b) => {
+            const tA = a.timestamp ? (a.timestamp.seconds ? a.timestamp.seconds * 1000 : new Date(a.timestamp).getTime()) : 0;
+            const tB = b.timestamp ? (b.timestamp.seconds ? b.timestamp.seconds * 1000 : new Date(b.timestamp).getTime()) : 0;
+            return tB - tA;
+          });
+          const displayData = timelineData.slice(0, 4);
+
+          timelineContainer.innerHTML = displayData.map(item => {
+            let statusText = 'Approved';
+            let statusClass = '';
+            if (item.status === 'borrowed') {
+              statusText = 'Items Out';
+              statusClass = 'active';
+            } else if (item.status === 'returned') {
+              statusText = 'Returned';
+              statusClass = 'active';
+            } else if (item.status === 'completed') {
+              statusText = 'Completed / Cleared';
+              statusClass = 'active';
+            }
+            return `
+              <div class="lims-timeline-item ${statusClass}">
+                <div class="lims-timeline-title">${escapeHtml(item.groupName)} &mdash; ${escapeHtml(item.courseId ? item.courseId.toUpperCase() : '')} (Sec ${escapeHtml(item.section)})</div>
+                <div class="lims-timeline-desc">${statusText} | Schedule: ${escapeHtml(item.scheduleDate)} @ ${escapeHtml(item.scheduleTime)}</div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    })
+    .catch(err => {
+      console.error("Error loading dashboard stats:", err);
+    });
 }
+
+function sendFacultyReminder(facultyEmail, facultyName, studentName, subject, description) {
+  const reminder = {
+    type: 'accountability_reminder',
+    targetEmail: facultyEmail,
+    targetName: facultyName,
+    subject: subject,
+    message: `Student ${studentName} has a pending accountability for ${subject}: ${description}. Please follow up.`,
+    sentBy: currentUser.email,
+    sentByName: currentUser.name,
+    sentAt: firebase.firestore.FieldValue.serverTimestamp(),
+    read: false
+  };
+
+  return firestore.collection('notifications').add(reminder)
+    .then(ref => {
+      if (ref) {
+        alert(`Reminder sent to faculty member: ${facultyName}.`);
+      }
+    })
+    .catch(err => {
+      console.error("Error sending faculty reminder:", err);
+      alert("Failed to send faculty reminder: " + err.message);
+    });
+}
+
 
 function sendBulkReminders(mode) {
   // mode: 'current' (active semester) or 'past' (previous uncleared)
@@ -7002,34 +10078,8 @@ function sendBulkReminders(mode) {
     });
 }
 
-function updateStockroomSearch(val) {
-  stockroomSearchQuery = val;
-  loadStockroomClearanceData();
-}
-
-function updateStockroomSemester(val) {
-  activeStockroomSemester = val;
-  loadStockroomClearanceData();
-}
-
 window.renderLaboratoryDashboard = renderLaboratoryDashboard;
-window.renderLabAccountabilitiesView = renderLabAccountabilitiesView;
-window.toggleStockroomSort = toggleStockroomSort;
-window.dismissPetition = dismissPetition;
-window.exportStockroomCSV = exportStockroomCSV;
-window.loadStockroomClearanceData = loadStockroomClearanceData;
-window.clearAccountability = clearAccountability;
-window.handleExcelUpload = handleExcelUpload;
-window.processAccountabilityExcelRows = processAccountabilityExcelRows;
-window.updateStockroomSearch = updateStockroomSearch;
-window.updateStockroomSemester = updateStockroomSemester;
-window.editManualAccountability = editManualAccountability;
-window.cancelManualAccountabilityEdit = cancelManualAccountabilityEdit;
-window.handleManualAccountabilitySubmit = handleManualAccountabilitySubmit;
-window.openAccountabilityDetailModal = openAccountabilityDetailModal;
-window.closeAccountabilityDetailModal = closeAccountabilityDetailModal;
-window.remindStudent = remindStudent;
-window.remindFacultyMember = remindFacultyMember;
+window.sendFacultyReminder = sendFacultyReminder;
 window.sendBulkReminders = sendBulkReminders;
 
 function handleExcelUpload(event) {
@@ -9497,6 +12547,8 @@ function startCustomQuizRunner(quizId) {
   document.getElementById('slide-mode-label').innerText = 'Classroom Quiz Mode';
   document.getElementById('slide-num-label').innerText = `Question 1 of ${activeQuizData.questions.length}`;
   document.getElementById('progress-bar').style.width = '0%';
+  const progContainer = document.getElementById('progress-container');
+  if (progContainer) progContainer.style.display = 'block';
 
   if (activeQuizData.timeLimitSeconds) {
     quizSecondsLeft = activeQuizData.timeLimitSeconds;
@@ -9541,3 +12593,1711 @@ window.downloadDocxTemplate = downloadDocxTemplate;
 window.toggleMaterialCompleted = toggleMaterialCompleted;
 window.startCustomQuizRunner = startCustomQuizRunner;
 window.renderChemistrySymbols = renderChemistrySymbols;
+
+function showCustomAlert(message, type = 'info', onOk) {
+  const modal = document.getElementById('custom-alert-modal');
+  const msgEl = document.getElementById('custom-alert-message');
+  const okBtn = document.getElementById('custom-alert-ok-btn');
+
+  if (!modal || !msgEl || !okBtn) {
+    alert(message.replace(/<br>/g, '\n').replace(/<\/?[^>]+(>|$)/g, ""));
+    if (onOk) onOk();
+    return;
+  }
+
+  msgEl.innerHTML = message;
+  modal.style.display = 'flex';
+
+  const closeAlert = () => {
+    modal.style.display = 'none';
+    okBtn.removeEventListener('click', handleOk);
+    if (onOk) onOk();
+  };
+
+  const handleOk = (e) => {
+    e.preventDefault();
+    closeAlert();
+  };
+
+  okBtn.addEventListener('click', handleOk);
+}
+
+function showCustomConfirm(message, callback) {
+  const modal = document.getElementById('custom-confirm-modal');
+  const msgEl = document.getElementById('custom-confirm-message');
+  const okBtn = document.getElementById('custom-confirm-ok-btn');
+  const cancelBtn = document.getElementById('custom-confirm-cancel-btn');
+
+  if (!modal || !msgEl || !okBtn || !cancelBtn) {
+    const res = confirm(message.replace(/<br>/g, '\n').replace(/<\/?[8^>]+(>|$)/g, ""));
+    callback(res);
+    return;
+  }
+
+  msgEl.innerHTML = message;
+  modal.style.display = 'flex';
+
+  const cleanUp = () => {
+    modal.style.display = 'none';
+    okBtn.removeEventListener('click', handleOk);
+    cancelBtn.removeEventListener('click', handleCancel);
+  };
+
+  const handleOk = (e) => {
+    e.preventDefault();
+    cleanUp();
+    callback(true);
+  };
+
+  const handleCancel = (e) => {
+    e.preventDefault();
+    cleanUp();
+    callback(false);
+  };
+
+  okBtn.addEventListener('click', handleOk);
+  cancelBtn.addEventListener('click', handleCancel);
+}
+
+window.showCustomAlert = showCustomAlert;
+window.showCustomConfirm = showCustomConfirm;
+
+function loadAdminActivityLogs() {
+  const container = document.getElementById('admin-activity-logs-container');
+  if (!container) return;
+
+  firestore.collection('activity_logs')
+    .orderBy('timestamp', 'desc')
+    .limit(15)
+    .get()
+    .then(snapshot => {
+      if (snapshot.empty) {
+        container.innerHTML = `<div style="font-size: 13px; color: var(--text-muted); font-style: italic;">No activities logged yet.</div>`;
+        return;
+      }
+
+      let html = '';
+      snapshot.forEach(doc => {
+        const log = doc.data();
+        const dateStr = log.timestamp 
+          ? new Date(log.timestamp.seconds * 1000).toLocaleString() 
+          : new Date().toLocaleString();
+        
+        let text = '';
+        let icon = 'ℹ️';
+
+        if (log.type === 'role_change') {
+          icon = '👥';
+          const actionText = log.details.action === 'demote_student' ? 'demoted to Student' : (log.details.action === 'add_role' ? `promoted by adding ${log.details.role.toUpperCase()} to` : `removed ${log.details.role.toUpperCase()} from`);
+          text = `<strong>${escapeHtml(log.adminName)}</strong> ${actionText} <strong>${escapeHtml(log.details.targetName)}</strong> (${escapeHtml(log.details.targetEmail)}).`;
+        } else if (log.type === 'class_status') {
+          if (log.details.bulk) {
+            icon = log.details.action === 'approved' ? '✅' : '❌';
+            text = `<strong>${escapeHtml(log.adminName)}</strong> bulk-${log.details.action} <strong>${log.details.count} classroom request(s)</strong>.`;
+          } else {
+            icon = log.details.status === 'approved' ? '✅' : (log.details.status === 'deleted' ? '🗑️' : '❌');
+            text = `<strong>${escapeHtml(log.adminName)}</strong> ${log.details.status} class request <strong>${escapeHtml(log.details.courseName)}</strong> (Sec ${escapeHtml(log.details.section)}) for instructor ${escapeHtml(log.details.facultyName)}.`;
+          }
+        } else if (log.type === 'semester_config') {
+          icon = '📅';
+          text = `<strong>${escapeHtml(log.adminName)}</strong> updated the semester calendar: Start <strong>${escapeHtml(log.details.startDate)}</strong>, End <strong>${escapeHtml(log.details.endDate)}</strong>.`;
+        } else if (log.type === 'version_activate') {
+          icon = '🟢';
+          text = `<strong>${escapeHtml(log.adminName)}</strong> activated version <strong>${escapeHtml(log.details.version)}</strong> as ${log.details.phase.toUpperCase()}.`;
+        } else if (log.type === 'version_archive') {
+          icon = '⚪';
+          text = `<strong>${escapeHtml(log.adminName)}</strong> archived version <strong>${escapeHtml(log.details.version)}</strong>.`;
+        } else if (log.type === 'version_status_change') {
+          icon = '💾';
+          text = `<strong>${escapeHtml(log.adminName)}</strong> changed version <strong>${escapeHtml(log.details.version)}</strong> status to ${log.details.status.toUpperCase()}.`;
+        } else if (log.type === 'version_restore') {
+          icon = '🔄';
+          text = `<strong>${escapeHtml(log.adminName)}</strong> prepared version <strong>${escapeHtml(log.details.version)}</strong> for restore (status set to WORKING).`;
+        } else {
+          text = JSON.stringify(log.details);
+        }
+
+        html += `
+          <div style="padding: 10px 12px; background: var(--bg-body); border: 1px solid var(--border-card); border-radius: 8px; display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.4;">
+            <span style="font-size: 16px; margin-top: 2px;">${icon}</span>
+            <div style="flex: 1;">
+              <div>${text}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${dateStr} by ${escapeHtml(log.adminEmail)}</div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Error loading activity logs:", err);
+      container.innerHTML = `<div style="font-size: 13px; color: var(--incorrect);">⚠️ Failed to load logs: ${err.message}</div>`;
+    });
+}
+window.loadAdminActivityLogs = loadAdminActivityLogs;
+
+function loadBackupCatalog() {
+  const container = document.getElementById('admin-backups-container');
+  if (!container) return;
+
+  firestore.collection('system_settings').doc('config').get()
+    .then(configDoc => {
+      const configData = configDoc.exists ? configDoc.data() : {};
+      const liveVer = configData.liveVersion || '';
+      const testingVer = configData.testingVersion || '';
+      const systemStatus = configData.status || 'live';
+
+      return fetch('backups/backup_index.json')
+        .then(res => {
+          if (!res.ok) throw new Error("No backup index found.");
+          return res.json();
+        })
+        .then(backups => {
+          return firestore.collection('backup_releases').get().then(snap => {
+            const releaseStatuses = {};
+            snap.forEach(doc => {
+              releaseStatuses[doc.id] = doc.data().status;
+            });
+
+            if (!backups || backups.length === 0) {
+              container.innerHTML = `<div style="font-size: 13px; color: var(--text-muted); font-style: italic;">No backup versions recorded yet. Run "python3 qa-tools/backup_restore.py" in your terminal to save a version.</div>`;
+              return;
+            }
+
+            // Resolve statuses first
+            backups.forEach(b => {
+              let status = b.status || 'Working';
+              if (releaseStatuses[b.version]) {
+                status = releaseStatuses[b.version];
+              }
+              if (b.version === liveVer) {
+                status = 'Live';
+              } else if (b.version === testingVer) {
+                status = 'Testing';
+              }
+              b.resolvedStatus = status;
+            });
+
+            // Sort dynamically
+            const field = window.backupsSortField || 'date';
+            const asc = window.backupsSortAsc;
+            backups.sort((a, b) => {
+              let valA = a[field] || '';
+              let valB = b[field] || '';
+              if (field === 'date') {
+                valA = new Date(valA || 0);
+                valB = new Date(valB || 0);
+              } else if (field === 'status') {
+                valA = a.resolvedStatus || '';
+                valB = b.resolvedStatus || '';
+              }
+              if (valA < valB) return asc ? -1 : 1;
+              if (valA > valB) return asc ? 1 : -1;
+              return 0;
+            });
+
+            const displayedBackups = backups.slice(0, 30);
+
+            const getSortArrow = (f) => {
+              if (window.backupsSortField !== f) return '';
+              return window.backupsSortAsc ? ' ▲' : ' ▼';
+            };
+
+            let html = `
+              <div style="display:flex; flex-direction:column; gap:10px; overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:13.5px; text-align:left; min-width: 650px;">
+                  <thead>
+                    <tr style="border-bottom:1px dashed var(--border-card); color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">
+                      <th onclick="toggleBackupsSort('version')" style="padding:12px 6px; cursor:pointer; user-select:none;">Version Name${getSortArrow('version')}</th>
+                      <th onclick="toggleBackupsSort('date')" style="padding:12px 6px; width:150px; cursor:pointer; user-select:none;">Backup Date${getSortArrow('date')}</th>
+                      <th onclick="toggleBackupsSort('changelog')" style="padding:12px 6px; cursor:pointer; user-select:none;">Changelog Description${getSortArrow('changelog')}</th>
+                      <th onclick="toggleBackupsSort('status')" style="padding:12px 6px; width:140px; text-align:center; cursor:pointer; user-select:none;">Status${getSortArrow('status')}</th>
+                      <th style="padding:12px 6px; text-align:center; width:220px;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-backups-tbody">
+            `;
+
+            displayedBackups.forEach((b, idx) => {
+              const isHidden = idx >= 5;
+              const displayStyle = isHidden ? 'display: none;' : '';
+              const rowClass = isHidden ? 'class="backup-row-item backup-extra-row"' : 'class="backup-row-item"';
+              
+              const dateStr = b.date ? new Date(b.date).toLocaleString() : 'N/A';
+              const changelogStr = b.changelog || 'N/A';
+              
+              // Resolve status: live/testing overrides releaseStatuses or JSON
+              let status = b.status || 'Working';
+              if (releaseStatuses[b.version]) {
+                status = releaseStatuses[b.version];
+              }
+              if (b.version === liveVer) {
+                status = 'Live';
+              } else if (b.version === testingVer) {
+                status = 'Testing';
+              }
+
+              let statusBadge = '';
+              let actionButtons = '';
+
+              if (status === 'Live') {
+                statusBadge = '<span style="font-size:11px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#10b981; padding:2px 8px; border-radius:4px; font-weight:700; text-transform:uppercase;">🟢 Live</span>';
+                actionButtons = '<span style="font-size:12px; color:var(--text-muted); font-style:italic;">No Actions Available</span>';
+              } else if (status === 'Testing') {
+                statusBadge = '<span style="font-size:11px; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25); color:#f59e0b; padding:2px 8px; border-radius:4px; font-weight:700; text-transform:uppercase;">🟡 Testing</span>';
+                actionButtons = `
+                  <div style="display:flex; gap:6px; justify-content:center;">
+                    <button class="settings-btn-primary" onclick="activateVersion('${escapeJsString(b.version)}', 'Live')" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px; background:#10b981; color:white; font-weight:700; border:none; border-radius:6px; cursor:pointer;">Activate</button>
+                    <button class="settings-btn-primary" onclick="changeVersionStatus('${escapeJsString(b.version)}', 'Working')" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px; background:transparent; border:1px solid var(--border-card); color:var(--text-muted); font-weight:600; border-radius:6px; cursor:pointer;">Set Working</button>
+                    <button class="settings-btn-primary" onclick="changeVersionStatus('${escapeJsString(b.version)}', 'Archived')" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px; background:transparent; border:1px solid rgba(239,68,68,0.3); color:#ef4444; font-weight:600; border-radius:6px; cursor:pointer;">Archive</button>
+                  </div>
+                `;
+              } else if (status === 'Working') {
+                statusBadge = '<span style="font-size:11px; background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.25); color:#0ea5e9; padding:2px 8px; border-radius:4px; font-weight:700; text-transform:uppercase;">🔵 Working</span>';
+                actionButtons = `
+                  <div style="display:flex; gap:6px; justify-content:center;">
+                    <button class="settings-btn-primary" onclick="activateVersion('${escapeJsString(b.version)}', null)" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px; background:#10b981; color:white; font-weight:700; border:none; border-radius:6px; cursor:pointer;">Activate</button>
+                    <button class="settings-btn-primary" onclick="changeVersionStatus('${escapeJsString(b.version)}', 'Archived')" style="width:auto; margin:0; padding:6px 12px; font-size:11.5px; background:transparent; border:1px solid rgba(239,68,68,0.3); color:#ef4444; font-weight:600; border-radius:6px; cursor:pointer;">Archive</button>
+                  </div>
+                `;
+              } else if (status === 'Archived') {
+                statusBadge = '<span style="font-size:11px; background:rgba(107,114,128,0.1); border:1px solid rgba(107,114,128,0.25); color:#9ca3af; padding:2px 8px; border-radius:4px; font-weight:700; text-transform:uppercase;">⚪ Archived</span>';
+                actionButtons = `<button class="settings-btn-primary" onclick="restoreArchivedVersion('${escapeJsString(b.version)}')" style="width:auto; margin:0; padding:6px 16px; font-size:11.5px; background:#0ea5e9; color:white; font-weight:700; border:none; border-radius:6px; cursor:pointer;">Restore</button>`;
+              }
+
+              html += `
+                <tr ${rowClass} style="border-bottom:1px solid rgba(255,255,255,0.02); ${displayStyle}">
+                  <td style="padding:12px 6px; font-weight:700; color:var(--accent); font-family:monospace; font-size:11.5px; max-width:200px; word-break:break-all;">${escapeHtml(b.version)}</td>
+                  <td style="padding:12px 6px; color:var(--text-muted); font-size:12px;">${dateStr}</td>
+                  <td style="padding:12px 6px; line-height:1.4; font-size:12.5px;">${escapeHtml(changelogStr)}</td>
+                  <td style="padding:12px 6px; text-align:center;">${statusBadge}</td>
+                  <td style="padding:12px 6px; text-align:center;">${actionButtons}</td>
+                </tr>
+              `;
+
+              if (idx === 4 && displayedBackups.length > 5) {
+                html += `
+                  <tr id="show-more-backups-row">
+                    <td colspan="5" style="text-align: center; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.02);">
+                      <button onclick="toggleBackupsVisibility()" class="settings-btn-primary" style="width:auto; margin:0; padding:6px 16px; font-size:12px; background:rgba(255,255,255,0.05); border:1px solid var(--border-card); color:var(--text-main); font-weight:600; cursor:pointer;">Show More</button>
+                    </td>
+                  </tr>
+                `;
+              }
+            });
+
+            html += `
+                  </tbody>
+                </table>
+              </div>
+            `;
+            container.innerHTML = html;
+          });
+        });
+    })
+    .catch(err => {
+      console.error("Error loading backups catalog:", err);
+      container.innerHTML = `
+        <div style="font-size: 13px; color: var(--text-muted); font-style: italic; border: 1px dashed var(--border-card); padding: 12px; border-radius: 8px; text-align: center;">
+          ℹ️ No backups catalog found. Run backup command in terminal to save a version:
+          <code style="display:block; margin-top:6px; font-family:monospace; padding:6px; background:var(--bg-body); border-radius:4px; font-size:12px; color:var(--accent);">python3 qa-tools/backup_restore.py</code>
+        </div>
+      `;
+    });
+}
+window.loadBackupCatalog = loadBackupCatalog;
+
+window.backupsSortField = 'date';
+window.backupsSortAsc = false;
+
+function toggleBackupsSort(field) {
+  if (window.backupsSortField === field) {
+    window.backupsSortAsc = !window.backupsSortAsc;
+  } else {
+    window.backupsSortField = field;
+    window.backupsSortAsc = true;
+  }
+  loadBackupCatalog();
+}
+window.toggleBackupsSort = toggleBackupsSort;
+
+function changeVersionStatus(versionName, newStatus) {
+  const db = firestore;
+  const batch = db.batch();
+  
+  const verRef = db.collection('backup_releases').doc(versionName);
+  batch.set(verRef, {
+    status: newStatus,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  if ((newStatus === 'Working' || newStatus === 'Archived') && versionName === window.activeTestingVersion) {
+    const configRef = db.collection('system_settings').doc('config');
+    batch.update(configRef, { testingVersion: "" });
+  }
+
+  batch.commit()
+    .then(() => {
+      showCustomAlert(`Successfully changed status of version ${versionName} to ${newStatus}.`, "success");
+      if (newStatus === 'Archived') {
+        logAdminActivity('version_archive', { version: versionName });
+      } else {
+        logAdminActivity('version_status_change', { version: versionName, status: newStatus });
+      }
+      return syncSystemPhase().then(() => {
+        const livePref = window.activeLiveVersion ? 'backups/' + window.activeLiveVersion + '/' : '';
+        const testingPref = window.activeTestingVersion ? 'backups/' + window.activeTestingVersion + '/' : '';
+        
+        localStorage.setItem('doc_lms_user_version_prefix', livePref);
+        localStorage.setItem('doc_lms_admin_version_prefix', (systemStatus === 'testing') ? testingPref : livePref);
+      });
+    })
+    .then(() => {
+      loadBackupCatalog();
+    })
+    .catch(err => {
+      console.error("Error updating version status:", err);
+      showCustomAlert("Failed to update version status: " + err.message, "error");
+    });
+}
+window.changeVersionStatus = changeVersionStatus;
+
+function activateVersion(versionName, targetPhase) {
+  const db = firestore;
+  const configRef = db.collection('system_settings').doc('config');
+  
+  configRef.get().then(doc => {
+    if (!doc.exists) throw new Error("System config does not exist.");
+    const data = doc.data();
+    const systemStatus = data.status || 'live';
+    const previousLive = data.liveVersion || '';
+    const previousTesting = data.testingVersion || '';
+    
+    const phase = targetPhase || (systemStatus === 'testing' ? 'testing' : 'live');
+    
+    const batch = db.batch();
+    
+    if (phase === 'live') {
+      batch.update(configRef, { 
+        liveVersion: versionName,
+        activeVersion: versionName,
+        testingVersion: (previousTesting === versionName ? "" : previousTesting)
+      });
+      
+      batch.set(db.collection('backup_releases').doc(versionName), {
+        status: 'Live',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      if (previousLive && previousLive !== versionName) {
+        batch.set(db.collection('backup_releases').doc(previousLive), {
+          status: 'Archived',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    } else {
+      batch.update(configRef, { 
+        testingVersion: versionName
+      });
+      
+      batch.set(db.collection('backup_releases').doc(versionName), {
+        status: 'Testing',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      
+      if (previousTesting && previousTesting !== versionName) {
+        batch.set(db.collection('backup_releases').doc(previousTesting), {
+          status: 'Working',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
+    
+    return batch.commit().then(() => {
+      showCustomAlert(`Successfully activated version ${versionName} as active ${phase.toUpperCase()} release!`, "success");
+      logAdminActivity('version_activate', { version: versionName, phase: phase });
+      return syncSystemPhase().then(() => {
+        const livePref = window.activeLiveVersion ? 'backups/' + window.activeLiveVersion + '/' : '';
+        const testingPref = window.activeTestingVersion ? 'backups/' + window.activeTestingVersion + '/' : '';
+        
+        localStorage.setItem('doc_lms_user_version_prefix', livePref);
+        localStorage.setItem('doc_lms_admin_version_prefix', (systemStatus === 'testing') ? testingPref : livePref);
+      });
+    });
+  })
+  .then(() => {
+    loadBackupCatalog();
+  })
+  .catch(err => {
+    console.error("Error activating version:", err);
+    showCustomAlert("Failed to activate version: " + err.message, "error");
+  });
+}
+window.activateVersion = activateVersion;
+
+function restoreArchivedVersion(versionName) {
+  const proceed = (confirm) => {
+    if (!confirm) return;
+    
+    const db = firestore;
+    db.collection('backup_releases').doc(versionName).set({
+      status: 'Working',
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true })
+    .then(() => {
+      triggerRestorePrompt(versionName);
+      logAdminActivity('version_restore', { version: versionName });
+      return syncSystemPhase();
+    })
+    .then(() => {
+      loadBackupCatalog();
+    })
+    .catch(err => {
+      console.error("Error restoring version status:", err);
+      showCustomAlert("Failed to update status on restore: " + err.message, "error");
+    });
+  };
+
+  const confirmMsg = `Are you sure you want to restore version <strong>${escapeHtml(versionName)}</strong>?<br><br>This will set its status to Working and show you the terminal command to overwrite your files.`;
+  showCustomConfirm(confirmMsg, proceed);
+}
+window.restoreArchivedVersion = restoreArchivedVersion;
+
+function toggleBackupsVisibility() {
+  const extraRows = document.querySelectorAll('.backup-extra-row');
+  const btn = document.querySelector('#show-more-backups-row button');
+  if (extraRows.length === 0) return;
+  const isHidden = extraRows[0].style.display === 'none';
+  extraRows.forEach(row => {
+    row.style.display = isHidden ? 'table-row' : 'none';
+  });
+  if (btn) {
+    btn.innerText = isHidden ? 'Show Less' : 'Show More';
+  }
+}
+window.toggleBackupsVisibility = toggleBackupsVisibility;
+
+function triggerRestorePrompt(versionName) {
+  const msg = `To restore version <strong>${escapeHtml(versionName)}</strong>, please open your terminal in the project directory and execute the restore command:<br><br>
+  <code style="display:block; padding:10px; background:var(--bg-body); border:1px solid var(--border-card); border-radius:6px; font-family:monospace; color:var(--accent); font-size:13px; select-all:true; text-align:center; word-break:break-all;">python3 qa-tools/backup_restore.py --restore ${versionName}</code><br>
+  This will overwrite your current index.html, app.js, lims.js, and index.css with the backed up version files.`;
+
+  showCustomAlert(msg, 'info');
+}
+window.triggerRestorePrompt = triggerRestorePrompt;
+
+function renderChairpersonPlaceholder() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport) return;
+  viewport.innerHTML = `
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:16px; padding:32px; text-align:left;">
+      <h2 style="font-size:22px; font-weight:800; font-family:'Outfit',sans-serif; color:var(--accent); margin:0 0 12px 0;">🏛️ Chairperson Executive Center</h2>
+      <p style="margin:0 0 16px 0; font-size:14px; line-height:1.6; color:var(--text-main);">
+        Integration planned in next development phase. Active PCO indicators and reports status will be mirrored here.
+      </p>
+      <div style="background:rgba(255,255,255,0.02); border:1px dashed var(--border-card); border-radius:12px; padding:24px; text-align:center; font-style:italic; color:var(--text-muted);">
+        🔒 Module Locked &mdash; Phase 3 Integration Roadmap Target
+      </div>
+    </div>
+  `;
+}
+window.renderChairpersonPlaceholder = renderChairpersonPlaceholder;
+
+// ==========================================================================
+// DEPARTMENT OF CHEMISTRY PORTAL WELCOME DASHBOARD & ROLE APPLICATION FLOW
+// ==========================================================================
+
+window.lastUploadedUnivIdBase64 = '';
+
+function openSignInOverlay() {
+  const overlay = document.getElementById('onboarding-overlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    overlay.classList.add('show');
+    showOnboardingStage(1);
+  }
+}
+window.openSignInOverlay = openSignInOverlay;
+
+function renderWelcomeDashboard() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport) return;
+
+  viewport.innerHTML = `
+    <!-- Top Wrapper with positioning context -->
+    <div style="position: relative; width: 100%; box-sizing: border-box; margin-top: 0px; padding-top: 0px;">
+      
+      <!-- Hero Banner -->
+      <div class="welcome-hero-banner" style="display:flex; justify-content:space-between; align-items:center; gap:24px; text-align:left; padding-right: 40px; margin-top: 0px;">
+        <div style="flex:1;">
+          <div style="font-size: 11px; font-weight:700; color:var(--accent); text-transform:uppercase; margin-bottom:14px; display:flex; flex-direction:column; gap:4px; font-family:'Outfit',sans-serif;">
+            <span style="letter-spacing:0.5px;">Mindanao State University - General Santos</span>
+            <span style="color:var(--text-muted); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">College of Natural Sciences and Mathematics</span>
+          </div>
+          <h1 class="welcome-hero-title" style="margin:0 0 10px 0;">Department of Chemistry Portal</h1>
+          <p class="welcome-hero-subtitle" style="margin:0; max-width:100%; line-height:1.6;">
+            Bridging molecular innovation and academic excellence. Access your respective workspace modules, read recent announcements, or review calendar events.
+          </p>
+        </div>
+        <img src="chemistry_logo.png" alt="Chemistry Logo" style="height:100px; width:auto; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 0 16px rgba(13,148,136,0.25));">
+      </div>
+    </div>
+
+    <!-- Active Portal Modules Grid -->
+    <h3 style="margin: 0 0 16px 0; font-size:16px; font-weight:700; font-family:'Outfit',sans-serif; text-align:left;">💻 Portal Workspaces</h3>
+    <div class="welcome-modules-grid">
+      <!-- Student Module Card -->
+      <div class="welcome-module-card" onclick="handleWelcomeModuleClick('student')">
+        <div class="welcome-module-icon">🎓</div>
+        <h4 class="welcome-module-title">Student Portal</h4>
+        <p class="welcome-module-desc">Access classroom lectures, complete quizzes, check grade records, and verify clearances.</p>
+      </div>
+
+      <!-- Faculty Module Card -->
+      <div class="welcome-module-card" onclick="handleWelcomeModuleClick('faculty')">
+        <div class="welcome-module-icon">👨‍🏫</div>
+        <h4 class="welcome-module-title">Faculty Portal</h4>
+        <p class="welcome-module-desc">Manage chemistry classrooms, configure gradebooks, review lab groups, and approve requests.</p>
+      </div>
+
+      <!-- Laboratory LIMS Card -->
+      <div class="welcome-module-card" onclick="handleWelcomeModuleClick('laboratory')">
+        <div class="welcome-module-icon">🧪</div>
+        <h4 class="welcome-module-title">Stockroom LIMS</h4>
+        <p class="welcome-module-desc">Approve laboratory apparatus requisitions, manage inventories, and log spent chemical waste deposits.</p>
+      </div>
+
+      <!-- PCO EMIS Card -->
+      <div class="welcome-module-card" onclick="handleWelcomeModuleClick('pco')">
+        <div class="welcome-module-icon">🌿</div>
+        <h4 class="welcome-module-title">PCO/EIS</h4>
+        <p class="welcome-module-desc">Monitor generator runtimes, hazardous inventories, wastewater pH, and compile SMR reports.</p>
+      </div>
+
+      <!-- Chairperson Card -->
+      <div class="welcome-module-card ${(currentUser && (currentUser.roles.includes('chairperson') || currentUserRole === 'admin')) ? '' : 'locked'}" onclick="handleWelcomeModuleClick('chairperson')">
+        <div class="welcome-module-icon" style="background:rgba(239,68,68,0.06); color:#ef4444;">🏛️</div>
+        <h4 class="welcome-module-title">Chairperson Executive</h4>
+        <p class="welcome-module-desc">Carbon footprint analytics, real-time chemical tracking, and student clearances overview.</p>
+      </div>
+    </div>
+
+    <!-- Management Controls Bar (Chairperson/Admin) -->
+    <div id="portal-content-admin-controls" style="display:none; background:var(--bg-card); border:1px solid var(--border-card); padding:16px; border-radius:14px; text-align:left; margin-bottom:24px;">
+      <h4 style="margin:0 0 10px 0; font-size:14px; font-weight:700; color:var(--accent);">🛠 ... Portal Content Manager</h4>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="settings-btn-primary" onclick="openPortalContentDrawer('news')" style="width:auto; margin:0; padding:8px 14px; font-size:12.5px;">➕ Add News Article</button>
+        <button class="settings-btn-primary" onclick="openPortalContentDrawer('announcement')" style="width:auto; margin:0; padding:8px 14px; font-size:12.5px; background:#0d9488; border-color:rgba(13,148,136,0.3);">➕ Add Announcement</button>
+        <button class="settings-btn-primary" onclick="openPortalContentDrawer('event')" style="width:auto; margin:0; padding:8px 14px; font-size:12.5px; background:#a855f7; border-color:rgba(168,85,247,0.3);">➕ Add Calendar Event</button>
+      </div>
+    </div>
+
+    <!-- Layout Grid: News/Announcements (Left) & Calendar/Role Application (Right) -->
+    <div class="welcome-sections-layout">
+      <!-- Left Column: News and Announcements Wrapper -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <!-- News & Announcements Card -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:18px; padding:24px; text-align:left; display:flex; flex-direction:column; gap:16px;">
+          <h3 style="margin:0 0 4px 0; font-size:16px; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-main);">📰 News & Academic Announcements</h3>
+          <div id="portal-news-container">
+            <div style="font-size:13px; color:var(--text-muted); font-style:italic;">Loading portal updates...</div>
+          </div>
+        </div>
+        
+        <!-- Theme & Signin/Signout Controls at the bottom left (outside and below News section) -->
+        <div style="display: flex; align-items: center; gap: 12px; padding-left: 4px;">
+          <button class="theme-toggle-btn" onclick="toggleTheme()" style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--text-main); font-size: 16px; margin:0; outline:none; transition: all 0.2s ease;">
+            🌓
+          </button>
+          ${currentUser ? `
+            <button class="signout-header-btn" onclick="signOutStudent()" style="background:var(--bg-card); border:1px solid var(--border-card); color:var(--text-main); padding:8px 16px; border-radius:12px; font-weight:600; cursor:pointer; height:40px; box-sizing:border-box; display:flex; align-items:center; gap:6px; font-size:13px; outline:none; transition: all 0.2s ease; margin:0;">
+              🚪 <span>Sign Out</span>
+            </button>
+          ` : `
+            <button class="settings-btn-primary" onclick="openSignInOverlay()" style="background:var(--bg-card); border:1px solid var(--border-card); color:var(--text-main); padding:8px 16px; border-radius:12px; font-weight:600; cursor:pointer; height:40px; box-sizing:border-box; display:flex; align-items:center; gap:6px; font-size:13px; outline:none; transition: all 0.2s ease; margin:0; width:auto;">
+              🔑 <span>Sign In</span>
+            </button>
+          `}
+        </div>
+      </div>
+
+      <!-- Right Column: Calendar & Application -->
+      <div style="display:flex; flex-direction:column; gap:24px;">
+        <!-- Calendar Section -->
+        <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:18px; padding:20px; text-align:left; display:flex; flex-direction:column; gap:14px;">
+          <h3 style="margin:0; font-size:15px; font-weight:800; font-family:'Outfit',sans-serif; color:var(--text-main);">📅 Calendar of Events</h3>
+          <div id="portal-calendar-container" class="welcome-calendar-list">
+            <div style="font-size:13px; color:var(--text-muted); font-style:italic;">Loading events calendar...</div>
+          </div>
+        </div>
+
+        <!-- Role Application Form -->
+        <div id="portal-role-app-container">
+          <!-- Form dynamically rendered here -->
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Check admin/chairperson controls visibility
+  if (currentUser && (currentUserRole === 'admin' || currentUser.role === 'chairperson')) {
+    const adminControls = document.getElementById('portal-content-admin-controls');
+    if (adminControls) adminControls.style.display = 'block';
+  }
+
+  // Load news, announcements, and calendar
+  loadPortalContent();
+
+  // Render role application state
+  renderPortalRoleApplicationForm();
+}
+
+function handleWelcomeModuleClick(module) {
+  if (!currentUser) {
+    window.pendingWorkspaceRedirect = module;
+    const overlay = document.getElementById('onboarding-overlay');
+    if (overlay) {
+      overlay.style.display = 'flex';
+      setTimeout(() => overlay.classList.add('show'), 50);
+      showOnboardingStage(1);
+    } else {
+      showCustomAlert("Please sign in to access portal modules.", "info");
+    }
+    return;
+  }
+
+  if (module === 'student') {
+    if (!currentUser.name || !currentUser.studentId || !currentUser.subjects || currentUser.subjects.length === 0) {
+      const overlay = document.getElementById('onboarding-overlay');
+      if (overlay) {
+        overlay.style.display = 'flex';
+        setTimeout(() => overlay.classList.add('show'), 50);
+        showOnboardingStage(2);
+        
+        const nicknameInput = document.getElementById('onboarding-nickname');
+        if (nicknameInput) nicknameInput.value = currentUser.name || '';
+        
+        const studentIdInput = document.getElementById('onboarding-studentid');
+        if (studentIdInput) studentIdInput.value = currentUser.studentId || '';
+        
+        const yearSelect = document.getElementById('onboarding-year');
+        if (yearSelect) yearSelect.value = currentUser.year || '1';
+        
+        renderOnboardingSelectedClasses();
+      }
+      return;
+    }
+  }
+
+  // Check if user has this role
+  let hasRole = false;
+  if (currentUserRole === 'admin') {
+    hasRole = true;
+  } else {
+    const userRoles = currentUser.roles || [];
+    if (module === 'pco') {
+      hasRole = ['pco', 'pco_head', 'pco_laboratory', 'pco_office', 'pco_college', 'pco_ppd', 'pco_gso', 'pco_sanitary'].some(r => userRoles.includes(r));
+    } else {
+      hasRole = userRoles.includes(module);
+    }
+  }
+
+  if (hasRole) {
+    switchActiveRole(module);
+  } else {
+    if (module !== 'student') {
+      openRoleAppModal(module);
+    } else {
+      showCustomAlert(`Access Restricted: Your account does not have the '${module.toUpperCase()}' role.`, "error");
+    }
+  }
+}
+
+function renderPortalItems(items) {
+  // Render news & announcements
+  const newsContainer = document.getElementById('portal-news-container');
+  if (newsContainer) {
+    const newsItems = items.filter(i => i.type === 'news' || i.type === 'announcement');
+    newsItems.sort((a,b) => b.date.localeCompare(a.date));
+    
+    if (newsItems.length === 0) {
+      newsContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); font-style:italic;">No news posts available.</div>`;
+    } else {
+      newsContainer.innerHTML = newsItems.map(item => `
+        <div class="welcome-news-item">
+          <div class="welcome-news-meta">
+            <span style="background:rgba(14,165,233,0.1); padding:2px 6px; border-radius:4px;">${item.type.toUpperCase()}</span>
+            <span>${item.date}</span>
+          </div>
+          <h4 class="welcome-news-title">${escapeHtml(item.title)}</h4>
+          <p class="welcome-news-body">${escapeHtml(item.body)}</p>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Render calendar timeline
+  const calendarContainer = document.getElementById('portal-calendar-container');
+  if (calendarContainer) {
+    const events = items.filter(i => i.type === 'event');
+    events.sort((a,b) => a.date.localeCompare(b.date));
+    
+    if (events.length === 0) {
+      calendarContainer.innerHTML = `<div style="font-size:13px; color:var(--text-muted); font-style:italic;">No upcoming events.</div>`;
+    } else {
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      calendarContainer.innerHTML = events.map(ev => {
+        const dObj = new Date(ev.date);
+        const day = dObj.getDate();
+        const mon = monthNames[dObj.getMonth()] || "Jun";
+        
+        return `
+          <div class="welcome-calendar-card">
+            <div class="welcome-calendar-date">
+              <div class="welcome-calendar-date-day">${day}</div>
+              <div class="welcome-calendar-date-month">${mon}</div>
+            </div>
+            <div class="welcome-calendar-info">
+              <h4 class="welcome-calendar-title">${escapeHtml(ev.title)}</h4>
+              <div class="welcome-calendar-time">⏰ ${escapeHtml(ev.time || 'All Day')}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function getVisiblePortalItems(items) {
+  return items.filter(item => {
+    // Events are public
+    if (item.type === 'event') return true;
+
+    // Filter out pending/denied items
+    if (item.status === 'pending_chairperson' || item.status === 'denied') {
+      return false;
+    }
+
+    const visibility = item.visibility || 'public';
+
+    if (visibility === 'public') {
+      return true;
+    }
+
+    if (visibility === 'faculty') {
+      if (!currentUser) return false;
+      return currentUserRole === 'faculty' || currentUserRole === 'chairperson' || currentUserRole === 'admin';
+    }
+
+    if (visibility === 'students') {
+      if (!currentUser) return false;
+      if (item.postedBy === currentUser.email) return true;
+      if (currentUserRole === 'admin' || currentUserRole === 'chairperson') return true;
+      
+      if (currentUserRole === 'student') {
+        const studentSubjects = currentUser.subjects || [];
+        return studentSubjects.some(subj => subj.courseId === item.classId || subj.id === item.classId);
+      }
+      return false;
+    }
+
+    return false;
+  });
+}
+
+function loadPortalContent() {
+  const mockItems = [
+    {
+      type: 'announcement',
+      title: 'Mandatory Lab Safety Training',
+      body: 'All students enrolled in CHM 101/102 and CHM 151 are required to complete the safety orientation module. Uncertified students will not be permitted in lab sessions.',
+      date: new Date().toISOString().substring(0,10),
+      category: 'Safety',
+      visibility: 'public',
+      status: 'approved'
+    },
+    {
+      type: 'news',
+      title: 'Green Synthesis Research Grant Awarded',
+      body: 'The Department of Chemistry has secured a PHP 1.2M grant from DOST-PCIEERD for investigating green synthesis procedures utilizing local marine algae extracts.',
+      date: new Date(Date.now() - 86400000 * 2).toISOString().substring(0,10),
+      category: 'Research',
+      visibility: 'public',
+      status: 'approved'
+    },
+    {
+      type: 'event',
+      title: 'Annual Chemical Storage Inventory',
+      body: 'Stockroom audit and chemical inventory inspection.',
+      date: new Date(Date.now() + 86400000 * 4).toISOString().substring(0,10),
+      time: '08:00 AM - 05:00 PM',
+      visibility: 'public',
+      status: 'approved'
+    },
+    {
+      type: 'event',
+      title: 'Thesis Defense: CHM 200 Seminar',
+      body: 'CNMS general lecture hall presentation.',
+      date: new Date(Date.now() + 86400000 * 8).toISOString().substring(0,10),
+      time: '01:30 PM - 03:00 PM',
+      visibility: 'public',
+      status: 'approved'
+    }
+  ];
+
+  firestore.collection('portal_content').get().then(snap => {
+    let items = [];
+    if (snap.empty) {
+      items = mockItems;
+      items.forEach(item => {
+        firestore.collection('portal_content').add(item).catch(() => {});
+      });
+    } else {
+      snap.forEach(doc => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    const visibleItems = getVisiblePortalItems(items);
+    renderPortalItems(visibleItems);
+  }).catch(err => {
+    console.warn("Firestore portal_content read failed. Using fallback seed data:", err);
+    renderPortalItems(mockItems);
+  });
+}
+
+function renderPortalRoleApplicationForm() {
+  const container = document.getElementById('portal-role-app-container');
+  if (!container) return;
+
+  const renderForm = () => {
+    const isNameReadonly = currentUser && currentUser.name;
+    const nameVal = currentUser && currentUser.name ? currentUser.name : '';
+    const nameStyle = isNameReadonly
+      ? 'padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; opacity: 0.6; cursor: not-allowed;'
+      : 'padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;';
+    const nameReadonlyAttr = isNameReadonly ? 'readonly' : '';
+
+    const isEmailReadonly = currentUser && currentUser.email;
+    const emailVal = currentUser && currentUser.email ? currentUser.email : '';
+    const emailStyle = isEmailReadonly
+      ? 'padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; font-family:monospace; opacity: 0.6; cursor: not-allowed;'
+      : 'padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; font-family:monospace;';
+    const emailReadonlyAttr = isEmailReadonly ? 'readonly' : '';
+
+    container.innerHTML = `
+      <div class="app-role-form-container">
+        <h3 class="app-role-form-title">🏛️ Apply for Portal Access</h3>
+        <p class="app-role-form-subtitle">Submit your academic details to request professional module access. Applications are verified by administrators.</p>
+        
+        <form id="portal-role-app-form" onsubmit="handleRoleApplicationSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Complete Name:</label>
+            <input type="text" id="role-app-name" required value="${escapeHtml(nameVal)}" placeholder="e.g. Juan Dela Cruz" style="${nameStyle}" ${nameReadonlyAttr}>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Email Address:</label>
+            <input type="email" id="role-app-email" required value="${escapeHtml(emailVal)}" placeholder="e.g. juan.delacruz@msugensan.edu.ph" style="${emailStyle}" ${emailReadonlyAttr}>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Office / Building Location:</label>
+            <input type="text" id="role-app-office" required value="Department of Chemistry, RSRC Bldg." placeholder="e.g. Department of Chemistry, RSRC Bldg." style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Target Portal Role:</label>
+            <select id="role-app-target-role" onchange="toggleRoleAppAffiliationFields(this.value, 'main')" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+              <option value="faculty" selected>👨‍🏫 Faculty</option>
+              <option value="laboratory">🧪 Laboratory</option>
+              <option value="pco_laboratory">🌿 PCO Laboratory</option>
+              <option value="pco_college">🌿 PCO College</option>
+              <option value="pco_office">🌿 PCO Office</option>
+              <option value="pco_ppd">🌿 PCO PPD</option>
+              <option value="pco_gso">🌿 PCO GSO</option>
+              <option value="pco_sanitary">🌿 PCO Sanitary</option>
+              <option value="chairperson">🏛️ Chairperson</option>
+            </select>
+          </div>
+
+          <!-- Conditional Affiliation Group -->
+          <div id="role-app-affiliation-group" style="display:none; flex-direction:column; gap:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Affiliated College / Office:</label>
+              <select id="role-app-affiliation" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+                <option value="">-- Select College/Office Affiliation --</option>
+                <optgroup label="Colleges (Academic)">
+                  <option value="CNSM">CNSM - College of Natural Sciences and Mathematics</option>
+                  <option value="COE">COE - College of Engineering</option>
+                  <option value="COA">COA - College of Agriculture</option>
+                  <option value="CBAA">CBAA - College of Business Administration and Accountancy</option>
+                  <option value="COED">COED - College of Education</option>
+                  <option value="COFAS">COFAS - College of Fisheries & Aquatic Sciences</option>
+                  <option value="COHS">COHS - College of Health Sciences</option>
+                  <option value="COL">COL - College of Law</option>
+                  <option value="COM">COM - College of Medicine</option>
+                  <option value="CSSH">CSSH - College of Social Sciences and Humanities</option>
+                  <option value="IIAIS">IIAIS - Institute of Islamic, Arabic and International Studies</option>
+                </optgroup>
+                <optgroup label="Offices (Administrative)">
+                  <option value="OC">OC - Office of the Chancellor</option>
+                  <option value="OVCAA">OVCAA - Office of the Vice Chancellor for Academic Affairs</option>
+                  <option value="OVCAF">OVCAF - Office of the Vice Chancellor for Administration and Finance</option>
+                  <option value="OVCREI">OVCREI - Office of the Vice Chancellor for Research, Extension, and Innovation</option>
+                  <option value="OVCSAS">OVCSAS - Office of the Vice Chancellor for Student Affairs and Services</option>
+                  <option value="OVCPD">OVCPD - Office of the Vice Chancellor for Planning and Development</option>
+                  <option value="PPD">PPD - Physical Plant Division</option>
+                  <option value="GSO">GSO - General Services Office</option>
+                  <option value="ICTO">ICTO - Information Communication Technology Office</option>
+                  <option value="BO">BO - Budget Office</option>
+                  <option value="IPDM">IPDM - Institute of Peace & Development in Mindanao</option>
+                  <option value="CAO">CAO - Cultural Affairs Office</option>
+                  <option value="CSU">CSU - Civil Security Unit</option>
+                  <option value="OIA">OIA - Office of the International Affairs</option>
+                  <option value="ARO">ARO - Alumni Relations Office</option>
+                  <option value="IAS">IAS - Internal Audit Services</option>
+                  <option value="PEMO">PEMO - Planning, Evaluation, & Monitoring Office</option>
+                </optgroup>
+                <option value="OTHER">❓ Other (Not Listed)</option>
+              </select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Specific Lab / Office Name:</label>
+              <input type="text" id="role-app-office-name" placeholder="e.g. Chemistry Stockroom" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">University ID Card Card Image/PDF:</label>
+            <div class="file-upload-zone" onclick="document.getElementById('role-app-univ-id').click()">
+              <span style="font-size:24px;">📁</span>
+              <div class="file-upload-text">Choose file or drag here to upload ID</div>
+              <input type="file" id="role-app-univ-id" required style="display:none;" onchange="handleUniversityIdFileSelect(this)">
+              <div id="role-app-file-preview" class="file-upload-preview"></div>
+            </div>
+          </div>
+          <button type="submit" class="settings-btn-primary" style="margin-top:10px; font-weight:700;">📤 Submit Access Request</button>
+        </form>
+      </div>
+    `;
+    setTimeout(() => {
+      const selectEl = document.getElementById('role-app-target-role');
+      if (selectEl) toggleRoleAppAffiliationFields(selectEl.value, 'main');
+    }, 50);
+  };
+
+  if (!currentUser) {
+    renderForm();
+    return;
+  }
+
+  // Query if this user has already submitted an application
+  firestore.collection('role_applications').where('email', '==', currentUser.email).get().then(snap => {
+    if (!snap.empty) {
+      // Find the first pending application
+      const pendingDoc = snap.docs.find(d => d.data().status === 'pending');
+      if (pendingDoc) {
+        const app = pendingDoc.data();
+        container.innerHTML = `
+          <div class="app-role-form-container" style="border: 1px solid var(--pco-warning); background:rgba(245,158,11,0.02);">
+            <h3 class="app-role-form-title" style="color:#f59e0b; display:flex; align-items:center; gap:8px;">⏳ Application Pending</h3>
+            <p class="app-role-form-subtitle">Your requested role: <strong style="color:var(--accent);">${escapeHtml(app.requestedRole.replace('pco_', 'PCO ').toUpperCase())}</strong></p>
+            <div style="background:rgba(255,255,255,0.02); border:1px dashed var(--border-card); border-radius:10px; padding:16px; font-size:13px; color:var(--text-main); line-height:1.6;">
+              ℹ️ Your role access request was submitted successfully. If your application is not approved within 24 hours, please see the Department of Chemistry.
+            </div>
+          </div>
+        `;
+        return;
+      }
+    }
+    renderForm();
+  });
+}
+
+function handleUniversityIdFileSelect(input) {
+  const preview = document.getElementById('role-app-file-preview');
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    preview.innerText = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    preview.style.display = 'block';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      window.lastUploadedUnivIdBase64 = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    preview.style.display = 'none';
+    window.lastUploadedUnivIdBase64 = '';
+  }
+}
+
+function toggleRoleAppAffiliationFields(role, suffix) {
+  const isPco = role.startsWith('pco');
+  const group = document.getElementById(suffix === 'modal' ? 'role-app-affiliation-group-modal' : 'role-app-affiliation-group');
+  if (group) {
+    group.style.display = isPco ? 'flex' : 'none';
+  }
+}
+window.toggleRoleAppAffiliationFields = toggleRoleAppAffiliationFields;
+
+function handleRoleApplicationSubmit(event) {
+  event.preventDefault();
+  
+  const formId = event.target.id;
+  const isModal = formId === 'portal-role-app-form-modal';
+  
+  const suffix = isModal ? '-modal' : '';
+  const name = document.getElementById('role-app-name' + suffix).value.trim();
+  const email = document.getElementById('role-app-email' + suffix).value.trim();
+  const office = document.getElementById('role-app-office' + suffix).value.trim(); // This is Room / Building Location
+  const targetRole = document.getElementById('role-app-target-role' + suffix).value;
+  const idFile = document.getElementById('role-app-univ-id' + suffix).files[0];
+
+  // Restrict to @msugensan.edu.ph
+  if (!email.toLowerCase().endsWith('@msugensan.edu.ph')) {
+    showCustomAlert("Access Restricted: Only MSU GenSan institutional email accounts (@msugensan.edu.ph) are permitted to apply for Portal roles.", "error");
+    return;
+  }
+
+  // PCO category requirements enforcement
+  const isPco = targetRole.startsWith('pco');
+  let affiliationUnit = '';
+  let officeName = '';
+  if (isPco) {
+    affiliationUnit = document.getElementById('role-app-affiliation' + suffix).value;
+    officeName = document.getElementById('role-app-office-name' + suffix).value.trim();
+    if (!affiliationUnit || !officeName || !office) {
+      showCustomAlert("Affiliated College/Office, Specific Lab/Office Name, and Room Location are required for PCO Category applications.", "error");
+      return;
+    }
+  }
+
+  if (!idFile) {
+    showCustomAlert("Error: Please select/upload your University ID card.", "error");
+    return;
+  }
+
+  const appData = {
+    applicationId: "APP-" + Date.now(),
+    name: name,
+    email: email,
+    office: office, // Location
+    requestedRole: targetRole,
+    univIdFileName: idFile.name,
+    univIdBase64: isModal ? (window.lastUploadedUnivIdBase64Modal || '') : (window.lastUploadedUnivIdBase64 || ''),
+    status: 'pending',
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (isPco) {
+    appData.affiliationUnit = affiliationUnit;
+    appData.officeName = officeName;
+  }
+
+  firestore.collection('role_applications').add(appData).then(() => {
+    showCustomAlert("Application was submitted successfully. If application is not approved within 24 hours, please see the Department of Chemistry.", "success");
+    renderPortalRoleApplicationForm();
+    if (isModal) {
+      closeRoleAppModal();
+    }
+  }).catch(err => {
+    showCustomAlert("Submission failed: " + err.message, "error");
+  });
+}
+
+function openPortalContentDrawer(type) {
+  let titleLabel = "Add News Article";
+  if (type === 'announcement') titleLabel = "Add Announcement";
+  if (type === 'event') titleLabel = "Add Calendar Event";
+
+  const todayStr = new Date().toISOString().substring(0,10);
+  const bodyHTML = `
+    <form id="portal-content-form" style="display:flex; flex-direction:column; gap:12px; text-align:left;">
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Title / Heading:</label>
+        <input type="text" id="pc-title" required placeholder="e.g. Seminar Series 2026" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Description / Content:</label>
+        <textarea id="pc-body" required rows="4" placeholder="Enter content body here..." style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Date:</label>
+        <input type="date" id="pc-date" required value="${todayStr}" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      ${(type === 'news' || type === 'announcement') ? `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Publish To / Audience:</label>
+        <select id="pc-visibility" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+          <option value="public" selected>🌍 Public (anyone with or without login)</option>
+          <option value="faculty">👨‍🏫 Department Faculty Only</option>
+        </select>
+      </div>
+      ` : ''}
+      ${type === 'event' ? `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Event Time (Optional):</label>
+        <input type="text" id="pc-time" placeholder="e.g. 09:00 AM - 12:00 PM" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      ` : ''}
+      <input type="hidden" id="pc-type" value="${type}">
+    </form>
+  `;
+
+  const footerHTML = `
+    <button class="settings-btn-primary" onclick="closeActionDrawer()" style="width:auto; margin:0; padding:10px 16px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid var(--border-card);">Cancel</button>
+    <button class="settings-btn-primary" onclick="submitPortalContent()" style="width:auto; margin:0; padding:10px 20px; background:var(--accent); color:white; font-weight:600;">💾 Post Content</button>
+  `;
+
+  openActionDrawer(`➕ ${titleLabel}`, bodyHTML, footerHTML);
+}
+
+function submitPortalContent() {
+  const type = document.getElementById('pc-type').value;
+  const title = document.getElementById('pc-title').value.trim();
+  const body = document.getElementById('pc-body').value.trim();
+  const date = document.getElementById('pc-date').value;
+  const time = type === 'event' ? document.getElementById('pc-time').value.trim() : '';
+  const visibilitySelect = document.getElementById('pc-visibility');
+  const visibility = visibilitySelect ? visibilitySelect.value : 'public';
+
+  if (!title || !body || !date) {
+    alert("Please fill in all required content fields.");
+    return;
+  }
+
+  firestore.collection('portal_content').add({
+    type: type,
+    title: title,
+    body: body,
+    date: date,
+    time: time,
+    visibility: visibility,
+    status: 'approved',
+    postedBy: currentUser.email,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  })
+  .then(() => {
+    alert("Portal content posted successfully!");
+    closeActionDrawer();
+    loadPortalContent();
+  })
+  .catch(err => alert("Error: " + err.message));
+}
+function renderAdminRoleApplications(targetId = 'viewport-body') {
+  const viewport = document.getElementById(targetId);
+  if (!viewport) return;
+
+  viewport.innerHTML = `
+    <div class="home-greeting-card" style="padding: 24px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
+      <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: var(--accent); margin: 0 0 8px 0;">📋 Role Access Applications</h2>
+      <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Verify institutional credentials, check uploaded university IDs, and approve portal access requests.</p>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--border-card); padding: 24px; border-radius: 16px; text-align: left;">
+      <h3 style="margin: 0 0 16px 0; font-size: 15px; font-weight: 700;">Pending Applications</h3>
+      
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; min-width: 700px;">
+          <thead>
+            <tr style="border-bottom:1px dashed var(--border-card); color:var(--text-muted); font-size:11px; text-transform:uppercase;">
+              <th style="padding:10px 8px;">Applicant Details</th>
+              <th style="padding:10px 8px;">Office</th>
+              <th style="padding:10px 8px;">Requested Role</th>
+              <th style="padding:10px 8px;">University ID Card</th>
+              <th style="padding:10px 8px; text-align:center; width:180px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-role-apps-tbody">
+            <tr>
+              <td colspan="5" style="padding:20px; text-align:center; color:var(--text-muted); font-style:italic;">Loading pending applications...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  firestore.collection('role_applications').where('status', '==', 'pending').get().then(snap => {
+    const tbody = document.getElementById('admin-role-apps-tbody');
+    if (!tbody) return;
+    
+    if (snap.empty) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="padding:32px; text-align:center; color:var(--text-muted); font-style:italic;">🎉 No pending role access applications!</td>
+        </tr>
+      `;
+      return;
+    }
+
+    let html = '';
+    snap.forEach(doc => {
+      const app = doc.data();
+      const docId = doc.id;
+      
+      let idLinkHTML = `<span style="color:var(--text-muted); font-style:italic;">No file</span>`;
+      if (app.univIdBase64) {
+        idLinkHTML = `<a href="${app.univIdBase64}" download="${app.univIdFileName}" style="color:var(--accent); font-weight:600; text-decoration:underline; cursor:pointer;">📥 Download ID (${escapeHtml(app.univIdFileName)})</a>`;
+      } else if (app.univIdFileName) {
+        idLinkHTML = `<span style="font-family:monospace; color:var(--text-main);">${escapeHtml(app.univIdFileName)}</span>`;
+      }
+
+      html += `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.02);">
+          <td style="padding:14px 8px;">
+            <div style="font-weight:700; color:var(--text-main);">${escapeHtml(app.name)}</div>
+            <div style="font-size:11.5px; color:var(--text-muted); font-family:monospace; margin-top:2px;">${escapeHtml(app.email)}</div>
+          </td>
+          <td style="padding:14px 8px; color:var(--text-main);">${escapeHtml(app.office)}</td>
+          <td style="padding:14px 8px;"><span style="background:rgba(59,130,246,0.08); color:var(--accent); padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">${escapeHtml(app.requestedRole.replace('pco_', 'PCO ').toUpperCase())}</span></td>
+          <td style="padding:14px 8px;">${idLinkHTML}</td>
+          <td style="padding:14px 8px; text-align:center;">
+            <div style="display:flex; gap:8px; justify-content:center;">
+              <button class="settings-btn-primary" onclick="approveRoleApplication('${docId}', '${escapeJsString(app.email)}', '${escapeJsString(app.requestedRole)}')" style="width:auto; margin:0; padding:6px 12px; font-size:12px; background:#10b981; color:white; font-weight:600; border-color:rgba(16,185,129,0.3);">Approve</button>
+              <button class="settings-btn-primary" onclick="rejectRoleApplication('${docId}')" style="width:auto; margin:0; padding:6px 12px; font-size:12px; background:#ef4444; color:white; font-weight:600; border-color:rgba(239,68,68,0.3);">Reject</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+    tbody.innerHTML = html;
+  });
+}
+
+function approveRoleApplication(docId, email, role) {
+  if (!confirm(`Are you sure you want to approve this application and assign ${email} to the ${role.toUpperCase()} role?`)) return;
+
+  const appRef = firestore.collection('role_applications').doc(docId);
+  const userRef = firestore.collection('students').doc(email);
+
+  firestore.runTransaction(transaction => {
+    return transaction.get(appRef).then(appDoc => {
+      if (!appDoc.exists) throw new Error("Application does not exist.");
+      
+      return transaction.get(userRef).then(userDoc => {
+        let roles = [role];
+        let userData = {
+          name: appDoc.data().name,
+          email: email,
+          role: role,
+          roles: roles,
+          officeAddress: appDoc.data().office,
+          location: appDoc.data().office || ''
+        };
+        if (appDoc.data().affiliationUnit) {
+          userData.affiliationUnit = appDoc.data().affiliationUnit;
+        }
+        if (appDoc.data().officeName) {
+          userData.office = appDoc.data().officeName;
+        }
+        
+        if (userDoc.exists) {
+          const prevData = userDoc.data();
+          roles = prevData.roles || [];
+          if (!roles.includes(role)) {
+            roles.push(role);
+          }
+          roles = roles.filter(r => r !== 'unassigned');
+          userData = {
+            ...prevData,
+            role: role,
+            roles: roles,
+            officeAddress: appDoc.data().office,
+            location: appDoc.data().office || prevData.location || ''
+          };
+          if (appDoc.data().affiliationUnit) {
+            userData.affiliationUnit = appDoc.data().affiliationUnit;
+          }
+          if (appDoc.data().officeName) {
+            userData.office = appDoc.data().officeName;
+          }
+        }
+        
+        transaction.update(appRef, { status: 'approved' });
+        transaction.set(userRef, userData);
+      });
+    });
+  })
+  .then(() => {
+    showCustomAlert("Application approved and user role assigned successfully!", "success");
+    renderAdminRoleApplications();
+  })
+  .catch(err => {
+    showCustomAlert("Approval failed: " + err.message, "error");
+  });
+}
+
+function rejectRoleApplication(docId) {
+  if (!confirm("Are you sure you want to reject this role application?")) return;
+  
+  firestore.collection('role_applications').doc(docId).update({
+    status: 'rejected'
+  }).then(() => {
+    showCustomAlert("Application rejected successfully.", "info");
+    renderAdminRoleApplications();
+  }).catch(err => alert("Error: " + err.message));
+}
+
+// Window bindings
+window.renderWelcomeDashboard = renderWelcomeDashboard;
+window.handleWelcomeModuleClick = handleWelcomeModuleClick;
+window.loadPortalContent = loadPortalContent;
+window.renderPortalRoleApplicationForm = renderPortalRoleApplicationForm;
+window.handleUniversityIdFileSelect = handleUniversityIdFileSelect;
+window.handleRoleApplicationSubmit = handleRoleApplicationSubmit;
+window.openPortalContentDrawer = openPortalContentDrawer;
+window.submitPortalContent = submitPortalContent;
+window.renderAdminRoleApplications = renderAdminRoleApplications;
+window.approveRoleApplication = approveRoleApplication;
+window.rejectRoleApplication = rejectRoleApplication;
+
+// Faculty Publication Management Additions
+function renderFacultyAnnouncementsView() {
+  const viewport = document.getElementById('viewport-body');
+  if (!viewport) return;
+
+  viewport.innerHTML = `<div class="empty-playlist-msg">Loading announcements...</div>`;
+
+  firestore.collection('classes')
+    .where('facultyEmail', '==', currentUser.email)
+    .where('status', '==', 'approved')
+    .get()
+    .then(classSnap => {
+      const myClasses = classSnap.docs.map(d => ({id: d.id, ...d.data()}));
+
+      firestore.collection('portal_content')
+        .where('postedBy', '==', currentUser.email)
+        .get()
+        .then(snap => {
+          const list = snap.docs.map(d => ({id: d.id, ...d.data()}));
+          list.sort((a, b) => b.date.localeCompare(a.date));
+
+          viewport.innerHTML = `
+            <div class="home-greeting-card" style="padding: 24px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.25); border-radius: 20px; text-align: left; margin-bottom: 24px;">
+              <h2 style="font-size: 22px; font-weight: 800; font-family: 'Outfit', sans-serif; color: #3b82f6; margin: 0 0 8px 0; display:flex; align-items:center; gap:8px;">
+                <span>📢</span> Publication Management Workspace
+              </h2>
+              <p style="margin: 0; font-size: 13.5px; color: var(--text-muted);">Publish news and announcements to your classes, the chemistry faculty, or the general public.</p>
+            </div>
+
+            <div style="background:var(--bg-card); border:1px solid var(--border-card); padding:24px; border-radius:18px; text-align:left; margin-bottom:24px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+                <h3 style="margin:0; font-size:15px; font-weight:700;">My Publications</h3>
+                <button class="settings-btn-primary" onclick="openFacultyAnnouncementDrawer()" style="width:auto; margin:0; padding:10px 18px; font-weight:600;">➕ Create Announcement</button>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                ${list.map(ann => {
+                  let statusBadge = '';
+                  if (ann.status === 'approved') {
+                    statusBadge = `<span style="background:rgba(16,185,129,0.1); color:#10b981; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700;">APPROVED / ACTIVE</span>`;
+                  } else if (ann.status === 'pending_chairperson') {
+                    statusBadge = `<span style="background:rgba(245,158,11,0.1); color:#f59e0b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700;">PENDING CHAIRPERSON APPROVAL</span>`;
+                  } else if (ann.status === 'denied') {
+                    statusBadge = `<span style="background:rgba(239,68,68,0.1); color:#ef4444; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700;">REJECTED</span>`;
+                  }
+
+                  let targetText = ann.visibility ? ann.visibility.toUpperCase() : 'PUBLIC';
+                  if (ann.visibility === 'students' && ann.classId) {
+                    const targetClass = myClasses.find(c => c.id === ann.classId);
+                    if (targetClass) {
+                      targetText = `CLASS: ${targetClass.courseId} (${targetClass.section})`;
+                    }
+                  }
+
+                  return `
+                    <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border-card); border-radius:10px; padding:14px; display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+                      <div style="flex:1; min-width:250px;">
+                        <h4 style="margin:0 0 6px 0; font-size:14px; font-weight:700; color:white;">${escapeHtml(ann.title)}</h4>
+                        <p style="margin:0 0 10px 0; font-size:12.5px; color:var(--text-muted); line-height:1.5;">${escapeHtml(ann.body)}</p>
+                        <div style="display:flex; align-items:center; gap:10px; font-size:11px; color:var(--text-muted); flex-wrap:wrap;">
+                          <span>📅 ${ann.date}</span>
+                          <span>&bull;</span>
+                          <span>Target: <strong>${targetText}</strong></span>
+                        </div>
+                      </div>
+                      <div>
+                        ${statusBadge}
+                      </div>
+                    </div>
+                  `;
+                }).join('') || `<div style="font-size:13.5px; color:var(--text-muted); text-align:center; font-style:italic; padding:24px;">You haven't posted any announcements yet. Click the button above to publish!</div>`}
+              </div>
+            </div>
+          `;
+
+          window.facultyTaughtClasses = myClasses;
+        })
+        .catch(err => {
+          console.error("Error loading faculty announcements:", err);
+          viewport.innerHTML = `<div style="color:#ef4444; padding:20px;">Error: ${err.message}</div>`;
+        });
+    })
+    .catch(err => {
+      console.error("Error loading faculty classes:", err);
+      viewport.innerHTML = `<div style="color:#ef4444; padding:20px;">Error: ${err.message}</div>`;
+    });
+}
+
+function openFacultyAnnouncementDrawer() {
+  const myClasses = window.facultyTaughtClasses || [];
+  const todayStr = new Date().toISOString().substring(0,10);
+
+  const bodyHTML = `
+    <form id="faculty-announcement-form" style="display:flex; flex-direction:column; gap:12px; text-align:left;">
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Title / Heading:</label>
+        <input type="text" id="fa-title" required placeholder="e.g. Next Week Experiment Guidelines" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Content / Body:</label>
+        <textarea id="fa-body" required rows="5" placeholder="Enter announcement body text here..." style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Date:</label>
+        <input type="date" id="fa-date" required value="${todayStr}" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Publish To / Target Audience:</label>
+        <select id="fa-audience" onchange="toggleFacultyAnnouncementClassSelect()" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+          <option value="students" selected>🏫 Students of my class (auto-approved)</option>
+          <option value="faculty">👨‍🏫 Department Chemistry Faculty Only (requires Chairperson approval)</option>
+          <option value="public">🌍 Public Landing Page (requires Chairperson approval)</option>
+        </select>
+      </div>
+      <div id="fa-class-target-container" style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Select Class:</label>
+        <select id="fa-class-target" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+          ${myClasses.map(c => `<option value="${c.id}">${escapeHtml(c.courseId)} - Sec ${escapeHtml(c.section)} (${escapeHtml(c.courseName)})</option>`).join('') || '<option value="" disabled>No active classes found</option>'}
+        </select>
+      </div>
+    </form>
+  `;
+
+  const footerHTML = `
+    <button class="settings-btn-primary" onclick="closeActionDrawer()" style="width:auto; margin:0; padding:10px 16px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid var(--border-card);">Cancel</button>
+    <button class="settings-btn-primary" onclick="submitFacultyAnnouncement()" style="width:auto; margin:0; padding:10px 20px; background:var(--accent); color:white; font-weight:600;">💾 Post Announcement</button>
+  `;
+
+  openActionDrawer("📢 Create Announcement", bodyHTML, footerHTML);
+}
+
+function toggleFacultyAnnouncementClassSelect() {
+  const aud = document.getElementById('fa-audience').value;
+  const container = document.getElementById('fa-class-target-container');
+  if (container) {
+    container.style.display = aud === 'students' ? 'flex' : 'none';
+  }
+}
+
+function submitFacultyAnnouncement() {
+  const title = document.getElementById('fa-title').value.trim();
+  const body = document.getElementById('fa-body').value.trim();
+  const date = document.getElementById('fa-date').value;
+  const audience = document.getElementById('fa-audience').value;
+  const classId = audience === 'students' ? document.getElementById('fa-class-target').value : '';
+
+  if (!title || !body || !date) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  let status = 'approved';
+  let visibility = audience;
+  if (audience === 'faculty' || audience === 'public') {
+    status = 'pending_chairperson';
+  }
+
+  firestore.collection('portal_content').add({
+    type: 'announcement',
+    title: title,
+    body: body,
+    date: date,
+    visibility: visibility,
+    classId: classId,
+    status: status,
+    postedBy: currentUser.email,
+    postedByName: currentUser.name || currentUser.email.split('@')[0],
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    showCustomAlert(status === 'approved' ? "Announcement published successfully!" : "Announcement submitted and pending Chairperson approval!", "success");
+    closeActionDrawer();
+    renderFacultyAnnouncementsView();
+    loadPortalContent();
+  }).catch(err => {
+    showCustomAlert("Error submitting announcement: " + err.message, "error");
+  });
+}
+
+window.renderFacultyAnnouncementsView = renderFacultyAnnouncementsView;
+window.openFacultyAnnouncementDrawer = openFacultyAnnouncementDrawer;
+window.toggleFacultyAnnouncementClassSelect = toggleFacultyAnnouncementClassSelect;
+window.submitFacultyAnnouncement = submitFacultyAnnouncement;
+
+// Floating Role Application Modal Functions
+function openRoleAppModal(targetModule) {
+  const modal = document.getElementById('role-app-modal');
+  const body = document.getElementById('role-app-modal-body');
+  if (!modal || !body || !currentUser) return;
+
+  window.lastUploadedUnivIdBase64Modal = null;
+
+  const isPcoModule = targetModule === 'pco';
+  let defaultSelect = 'faculty';
+  if (targetModule === 'laboratory') defaultSelect = 'laboratory';
+  else if (isPcoModule) defaultSelect = 'pco_laboratory';
+  else if (targetModule === 'chairperson') defaultSelect = 'chairperson';
+
+  firestore.collection('role_applications').where('email', '==', currentUser.email).get().then(snap => {
+    let pendingDoc = null;
+    if (!snap.empty) {
+      pendingDoc = snap.docs.find(d => d.data().status === 'pending');
+    }
+
+    if (pendingDoc) {
+      const app = pendingDoc.data();
+      body.innerHTML = `
+        <div style="border: 1px solid var(--pco-warning); background:rgba(245,158,11,0.02); border-radius:12px; padding:16px;">
+          <h3 class="app-role-form-title" style="color:#f59e0b; display:flex; align-items:center; gap:8px; margin-top:0;">⏳ Application Pending</h3>
+          <p class="app-role-form-subtitle">Your requested role: <strong style="color:var(--accent);">${escapeHtml(app.requestedRole.replace('pco_', 'PCO ').toUpperCase())}</strong></p>
+          <div style="background:rgba(255,255,255,0.02); border:1px dashed var(--border-card); border-radius:10px; padding:16px; font-size:13px; color:var(--text-main); line-height:1.6;">
+            ℹ️ Your role access request was submitted successfully. If your application is not approved within 24 hours, please see the Department of Chemistry.
+          </div>
+        </div>
+      `;
+    } else {
+      body.innerHTML = `
+        <form id="portal-role-app-form-modal" onsubmit="handleRoleApplicationSubmit(event)" style="display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Complete Name:</label>
+            <input type="text" id="role-app-name-modal" required value="${escapeHtml(currentUser.name || '')}" placeholder="e.g. Juan Dela Cruz" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; opacity: 0.6; cursor: not-allowed;" readonly>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Email Address:</label>
+            <input type="email" id="role-app-email-modal" required value="${currentUser.email}" placeholder="e.g. juan.delacruz@msugensan.edu.ph" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; font-family:monospace; opacity: 0.6; cursor: not-allowed;" readonly>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Office / Building Location:</label>
+            <input type="text" id="role-app-office-modal" required value="${escapeHtml(currentUser.officeAddress || 'Department of Chemistry, RSRC Bldg.')}" placeholder="e.g. Department of Chemistry, RSRC Bldg." style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Target Portal Role:</label>
+            <select id="role-app-target-role-modal" onchange="toggleRoleAppAffiliationFields(this.value, 'modal')" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+              ${isPcoModule ? `
+                <option value="pco_laboratory" selected>🌿 PCO Laboratory</option>
+                <option value="pco_college">🌿 PCO College</option>
+                <option value="pco_office">🌿 PCO Office</option>
+                <option value="pco_ppd">🌿 PCO PPD</option>
+                <option value="pco_gso">🌿 PCO GSO</option>
+                <option value="pco_sanitary">🌿 PCO Sanitary</option>
+              ` : `
+                <option value="faculty" ${defaultSelect === 'faculty' ? 'selected' : ''}>👨‍🏫 Faculty</option>
+                <option value="laboratory" ${defaultSelect === 'laboratory' ? 'selected' : ''}>🧪 Laboratory</option>
+                <option value="pco_laboratory">🌿 PCO Laboratory</option>
+                <option value="pco_college">🌿 PCO College</option>
+                <option value="pco_office">🌿 PCO Office</option>
+                <option value="pco_ppd">🌿 PCO PPD</option>
+                <option value="pco_gso">🌿 PCO GSO</option>
+                <option value="pco_sanitary">🌿 PCO Sanitary</option>
+                <option value="chairperson" ${defaultSelect === 'chairperson' ? 'selected' : ''}>🏛️ Chairperson</option>
+              `}
+            </select>
+          </div>
+          
+          <!-- Conditional Affiliation Group -->
+          <div id="role-app-affiliation-group-modal" style="display:none; flex-direction:column; gap:12px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Affiliated College / Office:</label>
+              <select id="role-app-affiliation-modal" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none; cursor:pointer;">
+                <option value="">-- Select College/Office Affiliation --</option>
+                <optgroup label="Colleges (Academic)">
+                  <option value="CNSM">CNSM - College of Natural Sciences and Mathematics</option>
+                  <option value="COE">COE - College of Engineering</option>
+                  <option value="COA">COA - College of Agriculture</option>
+                  <option value="CBAA">CBAA - College of Business Administration and Accountancy</option>
+                  <option value="COED">COED - College of Education</option>
+                  <option value="COFAS">COFAS - College of Fisheries & Aquatic Sciences</option>
+                  <option value="COHS">COHS - College of Health Sciences</option>
+                  <option value="COL">COL - College of Law</option>
+                  <option value="COM">COM - College of Medicine</option>
+                  <option value="CSSH">CSSH - College of Social Sciences and Humanities</option>
+                  <option value="IIAIS">IIAIS - Institute of Islamic, Arabic and International Studies</option>
+                </optgroup>
+                <optgroup label="Offices (Administrative)">
+                  <option value="OC">OC - Office of the Chancellor</option>
+                  <option value="OVCAA">OVCAA - Office of the Vice Chancellor for Academic Affairs</option>
+                  <option value="OVCAF">OVCAF - Office of the Vice Chancellor for Administration and Finance</option>
+                  <option value="OVCREI">OVCREI - Office of the Vice Chancellor for Research, Extension, and Innovation</option>
+                  <option value="OVCSAS">OVCSAS - Office of the Vice Chancellor for Student Affairs and Services</option>
+                  <option value="OVCPD">OVCPD - Office of the Vice Chancellor for Planning and Development</option>
+                  <option value="PPD">PPD - Physical Plant Division</option>
+                  <option value="GSO">GSO - General Services Office</option>
+                  <option value="ICTO">ICTO - Information Communication Technology Office</option>
+                  <option value="BO">BO - Budget Office</option>
+                  <option value="IPDM">IPDM - Institute of Peace & Development in Mindanao</option>
+                  <option value="CAO">CAO - Cultural Affairs Office</option>
+                  <option value="CSU">CSU - Civil Security Unit</option>
+                  <option value="OIA">OIA - Office of the International Affairs</option>
+                  <option value="ARO">ARO - Alumni Relations Office</option>
+                  <option value="IAS">IAS - Internal Audit Services</option>
+                  <option value="PEMO">PEMO - Planning, Evaluation, & Monitoring Office</option>
+                </optgroup>
+                <option value="OTHER">❓ Other (Not Listed)</option>
+              </select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Specific Lab / Office Name:</label>
+              <input type="text" id="role-app-office-name-modal" placeholder="e.g. Chemistry Stockroom" style="padding:10px; border-radius:8px; border:1px solid var(--border-card); background:var(--bg-body); color:var(--text-main); font-size:13px; outline:none;">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">University ID Card Card Image/PDF:</label>
+            <div class="file-upload-zone" onclick="document.getElementById('role-app-univ-id-modal').click()">
+              <span style="font-size:24px;">📁</span>
+              <div class="file-upload-text">Choose file or drag here to upload ID</div>
+              <input type="file" id="role-app-univ-id-modal" required style="display:none;" onchange="handleUniversityIdFileSelectModal(this)">
+              <div id="role-app-file-preview-modal" class="file-upload-preview"></div>
+            </div>
+          </div>
+          <button type="submit" class="settings-btn-primary" style="margin-top:10px; font-weight:700;">📤 Submit Access Request</button>
+        </form>
+      `;
+      setTimeout(() => {
+        const selectEl = document.getElementById('role-app-target-role-modal');
+        if (selectEl) toggleRoleAppAffiliationFields(selectEl.value, 'modal');
+      }, 50);
+    }
+    modal.style.display = 'flex';
+  }).catch(err => {
+    console.error("Error querying existing applications:", err);
+  });
+}
+
+function closeRoleAppModal() {
+  const modal = document.getElementById('role-app-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function handleUniversityIdFileSelectModal(input) {
+  const preview = document.getElementById('role-app-file-preview-modal');
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    preview.innerText = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    preview.style.display = 'block';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      window.lastUploadedUnivIdBase64Modal = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    preview.style.display = 'none';
+    window.lastUploadedUnivIdBase64Modal = '';
+  }
+}
+
+window.openRoleAppModal = openRoleAppModal;
+window.closeRoleAppModal = closeRoleAppModal;
+window.handleUniversityIdFileSelectModal = handleUniversityIdFileSelectModal;
+
+

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" id="theme-meta" content="#0f172a">
+  <title>Doc Learning Hub — Department of Chemistry</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="index.css">
+  
+  <!-- Firebase SDK Compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+  <!-- Google Identity Services (GIS) library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- KaTeX for Chemistry and Math equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/mhchem.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Mammoth.js for DOCX parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- SheetJS for Excel uploading and parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- Sidebar Navigation Panel -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="brand-title" id="brand-title" onclick="handleBrandTitleClick()" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+      <img src="chemistry_logo.png" alt="Logo" style="height: 52px; width: auto; object-fit: contain; flex-shrink: 0;">
+      <div class="brand-text">
+        <span class="brand-name">Department of Chemistry<br>Portal</span>
+      </div>
+    </div>
+    
+    <!-- User Profile Card -->
+    <div class="user-profile-card" id="user-profile-card">
+      <img id="user-profile-pic" src="chemistry_logo.png" alt="Profile Picture">
+      <div class="user-profile-info">
+        <span id="user-display-name">Guest Student</span>
+        <span id="user-display-email">Not Signed In</span>
+      </div>
+    </div>
+    
+    <!-- Dynamic Sidebar Navigation Content -->
+    <div id="sidebar-dynamic-tabs">
+      <!-- Generated dynamically based on User Role (Student / Faculty / Admin) -->
+    </div>
+
+    <div class="sidebar-footer">
+    </div>
+  </nav>
+
+  <!-- Sidebar Backdrop Overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Main Viewport Pane -->
+  <main class="content">
+    
+    <!-- Top toolbar header -->
+    <header class="top-controls">
+      <div class="subject-header">
+        <button class="menu-toggle-btn" id="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle Menu">☰</button>
+        <div class="subject-icon" id="header-icon">🧪</div>
+        <div class="subject-title-wrapper">
+          <h1 id="header-title">Department of Chemistry</h1>
+          <p id="header-subtitle">Loading instructor details...</p>
+        </div>
+      </div>
+      
+      <div class="action-toggles">
+        <button class="floating-pt-trigger" id="header-pt-btn" onclick="togglePeriodicTable()" style="display: none; padding: 0 14px; height: 38px; box-sizing: border-box; font-size: 12.5px; margin-right: 4px; border-radius: 12px;" title="Open Periodic Table">🔬 Periodic Table</button>
+        <div id="role-switcher-container" style="display: inline-flex; gap: 6px; margin-right: 8px;"></div>
+        <button class="theme-toggle-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">🌓</button>
+        <button class="settings-toggle-btn" id="settings-btn" onclick="openSettings()" aria-label="Open Settings">⚙️ Settings</button>
+        <button class="signout-header-btn" id="header-signout-btn" onclick="signOutStudent()" aria-label="Sign Out">🚪 <span>Sign Out</span></button>
+      </div>
+    </header>
+    
+    <!-- Dynamic Component Views Container -->
+    <div class="viewer-card" id="viewer-card">
+      
+      <!-- Progress Bar (Used by both Study and Quiz) -->
+      <div class="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      
+      <!-- Slide Metainfo (e.g. Slide 1 of 25) -->
+      <div class="view-meta" id="view-meta" style="display: none;">
+        <span id="slide-num-label">Slide 1 of 25</span>
+        <span id="slide-mode-label">Study Mode</span>
+      </div>
+
+      <!-- Injected view content -->
+      <div class="viewport-body" id="viewport-body">
+        <!-- Dynamic content is rendered here -->
+      </div>
+      
+      <!-- Slide controls footer (Study Mode only) -->
+      <div class="viewport-footer" id="viewport-footer" style="display: none;">
+        <button class="slide-btn" id="prev-btn" onclick="prevSlide()">← Previous</button>
+        <span class="slide-indicator" id="slide-indicator">Slide 1 of 25</span>
+        <button class="slide-btn" id="next-btn" onclick="nextSlide()">Next →</button>
+      </div>
+      
+    </div>
+
+    <!-- Floating Background Music Player Bar -->
+    <div class="music-player-bar" id="music-player-bar" style="display: none;">
+      <div class="music-track-info">
+        <span class="music-track-icon">🎵</span>
+        <div class="music-text-scroll">
+          <span class="music-track-title" id="music-track-title">Playlist Empty</span>
+        </div>
+      </div>
+      <div class="music-controls">
+        <button onclick="prevTrack()" class="music-control-btn" aria-label="Previous Track">⏮️</button>
+        <button onclick="togglePlayMusic()" class="music-control-btn play-btn" id="music-play-btn" aria-label="Play/Pause">▶️</button>
+        <button onclick="nextTrack()" class="music-control-btn" aria-label="Next Track">⏭️</button>
+        <button onclick="toggleMusicMode()" class="music-control-btn mode-btn" id="music-mode-btn" title="Toggle Random/Sequential">🔁 Loop</button>
+        <div class="volume-container">
+          <span style="font-size: 11px;">🔊</span>
+          <input type="range" id="music-volume" min="0" max="1" step="0.05" value="0.5" oninput="setMusicVolume(this.value)" class="music-volume-slider">
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Settings Drawer Panel -->
+  <div class="settings-overlay" id="settings-overlay" onclick="closeSettings()"></div>
+  <aside class="settings-drawer" id="settings-drawer">
+    <div class="settings-header">
+      <h2>⚙️ App Settings</h2>
+      <button class="settings-close-btn" onclick="closeSettings()">&times;</button>
+    </div>
+    <div class="settings-body" id="settings-body-container">
+      <!-- Populated dynamically by JS based on user role -->
+    </div>
+  </aside>
+
+  <!-- Onboarding Overlay Modal (Google Sign-In Mock + Student Info Setup) -->
+  <div class="onboarding-overlay" id="onboarding-overlay" style="display: none;">
+    <div class="onboarding-card">
+      <div class="onboarding-logo"><img src="chemistry_logo.png" alt="DoC Chemistry Logo" style="height: 100px; width: auto; object-fit: contain;"></div>
+      <h2>Department of Chemistry Learning Hub</h2>
+      
+      <!-- Stage 1: Real Google Sign-In -->
+      <div id="onboarding-stage-1" class="onboarding-stage">
+        <p style="margin: 20px 0; font-size: 13px; color: var(--text-muted);">Please connect your academic Google account to access learning materials.</p>
+        <div style="display: flex; justify-content: center; margin-top: 15px; margin-bottom: 20px;">
+          <div id="g_id_onload"
+               data-client_id="148696552118-v8h6fcnkmom6qcvj8v2ppjnkv1g2va5u.apps.googleusercontent.com"
+               data-context="signin"
+               data-ux_mode="popup"
+               data-callback="handleCredentialResponse"
+               data-auto_prompt="false">
+          </div>
+          <div class="g_id_signin"
+               data-type="standard"
+               data-shape="rectangular"
+               data-theme="outline"
+               data-text="signin_with"
+               data-size="large"
+               data-logo_alignment="left"
+               data-width="280">
+          </div>
+        </div>
+        
+
+      </div>
+
+      <!-- Stage 2: Enrollment Form -->
+      <div id="onboarding-stage-2" class="onboarding-stage" style="display: none;">
+        <div class="onboarding-form">
+          <div class="form-group">
+            <label for="onboarding-nickname">👤 Student Display Name</label>
+            <input type="text" id="onboarding-nickname" placeholder="e.g. Juan dela Cruz" required>
+          </div>
+          <div class="form-group">
+            <label for="onboarding-studentid">🆔 Student ID Number</label>
+            <input type="text" id="onboarding-studentid" placeholder="e.g. 2024-1234" required>
+          </div>
+          <div class="form-group">
+            <label>🧪 Add Your Subjects & Sections</label>
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <select id="onboarding-subject-select" style="flex: 2; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+                <!-- Dynamically populated -->
+              </select>
+              <select id="onboarding-section-select" style="flex: 1; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main);">
+                <!-- Dynamically populated -->
+              </select>
+              <button type="button" class="settings-btn-primary" onclick="addClassOnboarding()" style="width: auto; margin-top: 0; padding: 10px 14px; white-space: nowrap;">➕ Add</button>
+            </div>
+            <div id="onboarding-selected-classes" class="selected-classes-container">
+              <!-- Dynamically rendered list of selected class chips -->
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="onboarding-year">📚 Year Level</label>
+            <select id="onboarding-year">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <button class="onboarding-submit-btn" onclick="submitOnboardingProfile()">Complete Profile & Start 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Changelog Modal Overlay -->
+  <div class="pin-modal-overlay" id="changelog-modal" style="display: none;" onclick="if(event.target===this) closeChangelogModal()">
+    <div class="pin-card" style="max-width: 480px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 20px; color: var(--text-main); font-weight: 700; margin: 0; font-family: 'Outfit', sans-serif;">📋 App Change History</h2>
+        <button onclick="closeChangelogModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div id="changelog-timeline" style="display: flex; flex-direction: column; gap: 16px; font-family: 'Outfit', sans-serif; overflow-y: auto; flex: 1;">
+        <!-- Timeline items will be rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- About Modal Overlay -->
+  <div class="pin-modal-overlay" id="about-modal" style="display: none;" onclick="if(event.target===this) closeAboutModal()">
+    <div class="pin-card" style="max-width: 550px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 20px; color: var(--text-main); font-weight: 700; margin: 0; font-family: 'Outfit', sans-serif;">ℹ️ About the App</h2>
+        <button onclick="closeAboutModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div id="about-modal-body" style="font-family: 'Outfit', sans-serif; overflow-y: auto; flex: 1; font-size: 13px; line-height: 1.6; color: var(--text-main); display: flex; flex-direction: column; gap: 16px;">
+        <!-- About sections will be rendered here dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Request Class Modal Overlay -->
+  <div class="pin-modal-overlay" id="class-request-modal" style="display: none;" onclick="if(event.target===this) closeClassRequestModal()">
+    <div class="pin-card" style="max-width: 420px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 18px; margin: 0; font-weight: 700; font-family: 'Outfit', sans-serif;">🏫 Request New Class</h2>
+        <button onclick="closeClassRequestModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <form id="class-request-form" onsubmit="submitClassRequest(event)" style="font-family: 'Outfit', sans-serif;">
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Select Course</label>
+          <select id="request-course-id" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Section Name</label>
+          <input type="text" id="request-section" placeholder="e.g. 49C" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Academic Year</label>
+          <input type="text" id="request-year" placeholder="e.g. 2026-2027" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 14px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Subject Type</label>
+          <select id="request-subject-type" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 13px;">
+            <option value="lecture">Lecture (Default)</option>
+            <option value="lab">Laboratory Subject</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Upload Course Syllabus (PDF Required)</label>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="file" id="request-syllabus-file" accept=".pdf" onchange="uploadRequestSyllabus(event)" style="display: none;">
+            <button type="button" onclick="document.getElementById('request-syllabus-file').click()" class="settings-btn-primary" style="margin: 0; padding: 10px 14px; font-size: 12px; width: auto; background: var(--border-card);">
+              📁 Choose PDF File
+            </button>
+            <span id="request-syllabus-status" style="font-size: 12.5px; color: var(--text-muted); font-weight: 600;">No file selected</span>
+          </div>
+        </div>
+        <button type="submit" id="class-request-submit-btn" class="settings-btn-primary" disabled style="width: 100%; margin-top: 0; padding: 12px; font-size: 13.5px; font-weight: 600; opacity: 0.5; cursor: not-allowed;">Submit Creation Request 🚀</button>
+       </form>
+    </div>
+  </div>
+
+  <!-- Enroll Students Modal Overlay -->
+  <div class="pin-modal-overlay" id="student-enrollment-modal" style="display: none;" onclick="if(event.target===this) closeEnrollmentModal()">
+    <div class="pin-card" style="max-width: 460px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 18px; margin: 0; font-weight: 700; font-family: 'Outfit', sans-serif;">👥 Enroll Students Roster</h2>
+        <button onclick="closeEnrollmentModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div style="text-align: left; font-family: 'Outfit', sans-serif;">
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Paste Student Emails (one email per line)</label>
+          <textarea id="enroll-emails-textarea" placeholder="student1@msugensan.edu.ph&#10;student2@msugensan.edu.ph" style="width: 100%; height: 120px; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-family: monospace; font-size: 12px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+        
+        <div style="margin: 16px 0; border-top: 1px dashed var(--border-card); padding-top: 16px; text-align: center;">
+          <span style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-muted);">OR IMPORT ROSTER FILE</span>
+          <label class="upload-btn-label" for="roster-file-upload" style="margin: 0 auto; padding: 10px 16px; text-align: center; font-size: 13px; font-weight: 600; display: inline-block; cursor: pointer; border-radius: 8px; width: 80%;">
+            📁 Select Roster TXT/CSV
+          </label>
+          <input type="file" id="roster-file-upload" accept=".txt,.csv" style="display: none;" onchange="handleRosterFileUpload(this.files)">
+        </div>
+        
+        <button onclick="submitEnrollmentRoster()" class="settings-btn-primary" style="width: 100%; margin-top: 15px; padding: 12px; font-size: 13.5px; font-weight: 600;">Enroll Student Roster ➕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score Editor Modal Overlay -->
+  <div class="pin-modal-overlay" id="score-editor-modal" style="display: none;" onclick="if(event.target===this) closeScoreEditorModal()">
+    <div class="pin-card" style="max-width: 400px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 18px; margin: 0; font-weight: 700; font-family: 'Outfit', sans-serif;">✏️ Edit Grade Override</h2>
+        <button onclick="closeScoreEditorModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div style="text-align: left; font-family: 'Outfit', sans-serif;">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong id="editor-student-name">Student Name</strong></p>
+        <p style="margin: 0 0 14px 0; font-size: 12.5px; color: var(--text-muted);" id="editor-student-email">Email</p>
+        <p style="margin: 0 0 18px 0; font-size: 13px; font-weight: 600; color: var(--active-subject-color, #0ea5e9);" id="editor-task-info">Task: Quiz Title</p>
+        
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label style="font-size: 12px; font-weight: 600; margin-bottom: 6px; display: block; color: var(--text-muted);">Enter Score (Max: <span id="editor-max-score">10</span>)</label>
+          <input type="number" id="editor-score-input" min="0" step="1" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-card); background: var(--bg-card); color: var(--text-main); font-size: 14px; box-sizing: border-box;">
+        </div>
+        
+        <button onclick="submitScoreOverride()" class="settings-btn-primary" style="width: 100%; margin-top: 10px; padding: 12px; font-size: 13.5px; font-weight: 600;">Save Override Grade 💾</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Periodic Table Modal Overlay -->
+  <div class="pin-modal-overlay" id="periodic-table-modal" style="display: none;" onclick="if(event.target===this) togglePeriodicTable()">
+    <div class="pin-card" style="max-width: 950px; width: 98%; max-height: 90vh; overflow-y: auto; text-align: center; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">
+        <h2 style="font-size: 18px; margin: 0; font-weight: 700; font-family: 'Outfit', sans-serif;">🔬 Interactive Periodic Table</h2>
+        <button onclick="togglePeriodicTable()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      
+      <!-- Detail Viewer Box (Populated on element click) -->
+      <div id="pt-element-details" style="display: none; background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 12px; padding: 12px; margin-bottom: 15px; text-align: left; animation: fadeIn 0.2s ease;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <div id="pt-detail-symbol" style="font-size: 32px; font-weight: 800; font-family: 'Outfit', sans-serif; padding: 10px 15px; border-radius: 10px; min-width: 50px; text-align: center; line-height: 1.1; color: white;">H</div>
+            <div>
+              <h3 id="pt-detail-name" style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 18px;">Hydrogen</h3>
+              <p id="pt-detail-number" style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-muted);">Atomic Number: 1</p>
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 13px; color: var(--text-main); font-family: 'Outfit', sans-serif;">
+            <div>Weight: <strong id="pt-detail-weight">1.008</strong></div>
+            <div style="margin-top: 4px;">Config: <strong id="pt-detail-config" style="font-family: monospace;">1s1</strong></div>
+          </div>
+        </div>
+        <div id="pt-detail-info" style="margin-top: 10px; font-size: 12.5px; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border-card); padding-top: 8px;"></div>
+      </div>
+      
+      <!-- Periodic Table Grid Container -->
+      <div class="pt-grid-wrapper" style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch;">
+        <div class="pt-grid" id="periodic-table-grid" style="display: grid; grid-template-columns: repeat(18, minmax(42px, 1fr)); gap: 4px; min-width: 820px; padding: 5px; box-sizing: border-box;">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+      
+      <!-- Legends -->
+      <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 15px; font-size: 11px; font-weight: 600;">
+        <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px;">Non-Metal</span>
+        <span style="background: #f97316; color: white; padding: 2px 8px; border-radius: 4px;">Noble Gas</span>
+        <span style="background: #eab308; color: white; padding: 2px 8px; border-radius: 4px;">Alkali Metal</span>
+        <span style="background: #a855f7; color: white; padding: 2px 8px; border-radius: 4px;">Alkaline Earth</span>
+        <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px;">Transition Metal</span>
+        <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px;">Post-Transition</span>
+        <span style="background: #06b6d4; color: white; padding: 2px 8px; border-radius: 4px;">Metalloid</span>
+        <span style="background: #6366f1; color: white; padding: 2px 8px; border-radius: 4px;">Lanthanide</span>
+        <span style="background: #ec4899; color: white; padding: 2px 8px; border-radius: 4px;">Actinide</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exam Parser Preview Modal Overlay -->
+  <div class="pin-modal-overlay" id="exam-preview-modal" style="display: none;" onclick="if(event.target===this) closeExamPreviewModal()">
+    <div class="pin-card" style="max-width: 650px; width: 95%; max-height: 85vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <h2 style="font-size: 18px; margin: 0; font-weight: 700; font-family: 'Outfit', sans-serif;">📋 Import Exam Preview</h2>
+        <button onclick="closeExamPreviewModal()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      
+      <div style="font-family: 'Outfit', sans-serif;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-card); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+          <p style="margin: 0 0 6px 0; font-size: 14px;">Exam Title: <strong id="pt-exam-title">Atomic Structure Exam</strong></p>
+          <p style="margin: 0; font-size: 13px; color: var(--text-muted);">Time Limit: <strong id="pt-exam-limit">10 mins</strong> | Questions parsed: <strong id="pt-exam-qcount">0</strong></p>
+        </div>
+        
+        <div id="exam-preview-questions-list" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; max-height: 40vh; overflow-y: auto; padding-right: 8px;">
+          <!-- Questions populated on parse -->
+        </div>
+        
+        <button onclick="publishImportedExam()" class="settings-btn-primary" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600; background: #10b981;">Publish Assessment to Class Roster 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide-out Action Drawer Overlay -->
+  <div class="action-drawer-overlay" id="action-drawer-overlay" onclick="closeActionDrawer()"></div>
+  <aside class="action-drawer" id="action-drawer">
+    <div class="action-drawer-header">
+      <h3 id="action-drawer-title" style="margin: 0; font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;">Details</h3>
+      <button onclick="closeActionDrawer()" style="background: none; border: none; font-size: 24px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+    </div>
+    <div class="action-drawer-body" id="action-drawer-body">
+      <!-- Injected dynamically -->
+    </div>
+    <div class="action-drawer-footer" id="action-drawer-footer">
+      <!-- Injected dynamically -->
+    </div>
+  </aside>
+
+  <!-- Custom Confirm Modal Container -->
+  <div id="custom-confirm-modal" class="custom-modal-overlay" style="display:none;">
+    <div class="custom-modal-card">
+      <div class="custom-modal-body">
+        <img src="chemistry_logo.png" alt="DoC Logo" class="custom-modal-logo">
+        <div class="custom-modal-message" id="custom-confirm-message"></div>
+      </div>
+      <div class="custom-modal-footer">
+        <button id="custom-confirm-cancel-btn" class="settings-btn-primary custom-modal-btn cancel">Cancel</button>
+        <button id="custom-confirm-ok-btn" class="settings-btn-primary custom-modal-btn ok">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert Modal Container -->
+  <div id="custom-alert-modal" class="custom-modal-overlay" style="display:none;">
+    <div class="custom-modal-card alert">
+      <div class="custom-modal-body">
+        <img src="chemistry_logo.png" alt="DoC Logo" class="custom-modal-logo">
+        <div class="custom-modal-message" id="custom-alert-message"></div>
+      </div>
+      <div class="custom-modal-footer">
+        <button id="custom-alert-ok-btn" class="settings-btn-primary custom-modal-btn ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Core Script Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

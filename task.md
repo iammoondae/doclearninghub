@@ -1,0 +1,29 @@
+# Tasks: Admin Console Redesign & Multi-Account Upgrades
+
+- [ ] Task 1: Redesign Admin Module layout and CSS (Nested Sidebar + Viewport)
+  - [ ] Add `.admin-layout-container`, `.admin-sidebar`, and `.admin-viewport` to `index.css`
+  - [ ] Refactor `renderAdminDashboardView` as `renderAdminConsoleView` with left sub-sidebar navigation
+  - [ ] Group admin metrics into premium Card UI patterns
+  - [ ] Implement quick search text box filter in the admin console
+- [ ] Task 2: Implement Bug Report & Feature Request Section
+  - [ ] Add the feedback form to the Settings drawer (`renderSettingsDrawerContent`) for non-admins
+  - [ ] Configure Firestore persistence to save to the `feedback_submissions` collection
+  - [ ] Create the Admin feedback reviewer sub-view to display, filter, and reply to submissions
+- [ ] Task 3: Rename and redesign the Notice/Tasks Section
+  - [ ] Rename the notifications area and integrate `📬 Notice/Tasks` tab in the main sidebar
+  - [ ] Implement the inbox-style table listing sender, content, time, and action needed
+  - [ ] Add actions: Mark Done, Dismiss, Reply, and Send Email (which auto-marks done)
+  - [ ] Implement row detail options: Add Personal Notes, Set Reminder Calendar, Move to Priority, and Reorder
+- [ ] Task 4: Implement Live / Testing Phase controls & Redesigned Backups Catalog
+  - [ ] Add phase selector buttons (`Live` / `Testing Phase`) next to the admin switcher
+  - [ ] Save phase state to Firestore `system_settings/config`
+  - [ ] Build the non-admin access shield blocking entrance if in Testing Phase
+  - [ ] Redesign the backups table showing badges, search, changelogs, and Restore / Activate actions
+  - [ ] Modify `qa-tools/backup_restore.py` to support up to 30 backups
+- [ ] Task 5: Add "Unregistered" Switcher Button in Admin console
+  - [ ] Implement the button and map the `'unassigned'` guest role simulation
+  - [ ] Validate guest headers, sign-in overlay trigger, and admin switcher persistence
+- [ ] Task 6: QA Auditing & Verification
+  - [ ] Run `python3 qa-tools/validate_project.py`
+  - [ ] Validate JavaScript syntax via headless GJS
+  - [ ] Create `walkthrough.md` with screenshots/code summaries

@@ -1,0 +1,25 @@
+# Secrets & credentials
+.env
+.env.*
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+firebase-adminsdk-*.json
+**/secrets.xml
+local.properties
+
+# Signing keys (Android release signing)
+*.pepk
+keystore.properties
+
+# Build artifacts (not secrets, but shouldn't be committed)
+/build/
+/.gradle/
+*.apk
+*.aab
+
+# IDE/OS noise
+.idea/
+*.iml
+.DS_Store
